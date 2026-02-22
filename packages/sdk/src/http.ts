@@ -6,7 +6,7 @@ import {
   ServerError,
   ValidationError,
 } from "./errors.js";
-import type { CursorPage, RawPageResponse } from "./types.js";
+import type { CursorPage, RateLimitInfo, RawPageResponse } from "./types.js";
 
 export interface HttpConfig {
   apiKey: string;
@@ -36,9 +36,23 @@ function extractCursor(url: string | null): string | null {
 
 export class HttpTransport {
   private readonly config: HttpConfig;
+  private _lastRateLimit: RateLimitInfo = { limit: null, remaining: null, reset: null };
 
   constructor(config: HttpConfig) {
     this.config = config;
+  }
+
+  get lastRateLimit(): RateLimitInfo {
+    return { ...this._lastRateLimit };
+  }
+
+  private extractRateLimitHeaders(response: Response): void {
+    if (!response.headers) return;
+    this._lastRateLimit = {
+      limit: response.headers.get("X-RateLimit-Limit"),
+      remaining: response.headers.get("X-RateLimit-Remaining"),
+      reset: response.headers.get("X-RateLimit-Reset"),
+    };
   }
 
   async request<T>(method: string, path: string, options?: { json?: unknown; params?: Record<string, string> }): Promise<T> {
@@ -62,6 +76,8 @@ export class HttpTransport {
         body: options?.json ? JSON.stringify(options.json) : undefined,
         signal: controller.signal,
       });
+
+      this.extractRateLimitHeaders(response);
 
       if (!response.ok) {
         await this.handleError(response);
