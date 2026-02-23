@@ -1,14 +1,26 @@
 export { Avala } from "./client.js";
 export { Avala as default } from "./client.js";
 export type {
-  Dataset,
-  Project,
-  Export,
-  Task,
-  StorageConfig,
-  RateLimitInfo,
-  CursorPage,
+  Agent,
+  AgentExecution,
+  AutoLabelJob,
   AvalaConfig,
+  ConsensusComputeResult,
+  ConsensusConfig,
+  ConsensusScore,
+  ConsensusSummary,
+  CursorPage,
+  Dataset,
+  Export,
+  InferenceProvider,
+  Project,
+  QualityTarget,
+  QualityTargetEvaluation,
+  RateLimitInfo,
+  StorageConfig,
+  Task,
+  Webhook,
+  WebhookDelivery,
 } from "./types.js";
 export {
   AvalaError,

@@ -92,6 +92,13 @@ try {
 | `avala.exports` | `list()`, `get(uid)`, `create()` | Create and manage annotation exports |
 | `avala.tasks` | `list()`, `get(uid)` | Browse tasks with project/status filters |
 | `avala.storageConfigs` | `list()`, `create()`, `test()`, `delete()` | Manage cloud storage connections |
+| `avala.agents` | `list()`, `get()`, `create()`, `update()`, `delete()`, `listExecutions()`, `test()` | Manage automation agents |
+| `avala.inferenceProviders` | `list()`, `get()`, `create()`, `update()`, `delete()`, `test()` | Manage inference providers |
+| `avala.autoLabelJobs` | `list()`, `get()`, `create()`, `cancel()` | Batch auto-labeling jobs |
+| `avala.qualityTargets` | `list()`, `get()`, `create()`, `update()`, `delete()`, `evaluate()` | Project quality targets |
+| `avala.consensus` | `getSummary()`, `listScores()`, `compute()`, `getConfig()`, `updateConfig()` | Consensus scoring |
+| `avala.webhooks` | `list()`, `get()`, `create()`, `update()`, `delete()`, `test()` | Manage webhook subscriptions |
+| `avala.webhookDeliveries` | `list()`, `get()` | Inspect webhook delivery logs |
 
 ## Documentation
 
