@@ -91,6 +91,7 @@ try {
 | `avala.projects` | `list()`, `get(uid)` | Browse and inspect projects |
 | `avala.exports` | `list()`, `get(uid)`, `create()` | Create and manage annotation exports |
 | `avala.tasks` | `list()`, `get(uid)` | Browse tasks with project/status filters |
+| `avala.storageConfigs` | `list()`, `create()`, `test()`, `delete()` | Manage cloud storage connections |
 
 ## Documentation
 

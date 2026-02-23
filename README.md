@@ -10,8 +10,8 @@ Official TypeScript SDK and MCP server for the [Avala API](https://docs.avala.ai
 
 | Package | Version | Description |
 |---------|---------|-------------|
-| [`@avala-ai/sdk`](./packages/sdk) | 0.1.0 | TypeScript SDK for the Avala API |
-| [`@avala-ai/mcp-server`](./packages/mcp-server) | 0.1.0 | MCP server for AI assistant integrations |
+| [`@avala-ai/sdk`](./packages/sdk) | 0.2.0 | TypeScript SDK for the Avala API |
+| [`@avala-ai/mcp-server`](./packages/mcp-server) | 0.2.0 | MCP server for AI assistant integrations |
 
 ## SDK Quick Start
 
@@ -95,6 +95,7 @@ try {
 | `avala.projects` | `list()`, `get(uid)` | Browse and inspect projects |
 | `avala.exports` | `list()`, `get(uid)`, `create()` | Create and manage annotation exports |
 | `avala.tasks` | `list()`, `get(uid)` | Browse tasks with project/status filters |
+| `avala.storageConfigs` | `list()`, `create()`, `test()`, `delete()` | Manage cloud storage connections |
 
 ## MCP Server
 
