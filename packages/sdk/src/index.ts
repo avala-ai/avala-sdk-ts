@@ -5,6 +5,8 @@ export type {
   Project,
   Export,
   Task,
+  StorageConfig,
+  RateLimitInfo,
   CursorPage,
   AvalaConfig,
 } from "./types.js";

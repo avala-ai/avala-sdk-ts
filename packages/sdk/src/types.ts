@@ -41,6 +41,28 @@ export interface Task {
   updatedAt: string | null;
 }
 
+export interface StorageConfig {
+  uid: string;
+  name: string;
+  provider: string;
+  s3BucketName: string | null;
+  s3BucketRegion: string | null;
+  s3BucketPrefix: string | null;
+  s3IsAccelerated: boolean;
+  gcStorageBucketName: string | null;
+  gcStoragePrefix: string | null;
+  isVerified: boolean;
+  lastVerifiedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface RateLimitInfo {
+  limit: string | null;
+  remaining: string | null;
+  reset: string | null;
+}
+
 export interface CursorPage<T> {
   items: T[];
   nextCursor: string | null;
