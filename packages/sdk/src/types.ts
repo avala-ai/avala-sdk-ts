@@ -73,7 +73,7 @@ export interface CursorPage<T> {
 export interface Agent {
   uid: string;
   name: string;
-  description: string;
+  description: string | null;
   events: string[];
   callbackUrl: string | null;
   isActive: boolean;
@@ -89,10 +89,10 @@ export interface AgentExecution {
   eventType: string;
   task: string | null;
   result: string | null;
-  status: string;
+  status: string | null;
   action: string | null;
-  eventPayload: Record<string, unknown>;
-  responsePayload: Record<string, unknown>;
+  eventPayload: Record<string, unknown> | null;
+  responsePayload: Record<string, unknown> | null;
   errorMessage: string | null;
   startedAt: string | null;
   completedAt: string | null;
@@ -103,9 +103,9 @@ export interface AgentExecution {
 export interface InferenceProvider {
   uid: string;
   name: string;
-  description: string;
-  providerType: string;
-  config: Record<string, unknown>;
+  description: string | null;
+  providerType: string | null;
+  config: Record<string, unknown> | null;
   isActive: boolean;
   project: string | null;
   lastTestAt: string | null;
@@ -116,9 +116,9 @@ export interface InferenceProvider {
 
 export interface AutoLabelJob {
   uid: string;
-  status: string;
-  modelType: string;
-  confidenceThreshold: number;
+  status: string | null;
+  modelType: string | null;
+  confidenceThreshold: number | null;
   labels: string[];
   dryRun: boolean;
   totalItems: number;
@@ -126,9 +126,9 @@ export interface AutoLabelJob {
   successfulItems: number;
   failedItems: number;
   skippedItems: number;
-  progressPct: number;
+  progressPct: number | null;
   errorMessage: string | null;
-  summary: Record<string, unknown>;
+  summary: Record<string, unknown> | null;
   startedAt: string | null;
   completedAt: string | null;
   createdAt: string | null;
@@ -140,7 +140,7 @@ export interface QualityTarget {
   metric: string;
   operator: string;
   threshold: number;
-  severity: string;
+  severity: string | null;
   isActive: boolean;
   notifyWebhook: boolean;
   notifyEmails: string[];
@@ -161,7 +161,7 @@ export interface QualityTargetEvaluation {
   operator: string;
   currentValue: number;
   isBreached: boolean;
-  severity: string;
+  severity: string | null;
 }
 
 export interface ConsensusConfig {
@@ -177,10 +177,10 @@ export interface ConsensusScore {
   uid: string;
   datasetItemUid: string;
   taskName: string;
-  scoreType: string;
+  scoreType: string | null;
   score: number;
   annotatorCount: number;
-  details: Record<string, unknown>;
+  details: Record<string, unknown> | null;
   createdAt: string | null;
 }
 
@@ -191,14 +191,13 @@ export interface ConsensusSummary {
   maxScore: number;
   totalItems: number;
   itemsWithConsensus: number;
-  scoreDistribution: Record<string, unknown>;
-  byTaskName: unknown[];
+  scoreDistribution: Record<string, unknown> | null;
+  byTaskName: unknown[] | null;
 }
 
 export interface ConsensusComputeResult {
-  computed: number;
-  skipped: number;
-  errorCount: number;
+  status: string;
+  message: string;
 }
 
 export interface Webhook {
@@ -216,10 +215,10 @@ export interface WebhookDelivery {
   eventType: string;
   payload: Record<string, unknown>;
   responseStatus: number | null;
-  responseBody: string;
+  responseBody: string | null;
   attempts: number;
   nextRetryAt: string | null;
-  status: string;
+  status: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }

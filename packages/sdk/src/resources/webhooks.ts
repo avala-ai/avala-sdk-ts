@@ -50,13 +50,7 @@ export class WebhooksResource extends BaseResource {
       const value = (options as unknown as Record<string, unknown>)[camel];
       if (value !== undefined) payload[snake] = value;
     }
-    const raw = await this.http.request<Record<string, unknown>>("PATCH", `/webhooks/${uid}/`, { json: payload });
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(raw)) {
-      const camelKey = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-      result[camelKey] = value;
-    }
-    return result as unknown as Webhook;
+    return this.http.requestUpdate<Webhook>(`/webhooks/${uid}/`, payload);
   }
 
   async delete(uid: string): Promise<void> {

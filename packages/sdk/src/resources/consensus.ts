@@ -8,7 +8,7 @@ export interface UpdateConsensusConfigOptions {
 }
 
 export class ConsensusResource extends BaseResource {
-  async summary(projectUid: string): Promise<ConsensusSummary> {
+  async getSummary(projectUid: string): Promise<ConsensusSummary> {
     return this.http.requestSingle<ConsensusSummary>(`/projects/${projectUid}/consensus/`);
   }
 
@@ -23,13 +23,7 @@ export class ConsensusResource extends BaseResource {
   }
 
   async compute(projectUid: string): Promise<ConsensusComputeResult> {
-    const raw = await this.http.request<Record<string, unknown>>("POST", `/projects/${projectUid}/consensus/compute/`);
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(raw)) {
-      const camelKey = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-      result[camelKey] = value;
-    }
-    return result as unknown as ConsensusComputeResult;
+    return this.http.requestCreate<ConsensusComputeResult>(`/projects/${projectUid}/consensus/compute/`, {});
   }
 
   async getConfig(projectUid: string): Promise<ConsensusConfig> {
@@ -48,10 +42,11 @@ export class ConsensusResource extends BaseResource {
       if (value !== undefined) payload[snake] = value;
     }
     const raw = await this.http.request<Record<string, unknown>>("PUT", `/projects/${projectUid}/consensus/config/`, { json: payload });
+    // PUT doesn't use requestUpdate (which is PATCH), so convert manually
+    const snakeToCamel = (key: string) => key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(raw)) {
-      const camelKey = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-      result[camelKey] = value;
+      result[snakeToCamel(key)] = value;
     }
     return result as unknown as ConsensusConfig;
   }

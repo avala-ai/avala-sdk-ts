@@ -60,13 +60,7 @@ export class InferenceProvidersResource extends BaseResource {
       const value = (options as unknown as Record<string, unknown>)[camel];
       if (value !== undefined) payload[snake] = value;
     }
-    const raw = await this.http.request<Record<string, unknown>>("PATCH", `/inference-providers/${uid}/`, { json: payload });
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(raw)) {
-      const camelKey = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-      result[camelKey] = value;
-    }
-    return result as unknown as InferenceProvider;
+    return this.http.requestUpdate<InferenceProvider>(`/inference-providers/${uid}/`, payload);
   }
 
   async delete(uid: string): Promise<void> {
@@ -74,12 +68,6 @@ export class InferenceProvidersResource extends BaseResource {
   }
 
   async test(uid: string): Promise<{ success: boolean; message: string; testedAt: string }> {
-    const raw = await this.http.request<Record<string, unknown>>("POST", `/inference-providers/${uid}/test/`);
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(raw)) {
-      const camelKey = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-      result[camelKey] = value;
-    }
-    return result as unknown as { success: boolean; message: string; testedAt: string };
+    return this.http.requestCreate<{ success: boolean; message: string; testedAt: string }>(`/inference-providers/${uid}/test/`, {});
   }
 }

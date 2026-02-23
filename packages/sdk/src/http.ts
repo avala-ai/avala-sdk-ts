@@ -114,6 +114,11 @@ export class HttpTransport {
     return snakeToCamel(raw) as T;
   }
 
+  async requestUpdate<T>(path: string, json: unknown): Promise<T> {
+    const raw = await this.request<Record<string, unknown>>("PATCH", path, { json });
+    return snakeToCamel(raw) as T;
+  }
+
   private async handleError(response: Response): Promise<never> {
     let body: unknown;
     let message = `HTTP ${response.status}`;
