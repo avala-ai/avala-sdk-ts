@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Avala } from "@avala/sdk";
+import type { Avala } from "@avala-ai/sdk";
 import { registerDatasetTools } from "./tools/datasets.js";
 import { registerProjectTools } from "./tools/projects.js";
 import { registerExportTools } from "./tools/exports.js";

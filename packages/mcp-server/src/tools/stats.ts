@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Avala } from "@avala/sdk";
+import type { Avala } from "@avala-ai/sdk";
 
 export function registerStatsTools(server: McpServer, avala: Avala): void {
   server.tool(

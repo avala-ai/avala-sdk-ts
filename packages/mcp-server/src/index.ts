@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { Avala } from "@avala/sdk";
+import { Avala } from "@avala-ai/sdk";
 import { registerTools } from "./server.js";
 
 const apiKey = process.env.AVALA_API_KEY;

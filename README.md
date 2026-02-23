@@ -1,7 +1,7 @@
 # Avala TypeScript SDK + MCP Server
 
-[![npm: @avala/sdk](https://img.shields.io/npm/v/@avala/sdk)](https://www.npmjs.com/package/@avala/sdk)
-[![npm: @avala/mcp-server](https://img.shields.io/npm/v/@avala/mcp-server)](https://www.npmjs.com/package/@avala/mcp-server)
+[![npm: @avala-ai/sdk](https://img.shields.io/npm/v/@avala-ai/sdk)](https://www.npmjs.com/package/@avala-ai/sdk)
+[![npm: @avala-ai/mcp-server](https://img.shields.io/npm/v/@avala-ai/mcp-server)](https://www.npmjs.com/package/@avala-ai/mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Official TypeScript SDK and MCP server for the [Avala API](https://docs.avala.ai). Build and manage ML annotation datasets, projects, exports, and tasks programmatically.
@@ -10,17 +10,17 @@ Official TypeScript SDK and MCP server for the [Avala API](https://docs.avala.ai
 
 | Package | Version | Description |
 |---------|---------|-------------|
-| [`@avala/sdk`](./packages/sdk) | 0.1.0 | TypeScript SDK for the Avala API |
-| [`@avala/mcp-server`](./packages/mcp-server) | 0.1.0 | MCP server for AI assistant integrations |
+| [`@avala-ai/sdk`](./packages/sdk) | 0.1.0 | TypeScript SDK for the Avala API |
+| [`@avala-ai/mcp-server`](./packages/mcp-server) | 0.1.0 | MCP server for AI assistant integrations |
 
 ## SDK Quick Start
 
 ```bash
-npm install @avala/sdk
+npm install @avala-ai/sdk
 ```
 
 ```typescript
-import Avala from "@avala/sdk";
+import Avala from "@avala-ai/sdk";
 
 const avala = new Avala();  // reads AVALA_API_KEY env var
 
@@ -72,7 +72,7 @@ if (page.hasMore) {
 ### Error Handling
 
 ```typescript
-import Avala, { AvalaError, NotFoundError, RateLimitError } from "@avala/sdk";
+import Avala, { AvalaError, NotFoundError, RateLimitError } from "@avala-ai/sdk";
 
 try {
   const dataset = await avala.datasets.get("nonexistent");
@@ -98,10 +98,10 @@ try {
 
 ## MCP Server
 
-The `@avala/mcp-server` package provides an MCP server that lets AI assistants (Claude, etc.) interact with your Avala data.
+The `@avala-ai/mcp-server` package provides an MCP server that lets AI assistants (Claude, etc.) interact with your Avala data.
 
 ```bash
-npm install -g @avala/mcp-server
+npm install -g @avala-ai/mcp-server
 avala-mcp-server
 ```
 

@@ -1,5 +1,5 @@
 {
-  "name": "@avala/sdk",
+  "name": "@avala-ai/sdk",
   "version": "0.1.0",
   "description": "Official TypeScript SDK for the Avala API",
   "type": "module",

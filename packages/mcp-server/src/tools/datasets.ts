@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Avala } from "@avala/sdk";
+import type { Avala } from "@avala-ai/sdk";
 import { z } from "zod";
 
 export function registerDatasetTools(server: McpServer, avala: Avala): void {

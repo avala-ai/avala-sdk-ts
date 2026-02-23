@@ -1,5 +1,5 @@
 {
-  "name": "@avala/mcp-server",
+  "name": "@avala-ai/mcp-server",
   "version": "0.1.0",
   "description": "MCP server for the Avala API",
   "type": "module",
@@ -16,7 +16,7 @@
     "lint": "tsc --project ../sdk/tsconfig.json --emitDeclarationOnly && tsc --noEmit"
   },
   "dependencies": {
-    "@avala/sdk": "workspace:*",
+    "@avala-ai/sdk": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.0",
     "zod": "^3.23.0"
   },

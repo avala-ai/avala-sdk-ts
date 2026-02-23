@@ -10,7 +10,7 @@ importers:
 
   packages/mcp-server:
     dependencies:
-      '@avala/sdk':
+      '@avala-ai/sdk':
         specifier: workspace:*
         version: link:../sdk
       '@modelcontextprotocol/sdk':
