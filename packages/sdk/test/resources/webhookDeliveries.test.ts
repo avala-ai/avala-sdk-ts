@@ -18,7 +18,7 @@ describe("webhookDeliveries resource", () => {
 
   const mockListResponse = {
     results: [mockDelivery],
-    next: "https://server.avala.ai/api/v1/webhook-deliveries/?cursor=del-cursor",
+    next: "https://api.avala.ai/api/v1/webhook-deliveries/?cursor=del-cursor",
     previous: null,
   };
 

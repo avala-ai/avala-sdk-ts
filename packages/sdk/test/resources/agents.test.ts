@@ -17,7 +17,7 @@ describe("agents resource", () => {
 
   const mockListResponse = {
     results: [mockAgent],
-    next: "https://server.avala.ai/api/v1/agents/?cursor=abc123",
+    next: "https://api.avala.ai/api/v1/agents/?cursor=abc123",
     previous: null,
   };
 

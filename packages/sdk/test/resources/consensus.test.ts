@@ -65,7 +65,7 @@ describe("consensus resource", () => {
         json: () =>
           Promise.resolve({
             results: [mockScore],
-            next: "https://server.avala.ai/api/v1/projects/proj-uid-001/consensus/scores/?cursor=next123",
+            next: "https://api.avala.ai/api/v1/projects/proj-uid-001/consensus/scores/?cursor=next123",
             previous: null,
           }),
       }),
