@@ -91,4 +91,106 @@ describe("datasets resource", () => {
     expect(page.hasMore).toBe(true);
     expect(page.nextCursor).toBe("abc123");
   });
+
+  it("lists dataset items", async () => {
+    const mockItem = {
+      uid: "item-uid-001",
+      key: "image_001.jpg",
+      dataset: "ds-uid-001",
+      url: "https://example.com/image_001.jpg",
+      thumbnails: ["https://example.com/thumb_001.jpg"],
+      video_thumbnail: null,
+      metadata: { width: 1920, height: 1080 },
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ results: [mockItem], next: null, previous: null }),
+      }),
+    );
+
+    const avala = new Avala({ apiKey: "test-key" });
+    const page = await avala.datasets.listItems("acme-corp", "my-dataset");
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].key).toBe("image_001.jpg");
+    expect(page.items[0].url).toBe("https://example.com/image_001.jpg");
+    expect(page.items[0].videoThumbnail).toBeNull();
+    expect(page.hasMore).toBe(false);
+
+    const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(callArgs[0]).toContain("/datasets/acme-corp/my-dataset/items/");
+  });
+
+  it("gets a single dataset item", async () => {
+    const mockItem = {
+      uid: "item-uid-001",
+      key: "image_001.jpg",
+      dataset: "ds-uid-001",
+      url: "https://example.com/image_001.jpg",
+      thumbnails: [],
+      video_thumbnail: null,
+      metadata: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve(mockItem),
+      }),
+    );
+
+    const avala = new Avala({ apiKey: "test-key" });
+    const item = await avala.datasets.getItem("acme-corp", "my-dataset", "item-uid-001");
+
+    expect(item.uid).toBe("item-uid-001");
+    expect(item.key).toBe("image_001.jpg");
+
+    const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(callArgs[0]).toContain("/datasets/acme-corp/my-dataset/items/item-uid-001/");
+  });
+
+  it("lists sequences", async () => {
+    const mockSequence = {
+      uid: "seq-uid-001",
+      key: "sequence_001",
+      custom_uuid: "custom-uuid-001",
+      status: "new",
+      featured_image: "https://example.com/thumb.jpg",
+      number_of_frames: 120,
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ results: [mockSequence], next: null, previous: null }),
+      }),
+    );
+
+    const avala = new Avala({ apiKey: "test-key" });
+    const page = await avala.datasets.listSequences("acme-corp", "my-dataset");
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].key).toBe("sequence_001");
+    expect(page.items[0].numberOfFrames).toBe(120);
+    expect(page.items[0].status).toBe("new");
+    expect(page.hasMore).toBe(false);
+
+    const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(callArgs[0]).toContain("/datasets/acme-corp/my-dataset/sequences/");
+  });
 });

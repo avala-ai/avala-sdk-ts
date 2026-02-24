@@ -14,21 +14,33 @@ export interface HttpConfig {
   timeout: number;
 }
 
-/** Convert snake_case keys to camelCase */
+/** Convert snake_case keys to camelCase (deep — recurses into nested objects and arrays) */
 export function snakeToCamel(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     const camelKey = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-    result[camelKey] = value;
+    result[camelKey] = convertValue(value);
   }
   return result;
+}
+
+function convertValue(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) {
+    return value.map(convertValue);
+  }
+  if (typeof value === "object" && value.constructor === Object) {
+    return snakeToCamel(value as Record<string, unknown>);
+  }
+  return value;
 }
 
 function extractCursor(url: string | null): string | null {
   if (!url) return null;
   try {
     const parsed = new URL(url);
-    return parsed.searchParams.get("cursor");
+    // Support both cursor-based and page-number pagination
+    return parsed.searchParams.get("cursor") ?? parsed.searchParams.get("page");
   } catch {
     return null;
   }
@@ -102,6 +114,11 @@ export class HttpTransport {
       previousCursor: extractCursor(raw.previous),
       hasMore: raw.next !== null,
     };
+  }
+
+  async requestList<T>(path: string, params?: Record<string, string>): Promise<T[]> {
+    const raw = await this.request<Record<string, unknown>[]>("GET", path, { params });
+    return raw.map((item) => snakeToCamel(item) as T);
   }
 
   async requestSingle<T>(path: string): Promise<T> {

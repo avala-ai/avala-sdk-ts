@@ -86,7 +86,7 @@ describe("webhookDeliveries resource", () => {
     expect(delivery.uid).toBe("del-uid-001");
     expect(delivery.subscription).toBe("wh-uid-001");
     expect(delivery.eventType).toBe("task.completed");
-    expect(delivery.payload).toEqual({ task_uid: "task-001", status: "completed" });
+    expect(delivery.payload).toEqual({ taskUid: "task-001", status: "completed" });
     expect(delivery.responseStatus).toBe(200);
     expect(delivery.nextRetryAt).toBeNull();
     expect(delivery.createdAt).toBe("2026-01-01T00:00:00Z");

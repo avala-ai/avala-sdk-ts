@@ -222,6 +222,221 @@ export interface WebhookDelivery {
   updatedAt: string | null;
 }
 
+export interface Organization {
+  uid: string;
+  name: string;
+  slug: string;
+  handle: string | null;
+  description: string | null;
+  logo: string | null;
+  website: string | null;
+  industry: string | null;
+  email: string | null;
+  phone: string | null;
+  visibility: string | null;
+  plan: string | null;
+  isVerified: boolean;
+  isActive: boolean;
+  memberCount: number | null;
+  teamCount: number | null;
+  datasetCount: number | null;
+  projectCount: number | null;
+  sliceCount: number | null;
+  role: string | null;
+  joinedAt: string | null;
+  allowedDomains: string[] | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface OrganizationMember {
+  userUid: string;
+  username: string | null;
+  email: string | null;
+  fullName: string | null;
+  picture: string | null;
+  role: string | null;
+  createdAt: string | null;
+}
+
+export interface Invitation {
+  uid: string;
+  organizationName: string | null;
+  organizationSlug: string | null;
+  invitedEmail: string;
+  invitedByUsername: string | null;
+  role: string | null;
+  status: string | null;
+  expiresAt: string | null;
+  isExpired: boolean | null;
+  acceptUrl: string | null;
+  copyLink: string | null;
+  createdAt: string | null;
+}
+
+export interface Team {
+  uid: string;
+  name: string;
+  slug: string | null;
+  description: string | null;
+  color: string | null;
+  organizationUid: string | null;
+  organizationName: string | null;
+  organizationSlug: string | null;
+  memberCount: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface TeamMember {
+  userUid: string;
+  username: string | null;
+  email: string | null;
+  fullName: string | null;
+  picture: string | null;
+  role: string | null;
+  createdAt: string | null;
+}
+
+export interface Slice {
+  uid: string;
+  name: string;
+  slug: string | null;
+  ownerName: string | null;
+  organization: Record<string, unknown> | null;
+  visibility: string | null;
+  status: string | null;
+  itemCount: number | null;
+  subSlices: Record<string, unknown>[] | null;
+  sourceData: unknown | null;
+  featuredSliceItemUrls: string[] | null;
+}
+
+export interface SliceItem {
+  id: number | null;
+  uid: string;
+  key: string | null;
+  dataset: string | null;
+  url: string | null;
+  gpuTextureUrl: string | null;
+  thumbnails: string[] | null;
+  videoThumbnail: string | null;
+  metadata: Record<string, unknown> | null;
+  exportSnippet: Record<string, unknown> | null;
+  annotations: Record<string, unknown> | null;
+  cropData: Record<string, unknown> | null;
+  relatedItems: Record<string, unknown>[] | null;
+  relatedSequenceUid: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface DatasetItem {
+  id: number | null;
+  uid: string;
+  key: string | null;
+  dataset: string | null;
+  url: string | null;
+  gpuTextureUrl: string | null;
+  thumbnails: string[] | null;
+  videoThumbnail: string | null;
+  metadata: Record<string, unknown> | null;
+  exportSnippet: Record<string, unknown> | null;
+  annotations: Record<string, unknown> | null;
+  cropData: Record<string, unknown> | null;
+  relatedItems: Record<string, unknown>[] | null;
+  relatedSequenceUid: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface DatasetSequence {
+  uid: string;
+  key: string | null;
+  customUuid: string | null;
+  status: string | null;
+  featuredImage: string | null;
+  numberOfFrames: number | null;
+  views: Record<string, unknown>[] | null;
+  cropData: Record<string, unknown> | null;
+  predefinedLabels: Record<string, unknown>[] | null;
+  frames: Record<string, unknown>[] | null;
+  metrics: Record<string, unknown> | null;
+  datasetUid: string | null;
+  allowLidarCalibration: boolean | null;
+  lidarCalibrationEnabled: boolean | null;
+  cameraCalibrationEnabled: boolean | null;
+}
+
+// ── Annotation Issues ────────────────────────────────────────
+
+export interface AnnotationIssueProject {
+  uid: string;
+  name: string;
+}
+
+export interface AnnotationIssueReporter {
+  username: string;
+  picture: string | null;
+  fullName: string | null;
+  type: string | null;
+  isStaff: boolean | null;
+}
+
+export interface AnnotationIssueTool {
+  uid: string;
+  name: string;
+  default: boolean | null;
+}
+
+export interface AnnotationIssueProblem {
+  uid: string;
+  title: string;
+}
+
+export interface AnnotationIssue {
+  uid: string;
+  datasetItemUid: string | null;
+  sequenceUid: string | null;
+  project: AnnotationIssueProject | null;
+  reporter: AnnotationIssueReporter | null;
+  priority: string | null;
+  severity: string | null;
+  description: string | null;
+  status: string | null;
+  tool: AnnotationIssueTool | null;
+  problem: AnnotationIssueProblem | null;
+  wrongClass: string | null;
+  correctClass: string | null;
+  shouldReAnnotate: boolean | null;
+  shouldDelete: boolean | null;
+  framesAffected: string | null;
+  coordinates: unknown;
+  queryParams: Record<string, unknown> | null;
+  createdAt: string | null;
+  closedAt: string | null;
+  objectUid: string | null;
+}
+
+export interface AnnotationIssueMetrics {
+  statusCount: Record<string, number> | null;
+  priorityCount: Record<string, number> | null;
+  severityCount: Record<string, number> | null;
+  meanSecondsCloseTimeAll: number | null;
+  meanSecondsCloseTimeCustomer: number | null;
+  meanUnresolvedIssueAgeAll: number | null;
+  meanUnresolvedIssueAgeCustomer: number | null;
+  objectCountByAnnotationIssueProblemUid: Record<string, unknown>[] | null;
+}
+
+export interface AnnotationIssueToolDetail {
+  uid: string;
+  name: string;
+  datasetType: string | null;
+  default: boolean | null;
+  problems: AnnotationIssueProblem[] | null;
+}
+
 /** Raw API response shape from DRF cursor pagination */
 export interface RawPageResponse {
   results: Record<string, unknown>[];
