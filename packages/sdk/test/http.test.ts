@@ -148,8 +148,8 @@ describe("HttpTransport", () => {
         json: () =>
           Promise.resolve({
             results: [{ uid: "abc" }],
-            next: "https://server.avala.ai/api/v1/datasets/?cursor=nextpage123",
-            previous: "https://server.avala.ai/api/v1/datasets/?cursor=prevpage456",
+            next: "https://api.avala.ai/api/v1/datasets/?cursor=nextpage123",
+            previous: "https://api.avala.ai/api/v1/datasets/?cursor=prevpage456",
           }),
       });
 
@@ -167,7 +167,7 @@ describe("HttpTransport", () => {
         json: () =>
           Promise.resolve({
             results: [],
-            next: "https://server.avala.ai/api/v1/datasets/?cursor=abc",
+            next: "https://api.avala.ai/api/v1/datasets/?cursor=abc",
             previous: null,
           }),
       });

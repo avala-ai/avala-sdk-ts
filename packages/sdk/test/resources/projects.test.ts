@@ -73,7 +73,7 @@ describe("projects resource", () => {
         json: () =>
           Promise.resolve({
             results: [{ uid: "proj-001", name: "Project 1", status: "active" }],
-            next: "https://server.avala.ai/api/v1/projects/?cursor=nextcur",
+            next: "https://api.avala.ai/api/v1/projects/?cursor=nextcur",
             previous: null,
           }),
       })

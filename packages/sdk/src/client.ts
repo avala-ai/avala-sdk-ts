@@ -38,7 +38,7 @@ export class Avala {
 
     this.http = new HttpTransport({
       apiKey,
-      baseUrl: (config?.baseUrl ?? "https://server.avala.ai/api/v1").replace(/\/+$/, ""),
+      baseUrl: (config?.baseUrl ?? "https://api.avala.ai/api/v1").replace(/\/+$/, ""),
       timeout: config?.timeout ?? 30_000,
     });
 

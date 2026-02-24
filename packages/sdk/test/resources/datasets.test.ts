@@ -79,7 +79,7 @@ describe("datasets resource", () => {
         json: () =>
           Promise.resolve({
             results: [{ uid: "aaa", name: "DS 1", slug: "ds-1", item_count: 10 }],
-            next: "https://server.avala.ai/api/v1/datasets/?cursor=abc123",
+            next: "https://api.avala.ai/api/v1/datasets/?cursor=abc123",
             previous: null,
           }),
       })
