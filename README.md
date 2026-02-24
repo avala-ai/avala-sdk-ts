@@ -2,9 +2,12 @@
 
 [![npm: @avala-ai/sdk](https://img.shields.io/npm/v/@avala-ai/sdk)](https://www.npmjs.com/package/@avala-ai/sdk)
 [![npm: @avala-ai/mcp-server](https://img.shields.io/npm/v/@avala-ai/mcp-server)](https://www.npmjs.com/package/@avala-ai/mcp-server)
+[![CI](https://github.com/avala-ai/avala-sdk-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/avala-ai/avala-sdk-ts/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Official TypeScript SDK and MCP server for the [Avala API](https://docs.avala.ai). Build and manage ML annotation datasets, projects, exports, and tasks programmatically.
+
+> **Note:** This repository is a read-only mirror. To report bugs or request features, please [open an issue](https://github.com/avala-ai/avala-sdk-ts/issues). See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## Packages
 
