@@ -1,3 +1,4 @@
+import { snakeToCamel } from "../http.js";
 import type { CursorPage, QualityTarget, QualityTargetEvaluation } from "../types.js";
 import { BaseResource } from "./base.js";
 
@@ -81,6 +82,10 @@ export class QualityTargetsResource extends BaseResource {
   }
 
   async evaluate(projectUid: string): Promise<QualityTargetEvaluation[]> {
-    return this.http.request("POST", `/projects/${projectUid}/quality-targets/evaluate/`);
+    const raw = await this.http.request<Record<string, unknown>[]>(
+      "POST",
+      `/projects/${projectUid}/quality-targets/evaluate/`,
+    );
+    return raw.map((item) => snakeToCamel(item) as unknown as QualityTargetEvaluation);
   }
 }

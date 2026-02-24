@@ -15,7 +15,7 @@ export interface HttpConfig {
 }
 
 /** Convert snake_case keys to camelCase */
-function snakeToCamel(obj: Record<string, unknown>): Record<string, unknown> {
+export function snakeToCamel(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     const camelKey = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
@@ -119,13 +119,32 @@ export class HttpTransport {
     return snakeToCamel(raw) as T;
   }
 
+  async requestPut<T>(path: string, json: unknown): Promise<T> {
+    const raw = await this.request<Record<string, unknown>>("PUT", path, { json });
+    return snakeToCamel(raw) as T;
+  }
+
   private async handleError(response: Response): Promise<never> {
     let body: unknown;
     let message = `HTTP ${response.status}`;
     try {
       body = await response.json();
-      if (typeof body === "object" && body !== null && "detail" in body) {
-        message = (body as { detail: string }).detail;
+      if (typeof body === "object" && body !== null) {
+        if ("detail" in body) {
+          message = (body as { detail: string }).detail;
+        } else {
+          // Django returns field-level validation errors as { field: ["error", ...] }
+          const entries = Object.entries(body as Record<string, unknown>);
+          const fieldErrors: string[] = [];
+          for (const [field, errors] of entries) {
+            if (Array.isArray(errors)) {
+              fieldErrors.push(`${field}: ${errors.join(", ")}`);
+            }
+          }
+          if (fieldErrors.length > 0) {
+            message = fieldErrors.join("; ");
+          }
+        }
       }
     } catch {
       // ignore JSON parse errors

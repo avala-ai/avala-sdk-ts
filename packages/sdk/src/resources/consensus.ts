@@ -41,13 +41,6 @@ export class ConsensusResource extends BaseResource {
       const value = (options as unknown as Record<string, unknown>)[camel];
       if (value !== undefined) payload[snake] = value;
     }
-    const raw = await this.http.request<Record<string, unknown>>("PUT", `/projects/${projectUid}/consensus/config/`, { json: payload });
-    // PUT doesn't use requestUpdate (which is PATCH), so convert manually
-    const snakeToCamel = (key: string) => key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(raw)) {
-      result[snakeToCamel(key)] = value;
-    }
-    return result as unknown as ConsensusConfig;
+    return this.http.requestPut<ConsensusConfig>(`/projects/${projectUid}/consensus/config/`, payload);
   }
 }

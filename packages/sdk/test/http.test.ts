@@ -333,6 +333,24 @@ describe("HttpTransport", () => {
       }
     });
 
+    it("extracts field-level validation errors for 400 without detail", async () => {
+      mockFetch({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({ project: ["This field is required."], dataset: ["Invalid UID format."] }),
+      });
+
+      const http = makeTransport();
+      try {
+        await http.request("POST", "/exports/", { json: {} });
+        expect.unreachable("should have thrown");
+      } catch (e) {
+        expect(e).toBeInstanceOf(ValidationError);
+        expect((e as ValidationError).message).toBe("project: This field is required.; dataset: Invalid UID format.");
+        expect((e as ValidationError).body).toEqual({ project: ["This field is required."], dataset: ["Invalid UID format."] });
+      }
+    });
+
     it("handles non-JSON error responses gracefully", async () => {
       vi.stubGlobal(
         "fetch",

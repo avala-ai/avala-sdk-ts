@@ -10,13 +10,7 @@ export class ExportsResource extends BaseResource {
   }
 
   async create(options: { project?: string; dataset?: string }): Promise<Export> {
-    const raw = await this.http.request<Record<string, unknown>>("POST", "/exports/", { json: options });
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(raw)) {
-      const camelKey = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-      result[camelKey] = value;
-    }
-    return result as unknown as Export;
+    return this.http.requestCreate<Export>("/exports/", options);
   }
 
   async get(uid: string): Promise<Export> {

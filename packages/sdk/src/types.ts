@@ -2,7 +2,6 @@ export interface AvalaConfig {
   apiKey?: string;
   baseUrl?: string;
   timeout?: number;
-  maxRetries?: number;
 }
 
 export interface Dataset {
