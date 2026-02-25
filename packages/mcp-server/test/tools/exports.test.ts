@@ -35,7 +35,7 @@ describe("export tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerExportTools(server as never, avala as never);
+    registerExportTools(server as never, avala as never, true);
   });
 
   it("create_export with project calls avala.exports.create", async () => {

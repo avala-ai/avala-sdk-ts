@@ -28,7 +28,7 @@ describe("quality tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerQualityTools(server as never, avala as never);
+    registerQualityTools(server as never, avala as never, true);
   });
 
   it("list_quality_targets calls avala.qualityTargets.list with projectUid and returns JSON", async () => {

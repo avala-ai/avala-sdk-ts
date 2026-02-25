@@ -80,8 +80,8 @@ describe("storageConfigs resource", () => {
       provider: "aws_s3",
       s3BucketName: "my-bucket",
       s3BucketRegion: "us-east-1",
-      s3AccessKeyId: "AKIAEXAMPLE",
-      s3SecretAccessKey: "secret",
+      s3AccessKeyId: "TEST_KEY_NOT_REAL",
+      s3SecretAccessKey: "TEST_SECRET_NOT_REAL",
     });
 
     expect(config.name).toBe("My S3 Bucket");
@@ -89,8 +89,8 @@ describe("storageConfigs resource", () => {
 
     const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     const body = JSON.parse(callArgs[1].body);
-    expect(body.s3_access_key_id).toBe("AKIAEXAMPLE");
-    expect(body.s3_secret_access_key).toBe("secret");
+    expect(body.s3_access_key_id).toBe("TEST_KEY_NOT_REAL");
+    expect(body.s3_secret_access_key).toBe("TEST_SECRET_NOT_REAL");
   });
 
   it("tests a storage config", async () => {

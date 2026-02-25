@@ -14,18 +14,26 @@ import { registerStorageTools } from "./tools/storage.js";
 import { registerTaskTools } from "./tools/tasks.js";
 import { registerWebhookTools } from "./tools/webhooks.js";
 
-export function registerTools(server: McpServer, avala: Avala): void {
+export interface McpServerOptions {
+  allowMutations: boolean;
+}
+
+export function registerTools(
+  server: McpServer,
+  avala: Avala,
+  options: McpServerOptions = { allowMutations: false },
+): void {
   registerDatasetTools(server, avala);
   registerProjectTools(server, avala);
-  registerExportTools(server, avala);
   registerStatsTools(server, avala);
   registerTaskTools(server, avala);
-  registerAgentTools(server, avala);
-  registerAnnotationIssueTools(server, avala);
-  registerWebhookTools(server, avala);
-  registerStorageTools(server, avala);
-  registerQualityTools(server, avala);
-  registerConsensusTools(server, avala);
+  registerAgentTools(server, avala, options.allowMutations);
+  registerAnnotationIssueTools(server, avala, options.allowMutations);
+  registerWebhookTools(server, avala, options.allowMutations);
+  registerStorageTools(server, avala, options.allowMutations);
+  registerExportTools(server, avala, options.allowMutations);
+  registerQualityTools(server, avala, options.allowMutations);
+  registerConsensusTools(server, avala, options.allowMutations);
   registerOrganizationTools(server, avala);
   registerSliceTools(server, avala);
 }

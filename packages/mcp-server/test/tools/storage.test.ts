@@ -28,7 +28,7 @@ describe("storage tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerStorageTools(server as never, avala as never);
+    registerStorageTools(server as never, avala as never, true);
   });
 
   it("list_storage_configs calls avala.storageConfigs.list and returns JSON", async () => {
@@ -68,8 +68,8 @@ describe("storage tools", () => {
       s3BucketName: "my-bucket",
       s3BucketRegion: "us-west-2",
       s3BucketPrefix: "data/",
-      s3AccessKeyId: "AKIAIOSFODNN7EXAMPLE",
-      s3SecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      s3AccessKeyId: "TEST_KEY_NOT_REAL",
+      s3SecretAccessKey: "TEST_SECRET_NOT_REAL",
     });
 
     expect(avala.storageConfigs.create).toHaveBeenCalledWith({
@@ -78,8 +78,8 @@ describe("storage tools", () => {
       s3BucketName: "my-bucket",
       s3BucketRegion: "us-west-2",
       s3BucketPrefix: "data/",
-      s3AccessKeyId: "AKIAIOSFODNN7EXAMPLE",
-      s3SecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      s3AccessKeyId: "TEST_KEY_NOT_REAL",
+      s3SecretAccessKey: "TEST_SECRET_NOT_REAL",
       gcStorageBucketName: undefined,
       gcStoragePrefix: undefined,
     });

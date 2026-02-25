@@ -2,26 +2,28 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Avala } from "@avala-ai/sdk";
 import { z } from "zod";
 
-export function registerExportTools(server: McpServer, avala: Avala): void {
-  server.tool(
-    "create_export",
-    "Trigger a new export for a dataset or project.",
-    {
-      project: z.string().optional().describe("Project UID to export"),
-      dataset: z.string().optional().describe("Dataset UID to export"),
-    },
-    async ({ project, dataset }) => {
-      const exportJob = await avala.exports.create({ project, dataset });
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(exportJob, null, 2),
-          },
-        ],
-      };
-    }
-  );
+export function registerExportTools(server: McpServer, avala: Avala, allowMutations = false): void {
+  if (allowMutations) {
+    server.tool(
+      "create_export",
+      "Trigger a new export for a dataset or project.",
+      {
+        project: z.string().optional().describe("Project UID to export"),
+        dataset: z.string().optional().describe("Dataset UID to export"),
+      },
+      async ({ project, dataset }) => {
+        const exportJob = await avala.exports.create({ project, dataset });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(exportJob, null, 2),
+            },
+          ],
+        };
+      }
+    );
+  }
 
   server.tool(
     "list_exports",

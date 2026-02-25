@@ -68,11 +68,7 @@ export class HttpTransport {
   }
 
   async request<T>(method: string, path: string, options?: { json?: unknown; params?: Record<string, string> }): Promise<T> {
-    let url = `${this.config.baseUrl}${path}`;
-    if (options?.params) {
-      const searchParams = new URLSearchParams(options.params);
-      url += `?${searchParams.toString()}`;
-    }
+    const url = this.buildUrl(path, options?.params);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
@@ -103,6 +99,26 @@ export class HttpTransport {
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  private buildUrl(path: string, params?: Record<string, string>): string {
+    if (!path.startsWith("/")) {
+      throw new Error("Path must start with '/'.");
+    }
+    if (path.startsWith("//") || path.startsWith("http://") || path.startsWith("https://")) {
+      throw new Error("Path must be a relative API path.");
+    }
+    if (path.includes("\r") || path.includes("\n")) {
+      throw new Error("Path must not contain control characters.");
+    }
+
+    let url = `${this.config.baseUrl}${path}`;
+    if (!params) {
+      return url;
+    }
+
+    const searchParams = new URLSearchParams(params);
+    return `${url}?${searchParams.toString()}`;
   }
 
   async requestPage<T>(path: string, params?: Record<string, string>): Promise<CursorPage<T>> {

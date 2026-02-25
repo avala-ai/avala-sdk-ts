@@ -28,7 +28,7 @@ describe("agent tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerAgentTools(server as never, avala as never);
+    registerAgentTools(server as never, avala as never, true);
   });
 
   it("list_agents calls avala.agents.list and returns JSON", async () => {

@@ -28,7 +28,7 @@ describe("webhook tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerWebhookTools(server as never, avala as never);
+    registerWebhookTools(server as never, avala as never, true);
   });
 
   it("list_webhooks calls avala.webhooks.list and returns JSON", async () => {

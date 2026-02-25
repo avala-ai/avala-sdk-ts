@@ -36,7 +36,7 @@ describe("annotation issue tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerAnnotationIssueTools(server as never, avala as never);
+    registerAnnotationIssueTools(server as never, avala as never, true);
   });
 
   it("registers all 7 annotation issue tools", () => {

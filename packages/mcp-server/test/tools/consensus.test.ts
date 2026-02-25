@@ -28,7 +28,7 @@ describe("consensus tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerConsensusTools(server as never, avala as never);
+    registerConsensusTools(server as never, avala as never, true);
   });
 
   it("get_consensus_summary calls avala.consensus.getSummary with projectUid and returns JSON", async () => {

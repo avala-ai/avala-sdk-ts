@@ -15,6 +15,41 @@ import { TasksResource } from "./resources/tasks.js";
 import { WebhookDeliveriesResource, WebhooksResource } from "./resources/webhooks.js";
 import type { AvalaConfig, RateLimitInfo } from "./types.js";
 
+function isTruthy(value: string | undefined): boolean {
+  if (!value) return false;
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+function isLocalHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
+function resolveBaseUrl(baseUrl: string): string {
+  const parsed = new URL(baseUrl);
+  const allowInsecure = isTruthy(
+    typeof process !== "undefined" ? process.env.AVALA_ALLOW_INSECURE_BASE_URL : undefined,
+  );
+
+  if (parsed.protocol !== "https:") {
+    if (!allowInsecure) {
+      throw new Error(
+        "AVALA base URL must use https:. Set AVALA_ALLOW_INSECURE_BASE_URL=true only for local development.",
+      );
+    }
+
+    if (parsed.protocol !== "http:") {
+      throw new Error(
+        "With AVALA_ALLOW_INSECURE_BASE_URL=true, only http://localhost URLs are permitted.",
+      );
+    }
+    if (!isLocalHost(parsed.hostname)) {
+      throw new Error("Non-HTTPS base URLs are restricted to localhost addresses.");
+    }
+  }
+
+  return baseUrl.replace(/\/+$/, "");
+}
+
 export class Avala {
   public readonly datasets: DatasetsResource;
   public readonly projects: ProjectsResource;
@@ -42,9 +77,10 @@ export class Avala {
       );
     }
 
+    const baseUrl = resolveBaseUrl(config?.baseUrl ?? "https://api.avala.ai/api/v1");
     this.http = new HttpTransport({
       apiKey,
-      baseUrl: (config?.baseUrl ?? "https://api.avala.ai/api/v1").replace(/\/+$/, ""),
+      baseUrl,
       timeout: config?.timeout ?? 30_000,
     });
 

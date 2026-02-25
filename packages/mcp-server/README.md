@@ -21,6 +21,12 @@ Set your API key:
 export AVALA_API_KEY="avk_your_api_key"
 ```
 
+MCP is read-only unless you explicitly enable mutation tools:
+
+```bash
+export AVALA_MCP_ENABLE_MUTATIONS=true
+```
+
 ### Claude Desktop
 
 Add to your `claude_desktop_config.json`:
@@ -58,7 +64,12 @@ avala-mcp-server
 | Datasets | List and inspect annotation datasets |
 | Projects | List and inspect projects |
 | Exports | List, inspect, and create annotation exports |
+| Agents | List and inspect agents |
+| Webhooks | List and inspect webhook subscriptions |
+| Storage | List and test storage configurations |
+| Annotation Issues | List and manage annotation issue data |
 | Stats | Get overview statistics for your account |
+| Note | Write/delete tools (`create_*`, `delete_*`, `evaluate_quality`, `compute_consensus`) require `AVALA_MCP_ENABLE_MUTATIONS=true`. |
 
 ## Documentation
 
