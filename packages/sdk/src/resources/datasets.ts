@@ -1,7 +1,32 @@
 import type { CursorPage, Dataset, DatasetItem, DatasetSequence } from "../types.js";
 import { BaseResource } from "./base.js";
 
+export interface CreateDatasetOptions {
+  name: string;
+  slug: string;
+  dataType: string;
+  isSequence?: boolean;
+  visibility?: string;
+  createMetadata?: boolean;
+  providerConfig?: Record<string, unknown>;
+  ownerName?: string;
+}
+
 export class DatasetsResource extends BaseResource {
+  async create(options: CreateDatasetOptions): Promise<Dataset> {
+    const payload: Record<string, unknown> = {
+      name: options.name,
+      slug: options.slug,
+      data_type: options.dataType,
+    };
+    if (options.isSequence !== undefined) payload.is_sequence = options.isSequence;
+    if (options.visibility !== undefined) payload.visibility = options.visibility;
+    if (options.createMetadata !== undefined) payload.create_metadata = options.createMetadata;
+    if (options.providerConfig !== undefined) payload.provider_config = options.providerConfig;
+    if (options.ownerName !== undefined) payload.owner_name = options.ownerName;
+    return this.http.requestCreate<Dataset>("/datasets/", payload);
+  }
+
   async list(options?: { limit?: number; cursor?: string }): Promise<CursorPage<Dataset>> {
     const params: Record<string, string> = {};
     if (options?.limit !== undefined) params.limit = String(options.limit);

@@ -23,7 +23,7 @@ export function registerTools(
   avala: Avala,
   options: McpServerOptions = { allowMutations: false },
 ): void {
-  registerDatasetTools(server, avala);
+  registerDatasetTools(server, avala, options.allowMutations);
   registerProjectTools(server, avala);
   registerStatsTools(server, avala);
   registerTaskTools(server, avala);

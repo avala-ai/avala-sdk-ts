@@ -161,6 +161,93 @@ describe("datasets resource", () => {
     expect(callArgs[0]).toContain("/datasets/acme-corp/my-dataset/items/item-uid-001/");
   });
 
+  it("creates a dataset", async () => {
+    const mockCreated = {
+      uid: "new-dataset-uid",
+      name: "New Dataset",
+      slug: "new-dataset",
+      item_count: 0,
+      data_type: "lidar",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 201,
+        headers: new Headers(),
+        json: () => Promise.resolve(mockCreated),
+      }),
+    );
+
+    const avala = new Avala({ apiKey: "test-key" });
+    const dataset = await avala.datasets.create({
+      name: "New Dataset",
+      slug: "new-dataset",
+      dataType: "lidar",
+      isSequence: true,
+      visibility: "private",
+    });
+
+    expect(dataset.uid).toBe("new-dataset-uid");
+    expect(dataset.name).toBe("New Dataset");
+    expect(dataset.dataType).toBe("lidar");
+
+    const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(callArgs[0]).toContain("/datasets/");
+    expect(callArgs[1].method).toBe("POST");
+    const body = JSON.parse(callArgs[1].body);
+    expect(body.name).toBe("New Dataset");
+    expect(body.slug).toBe("new-dataset");
+    expect(body.data_type).toBe("lidar");
+    expect(body.is_sequence).toBe(true);
+    expect(body.visibility).toBe("private");
+  });
+
+  it("creates a dataset with provider config", async () => {
+    const mockCreated = {
+      uid: "new-dataset-uid",
+      name: "S3 Dataset",
+      slug: "s3-dataset",
+      item_count: 0,
+      data_type: "image",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 201,
+        headers: new Headers(),
+        json: () => Promise.resolve(mockCreated),
+      }),
+    );
+
+    const avala = new Avala({ apiKey: "test-key" });
+    const dataset = await avala.datasets.create({
+      name: "S3 Dataset",
+      slug: "s3-dataset",
+      dataType: "image",
+      providerConfig: {
+        provider: "aws_s3",
+        s3_bucket_name: "my-bucket",
+        s3_bucket_region: "us-east-1",
+      },
+      ownerName: "my-org",
+    });
+
+    expect(dataset.uid).toBe("new-dataset-uid");
+
+    const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const body = JSON.parse(callArgs[1].body);
+    expect(body.provider_config.provider).toBe("aws_s3");
+    expect(body.owner_name).toBe("my-org");
+  });
+
   it("lists sequences", async () => {
     const mockSequence = {
       uid: "seq-uid-001",
