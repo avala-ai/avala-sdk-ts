@@ -20,6 +20,7 @@ function createMockAvala() {
     datasets: {
       list: vi.fn(),
       get: vi.fn(),
+      create: vi.fn(),
     },
     projects: { list: vi.fn(), get: vi.fn() },
     exports: { list: vi.fn(), get: vi.fn(), create: vi.fn() },
@@ -34,7 +35,7 @@ describe("dataset tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerDatasetTools(server as never, avala as never);
+    registerDatasetTools(server as never, avala as never, true);
   });
 
   it("list_datasets calls avala.datasets.list and returns JSON", async () => {
@@ -78,9 +79,68 @@ describe("dataset tools", () => {
     expect(parsed.name).toBe("Dataset 1");
   });
 
-  it("registers both list_datasets and get_dataset tools", () => {
-    expect(server.tool).toHaveBeenCalledTimes(2);
+  it("create_dataset calls avala.datasets.create and returns JSON", async () => {
+    const mockDataset = { uid: "new-ds", name: "New Dataset", slug: "new-dataset", dataType: "lidar", itemCount: 0 };
+    avala.datasets.create.mockResolvedValue(mockDataset);
+
+    const handler = server.getHandler("create_dataset")!;
+    const result = await handler({
+      name: "New Dataset",
+      slug: "new-dataset",
+      dataType: "lidar",
+      isSequence: true,
+      visibility: "private",
+    });
+
+    expect(avala.datasets.create).toHaveBeenCalledWith({
+      name: "New Dataset",
+      slug: "new-dataset",
+      dataType: "lidar",
+      isSequence: true,
+      visibility: "private",
+      createMetadata: undefined,
+      providerConfig: undefined,
+      ownerName: undefined,
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.uid).toBe("new-ds");
+    expect(parsed.name).toBe("New Dataset");
+  });
+
+  it("create_dataset passes provider config and owner", async () => {
+    const mockDataset = { uid: "s3-ds", name: "S3 Dataset", slug: "s3-dataset", dataType: "image", itemCount: 0 };
+    avala.datasets.create.mockResolvedValue(mockDataset);
+
+    const handler = server.getHandler("create_dataset")!;
+    await handler({
+      name: "S3 Dataset",
+      slug: "s3-dataset",
+      dataType: "image",
+      providerConfig: { provider: "aws_s3", s3_bucket_name: "my-bucket" },
+      ownerName: "my-org",
+    });
+
+    expect(avala.datasets.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerConfig: { provider: "aws_s3", s3_bucket_name: "my-bucket" },
+        ownerName: "my-org",
+      }),
+    );
+  });
+
+  it("create_dataset is not registered without allowMutations", () => {
+    const readOnlyServer = createMockServer();
+    registerDatasetTools(readOnlyServer as never, avala as never, false);
+
+    expect(readOnlyServer.getHandler("list_datasets")).toBeDefined();
+    expect(readOnlyServer.getHandler("get_dataset")).toBeDefined();
+    expect(readOnlyServer.getHandler("create_dataset")).toBeUndefined();
+  });
+
+  it("registers list_datasets, get_dataset, and create_dataset tools", () => {
+    expect(server.tool).toHaveBeenCalledTimes(3);
     expect(server.getHandler("list_datasets")).toBeDefined();
     expect(server.getHandler("get_dataset")).toBeDefined();
+    expect(server.getHandler("create_dataset")).toBeDefined();
   });
 });

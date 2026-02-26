@@ -151,6 +151,7 @@ describe("SDK methods use correct transport for response shape", () => {
     "organizations.delete": "delete",
     "slices.list": "list",
     "slices.list_items": "listItems",
+    "datasets.create": "create",
     "datasets.list_items": "listItems",
     "datasets.list_sequences": "listSequences",
     "annotation_issues.list_by_sequence": "listBySequence",
