@@ -1,5 +1,7 @@
 export { Avala } from "./client.js";
 export { Avala as default } from "./client.js";
+export { signup } from "./signup.js";
+export type { SignupOptions } from "./signup.js";
 export type {
   Agent,
   AgentExecution,
@@ -25,6 +27,8 @@ export type {
   QualityTarget,
   QualityTargetEvaluation,
   RateLimitInfo,
+  SignupResponse,
+  SignupUser,
   Slice,
   SliceItem,
   StorageConfig,

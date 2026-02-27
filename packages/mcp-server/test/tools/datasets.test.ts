@@ -63,7 +63,14 @@ describe("dataset tools", () => {
     const handler = server.getHandler("list_datasets")!;
     await handler({ limit: 5, cursor: "abc" });
 
-    expect(avala.datasets.list).toHaveBeenCalledWith({ limit: 5, cursor: "abc" });
+    expect(avala.datasets.list).toHaveBeenCalledWith({
+      dataType: undefined,
+      name: undefined,
+      status: undefined,
+      visibility: undefined,
+      limit: 5,
+      cursor: "abc",
+    });
   });
 
   it("get_dataset calls avala.datasets.get and returns JSON", async () => {

@@ -5,13 +5,17 @@ import { z } from "zod";
 export function registerDatasetTools(server: McpServer, avala: Avala, allowMutations = false): void {
   server.tool(
     "list_datasets",
-    "List all datasets in your workspace with their IDs, names, and asset counts.",
+    "List all datasets in your workspace with their IDs, names, and asset counts. Supports filtering by data type, name, status, and visibility.",
     {
+      dataType: z.string().optional().describe("Filter by data type: 'image', 'video', 'lidar', 'mcap', or 'splat'"),
+      name: z.string().optional().describe("Filter by name (case-insensitive substring match)"),
+      status: z.string().optional().describe("Filter by status: 'creating' or 'created'"),
+      visibility: z.string().optional().describe("Filter by visibility: 'private' or 'public'"),
       limit: z.number().optional().describe("Maximum number of datasets to return"),
       cursor: z.string().optional().describe("Pagination cursor from a previous request"),
     },
-    async ({ limit, cursor }) => {
-      const page = await avala.datasets.list({ limit, cursor });
+    async ({ dataType, name, status, visibility, limit, cursor }) => {
+      const page = await avala.datasets.list({ dataType, name, status, visibility, limit, cursor });
       return {
         content: [
           {

@@ -43,6 +43,18 @@ describe("datasets resource", () => {
     expect(page.hasMore).toBe(false);
   });
 
+  it("lists datasets with filter params", async () => {
+    const avala = new Avala({ apiKey: "test-key" });
+    await avala.datasets.list({ dataType: "mcap", name: "highway", status: "created", visibility: "private" });
+
+    const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const url = new URL(callArgs[0]);
+    expect(url.searchParams.get("data_type")).toBe("mcap");
+    expect(url.searchParams.get("name")).toBe("highway");
+    expect(url.searchParams.get("status")).toBe("created");
+    expect(url.searchParams.get("visibility")).toBe("private");
+  });
+
   it("gets a single dataset", async () => {
     vi.stubGlobal(
       "fetch",

@@ -437,6 +437,22 @@ export interface AnnotationIssueToolDetail {
   problems: AnnotationIssueProblem[] | null;
 }
 
+// ── Signup ──────────────────────────────────────────────────
+
+export interface SignupUser {
+  uid: string;
+  username: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  inWaitlist: boolean;
+}
+
+export interface SignupResponse {
+  user: SignupUser;
+  apiKey: string;
+}
+
 /** Raw API response shape from DRF cursor pagination */
 export interface RawPageResponse {
   results: Record<string, unknown>[];

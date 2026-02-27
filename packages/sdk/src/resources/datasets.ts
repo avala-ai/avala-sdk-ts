@@ -27,10 +27,21 @@ export class DatasetsResource extends BaseResource {
     return this.http.requestCreate<Dataset>("/datasets/", payload);
   }
 
-  async list(options?: { limit?: number; cursor?: string }): Promise<CursorPage<Dataset>> {
+  async list(options?: {
+    dataType?: string;
+    name?: string;
+    status?: string;
+    visibility?: string;
+    limit?: number;
+    cursor?: string;
+  }): Promise<CursorPage<Dataset>> {
     const params: Record<string, string> = {};
+    if (options?.dataType !== undefined) params.data_type = options.dataType;
+    if (options?.name !== undefined) params.name = options.name;
+    if (options?.status !== undefined) params.status = options.status;
+    if (options?.visibility !== undefined) params.visibility = options.visibility;
     if (options?.limit !== undefined) params.limit = String(options.limit);
-    if (options?.cursor) params.cursor = options.cursor;
+    if (options?.cursor !== undefined) params.cursor = options.cursor;
     return this.http.requestPage<Dataset>("/datasets/", Object.keys(params).length > 0 ? params : undefined);
   }
 
@@ -45,7 +56,7 @@ export class DatasetsResource extends BaseResource {
   ): Promise<CursorPage<DatasetItem>> {
     const params: Record<string, string> = {};
     if (options?.limit !== undefined) params.limit = String(options.limit);
-    if (options?.cursor) params.cursor = options.cursor;
+    if (options?.cursor !== undefined) params.cursor = options.cursor;
     return this.http.requestPage<DatasetItem>(
       `/datasets/${owner}/${slug}/items/`,
       Object.keys(params).length > 0 ? params : undefined,
@@ -63,7 +74,7 @@ export class DatasetsResource extends BaseResource {
   ): Promise<CursorPage<DatasetSequence>> {
     const params: Record<string, string> = {};
     if (options?.limit !== undefined) params.limit = String(options.limit);
-    if (options?.cursor) params.cursor = options.cursor;
+    if (options?.cursor !== undefined) params.cursor = options.cursor;
     return this.http.requestPage<DatasetSequence>(
       `/datasets/${owner}/${slug}/sequences/`,
       Object.keys(params).length > 0 ? params : undefined,
