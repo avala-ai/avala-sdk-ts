@@ -437,6 +437,93 @@ export interface AnnotationIssueToolDetail {
   problems: AnnotationIssueProblem[] | null;
 }
 
+// ── Fleet Management ────────────────────────────────────────
+
+export interface FleetDevice {
+  uid: string;
+  name: string;
+  type: string | null;
+  status: string | null;
+  tags: string[];
+  firmwareVersion: string | null;
+  metadata: Record<string, unknown> | null;
+  lastSeenAt: string | null;
+  deviceToken: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface FleetRecording {
+  uid: string;
+  device: string | null;
+  status: string | null;
+  durationSeconds: number | null;
+  sizeBytes: number | null;
+  topicCount: number;
+  tags: string[];
+  topics: Array<Record<string, unknown>> | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface FleetEvent {
+  uid: string;
+  recording: string | null;
+  device: string | null;
+  type: string | null;
+  label: string | null;
+  description: string | null;
+  timestamp: string | null;
+  durationMs: number | null;
+  tags: string[];
+  metadata: Record<string, unknown> | null;
+  severity: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface FleetRule {
+  uid: string;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  condition: Record<string, unknown> | null;
+  actions: Array<Record<string, unknown>>;
+  scope: Record<string, unknown> | null;
+  hitCount: number;
+  lastHitAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface FleetAlert {
+  uid: string;
+  rule: string | null;
+  device: string | null;
+  recording: string | null;
+  severity: string | null;
+  status: string | null;
+  message: string | null;
+  triggeredAt: string | null;
+  acknowledgedAt: string | null;
+  acknowledgedBy: string | null;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface FleetAlertChannel {
+  uid: string;
+  name: string;
+  type: string | null;
+  config: Record<string, unknown> | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
 // ── Signup ──────────────────────────────────────────────────
 
 export interface SignupUser {

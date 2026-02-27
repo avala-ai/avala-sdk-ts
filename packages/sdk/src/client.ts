@@ -1,5 +1,6 @@
 import { HttpTransport } from "./http.js";
 import { AgentsResource } from "./resources/agents.js";
+import { FleetResource } from "./resources/fleet/index.js";
 import { AnnotationIssuesResource } from "./resources/annotationIssues.js";
 import { AutoLabelJobsResource } from "./resources/autoLabelJobs.js";
 import { ConsensusResource } from "./resources/consensus.js";
@@ -66,6 +67,7 @@ export class Avala {
   public readonly webhookDeliveries: WebhookDeliveriesResource;
   public readonly organizations: OrganizationsResource;
   public readonly slices: SlicesResource;
+  public readonly fleet: FleetResource;
 
   private readonly http: HttpTransport;
 
@@ -99,6 +101,7 @@ export class Avala {
     this.webhookDeliveries = new WebhookDeliveriesResource(this.http);
     this.organizations = new OrganizationsResource(this.http);
     this.slices = new SlicesResource(this.http);
+    this.fleet = new FleetResource(this.http);
   }
 
   get rateLimitInfo(): RateLimitInfo {
