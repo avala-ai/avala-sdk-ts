@@ -5,6 +5,7 @@ import { registerAnnotationIssueTools } from "./tools/annotationIssues.js";
 import { registerConsensusTools } from "./tools/consensus.js";
 import { registerDatasetTools } from "./tools/datasets.js";
 import { registerExportTools } from "./tools/exports.js";
+import { registerFleetTools } from "./tools/fleet.js";
 import { registerOrganizationTools } from "./tools/organizations.js";
 import { registerProjectTools } from "./tools/projects.js";
 import { registerQualityTools } from "./tools/quality.js";
@@ -34,6 +35,7 @@ export function registerTools(
   registerExportTools(server, avala, options.allowMutations);
   registerQualityTools(server, avala, options.allowMutations);
   registerConsensusTools(server, avala, options.allowMutations);
+  registerFleetTools(server, avala, options.allowMutations);
   registerOrganizationTools(server, avala);
   registerSliceTools(server, avala);
 }
