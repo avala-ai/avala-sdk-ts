@@ -13,8 +13,8 @@ Official TypeScript SDK and MCP server for the [Avala API](https://docs.avala.ai
 
 | Package | Version | Description |
 |---------|---------|-------------|
-| [`@avala-ai/sdk`](./packages/sdk) | 0.3.0 | TypeScript SDK for the Avala API |
-| [`@avala-ai/mcp-server`](./packages/mcp-server) | 0.3.0 | MCP server for AI assistant integrations |
+| [`@avala-ai/sdk`](./packages/sdk) | 0.5.0 | TypeScript SDK for the Avala API |
+| [`@avala-ai/mcp-server`](./packages/mcp-server) | 0.5.0 | MCP server for AI assistant integrations |
 
 ## SDK Quick Start
 
