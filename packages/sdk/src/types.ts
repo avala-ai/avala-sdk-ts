@@ -47,6 +47,7 @@ export interface StorageConfig {
   s3BucketName: string | null;
   s3BucketRegion: string | null;
   s3BucketPrefix: string | null;
+  s3AuthMethod: string | null;
   s3IsAccelerated: boolean;
   gcStorageBucketName: string | null;
   gcStoragePrefix: string | null;
@@ -54,6 +55,11 @@ export interface StorageConfig {
   lastVerifiedAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+}
+
+export interface StorageConfigSetupInfo {
+  avalaAwsAccountId: string;
+  externalId: string;
 }
 
 export interface RateLimitInfo {

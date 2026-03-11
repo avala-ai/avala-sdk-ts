@@ -1,4 +1,4 @@
-import type { CursorPage, StorageConfig } from "../types.js";
+import type { CursorPage, StorageConfig, StorageConfigSetupInfo } from "../types.js";
 import { BaseResource } from "./base.js";
 
 export interface CreateStorageConfigOptions {
@@ -7,6 +7,8 @@ export interface CreateStorageConfigOptions {
   s3BucketName?: string;
   s3BucketRegion?: string;
   s3BucketPrefix?: string;
+  s3AuthMethod?: string;
+  s3RoleArn?: string;
   s3AccessKeyId?: string;
   s3SecretAccessKey?: string;
   s3IsAccelerated?: boolean;
@@ -34,6 +36,8 @@ export class StorageConfigsResource extends BaseResource {
       s3BucketName: "s3_bucket_name",
       s3BucketRegion: "s3_bucket_region",
       s3BucketPrefix: "s3_bucket_prefix",
+      s3AuthMethod: "s3_auth_method",
+      s3RoleArn: "s3_role_arn",
       s3AccessKeyId: "s3_access_key_id",
       s3SecretAccessKey: "s3_secret_access_key",
       s3IsAccelerated: "s3_is_accelerated",
@@ -46,6 +50,10 @@ export class StorageConfigsResource extends BaseResource {
       if (value !== undefined) payload[snake] = value;
     }
     return this.http.requestCreate<StorageConfig>("/storage-configs/", payload);
+  }
+
+  async setupInfo(): Promise<StorageConfigSetupInfo> {
+    return this.http.request("GET", "/storage-configs/setup-info/");
   }
 
   async test(uid: string): Promise<{ verified: boolean; errors?: Record<string, string[]> }> {
