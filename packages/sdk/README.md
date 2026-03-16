@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@avala-ai/sdk)](https://www.npmjs.com/package/@avala-ai/sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Official TypeScript SDK for the [Avala API](https://docs.avala.ai). Build and manage ML annotation datasets, projects, exports, and tasks programmatically.
+Official TypeScript SDK for the [Avala API](https://avala.ai/docs). Build and manage ML annotation datasets, projects, exports, and tasks programmatically.
 
 ## Installation
 
@@ -102,9 +102,9 @@ try {
 
 ## Documentation
 
-- [TypeScript SDK Guide](https://docs.avala.ai/sdks/typescript)
-- [API Reference](https://docs.avala.ai/api-reference/overview)
-- [Quickstart](https://docs.avala.ai/getting-started/quickstart)
+- [TypeScript SDK Guide](https://avala.ai/docs/sdks/typescript)
+- [API Reference](https://avala.ai/docs/api-reference/overview)
+- [Quickstart](https://avala.ai/docs/getting-started/quickstart)
 
 ## License
 

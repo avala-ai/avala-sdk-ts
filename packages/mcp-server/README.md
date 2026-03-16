@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@avala-ai/mcp-server)](https://www.npmjs.com/package/@avala-ai/mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for the [Avala API](https://docs.avala.ai). Lets AI assistants (Claude, etc.) interact with your Avala annotation data.
+[Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for the [Avala API](https://avala.ai/docs). Lets AI assistants (Claude, etc.) interact with your Avala annotation data.
 
 ## Installation
 
@@ -73,9 +73,9 @@ avala-mcp-server
 
 ## Documentation
 
-- [MCP Setup Guide](https://docs.avala.ai/integrations/mcp-setup)
-- [TypeScript SDK Guide](https://docs.avala.ai/sdks/typescript)
-- [API Reference](https://docs.avala.ai/api-reference/overview)
+- [MCP Setup Guide](https://avala.ai/docs/integrations/mcp-setup)
+- [TypeScript SDK Guide](https://avala.ai/docs/sdks/typescript)
+- [API Reference](https://avala.ai/docs/api-reference/overview)
 
 ## License
 

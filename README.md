@@ -5,7 +5,7 @@
 [![CI](https://github.com/avala-ai/avala-sdk-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/avala-ai/avala-sdk-ts/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Official TypeScript SDK and MCP server for the [Avala API](https://docs.avala.ai). Build and manage ML annotation datasets, projects, exports, and tasks programmatically.
+Official TypeScript SDK and MCP server for the [Avala API](https://avala.ai/docs). Build and manage ML annotation datasets, projects, exports, and tasks programmatically.
 
 > **Note:** This repository is a read-only mirror. To report bugs or request features, please [open an issue](https://github.com/avala-ai/avala-sdk-ts/issues). See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
@@ -109,7 +109,7 @@ npm install -g @avala-ai/mcp-server
 avala-mcp-server
 ```
 
-See [MCP Setup Guide](https://docs.avala.ai/integrations/mcp-setup) for configuration details.
+See [MCP Setup Guide](https://avala.ai/docs/integrations/mcp-setup) for configuration details.
 
 ## Development
 
@@ -123,11 +123,11 @@ pnpm -r test
 
 ## Documentation
 
-- [TypeScript SDK Guide](https://docs.avala.ai/sdks/typescript)
-- [MCP Setup Guide](https://docs.avala.ai/integrations/mcp-setup)
-- [API Reference](https://docs.avala.ai/api-reference/overview)
-- [Quickstart](https://docs.avala.ai/getting-started/quickstart)
-- [Examples](https://docs.avala.ai/resources/examples)
+- [TypeScript SDK Guide](https://avala.ai/docs/sdks/typescript)
+- [MCP Setup Guide](https://avala.ai/docs/integrations/mcp-setup)
+- [API Reference](https://avala.ai/docs/api-reference/overview)
+- [Quickstart](https://avala.ai/docs/getting-started/quickstart)
+- [Examples](https://avala.ai/docs/resources/examples)
 
 ## License
 
