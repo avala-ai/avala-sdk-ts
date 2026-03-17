@@ -25,6 +25,7 @@ describe("organizations resource", () => {
     role: "owner",
     joined_at: "2026-01-01T00:00:00Z",
     allowed_domains: ["acme.com"],
+    slug_edits_remaining: 3,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-02T00:00:00Z",
   };
@@ -169,7 +170,7 @@ describe("organizations resource", () => {
     expect(callArgs[0]).toContain("/organizations/acme-corp/members/");
   });
 
-  it("lists teams with slug field (non-paginated)", async () => {
+  it("lists teams with slug field (paginated)", async () => {
     const mockTeam = {
       uid: "team-uid-001",
       name: "Engineering",
@@ -186,17 +187,18 @@ describe("organizations resource", () => {
         ok: true,
         status: 200,
         headers: new Headers(),
-        json: () => Promise.resolve([mockTeam]),
+        json: () => Promise.resolve({ results: [mockTeam], next: null, previous: null }),
       }),
     );
 
     const avala = new Avala({ apiKey: "test-key" });
-    const teams = await avala.organizations.listTeams("acme-corp");
+    const page = await avala.organizations.listTeams("acme-corp");
 
-    expect(teams).toHaveLength(1);
-    expect(teams[0].name).toBe("Engineering");
-    expect(teams[0].slug).toBe("engineering");
-    expect(teams[0].memberCount).toBe(3);
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].name).toBe("Engineering");
+    expect(page.items[0].slug).toBe("engineering");
+    expect(page.items[0].memberCount).toBe(3);
+    expect(page.hasMore).toBe(false);
 
     const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(callArgs[0]).toContain("/organizations/acme-corp/teams/");
@@ -306,7 +308,7 @@ describe("organizations resource", () => {
     expect(callArgs[0]).toContain("/organizations/acme-corp/teams/");
   });
 
-  it("lists invitations with correct field names (non-paginated)", async () => {
+  it("lists invitations with correct field names (paginated)", async () => {
     const mockInvitation = {
       uid: "inv-uid-001",
       organization_name: "Acme Corp",
@@ -328,18 +330,19 @@ describe("organizations resource", () => {
         ok: true,
         status: 200,
         headers: new Headers(),
-        json: () => Promise.resolve([mockInvitation]),
+        json: () => Promise.resolve({ results: [mockInvitation], next: null, previous: null }),
       }),
     );
 
     const avala = new Avala({ apiKey: "test-key" });
-    const invitations = await avala.organizations.listInvitations("acme-corp");
+    const page = await avala.organizations.listInvitations("acme-corp");
 
-    expect(invitations).toHaveLength(1);
-    expect(invitations[0].invitedEmail).toBe("bob@acme.com");
-    expect(invitations[0].organizationName).toBe("Acme Corp");
-    expect(invitations[0].invitedByUsername).toBe("alice");
-    expect(invitations[0].status).toBe("pending");
-    expect(invitations[0].isExpired).toBe(false);
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].invitedEmail).toBe("bob@acme.com");
+    expect(page.items[0].organizationName).toBe("Acme Corp");
+    expect(page.items[0].invitedByUsername).toBe("alice");
+    expect(page.items[0].status).toBe("pending");
+    expect(page.items[0].isExpired).toBe(false);
+    expect(page.hasMore).toBe(false);
   });
 });
