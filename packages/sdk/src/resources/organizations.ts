@@ -148,8 +148,17 @@ export class OrganizationsResource extends BaseResource {
 
   // Invitations
 
-  async listInvitations(slug: string): Promise<Invitation[]> {
-    return this.http.requestList<Invitation>(`/organizations/${slug}/invitations/`);
+  async listInvitations(
+    slug: string,
+    options?: { limit?: number; cursor?: string },
+  ): Promise<CursorPage<Invitation>> {
+    const params: Record<string, string> = {};
+    if (options?.limit !== undefined) params.limit = String(options.limit);
+    if (options?.cursor) params.cursor = options.cursor;
+    return this.http.requestPage<Invitation>(
+      `/organizations/${slug}/invitations/`,
+      Object.keys(params).length > 0 ? params : undefined,
+    );
   }
 
   async createInvitation(slug: string, options: CreateInvitationOptions): Promise<Invitation> {
@@ -175,8 +184,17 @@ export class OrganizationsResource extends BaseResource {
 
   // Teams
 
-  async listTeams(slug: string): Promise<Team[]> {
-    return this.http.requestList<Team>(`/organizations/${slug}/teams/`);
+  async listTeams(
+    slug: string,
+    options?: { limit?: number; cursor?: string },
+  ): Promise<CursorPage<Team>> {
+    const params: Record<string, string> = {};
+    if (options?.limit !== undefined) params.limit = String(options.limit);
+    if (options?.cursor) params.cursor = options.cursor;
+    return this.http.requestPage<Team>(
+      `/organizations/${slug}/teams/`,
+      Object.keys(params).length > 0 ? params : undefined,
+    );
   }
 
   async createTeam(slug: string, options: CreateTeamOptions): Promise<Team> {
@@ -217,8 +235,18 @@ export class OrganizationsResource extends BaseResource {
 
   // Team Members
 
-  async listTeamMembers(slug: string, teamSlug: string): Promise<TeamMember[]> {
-    return this.http.requestList<TeamMember>(`/organizations/${slug}/teams/${teamSlug}/members/`);
+  async listTeamMembers(
+    slug: string,
+    teamSlug: string,
+    options?: { limit?: number; cursor?: string },
+  ): Promise<CursorPage<TeamMember>> {
+    const params: Record<string, string> = {};
+    if (options?.limit !== undefined) params.limit = String(options.limit);
+    if (options?.cursor) params.cursor = options.cursor;
+    return this.http.requestPage<TeamMember>(
+      `/organizations/${slug}/teams/${teamSlug}/members/`,
+      Object.keys(params).length > 0 ? params : undefined,
+    );
   }
 
   async addTeamMember(
