@@ -13,7 +13,10 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
-    "lint": "tsc --project ../sdk/tsconfig.json --emitDeclarationOnly && tsc --noEmit"
+    "lint": "tsc --project ../sdk/tsconfig.json --emitDeclarationOnly && tsc --noEmit",
+    "docs:generate": "tsx scripts/generate-mcp-docs.ts",
+    "docs:check": "tsx scripts/generate-mcp-docs.ts --check",
+    "docs:list": "tsx scripts/generate-mcp-docs.ts --list"
   },
   "dependencies": {
     "@avala-ai/sdk": "workspace:*",
