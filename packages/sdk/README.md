@@ -16,7 +16,7 @@ Requires Node.js 18+.
 ## Quick Start
 
 ```typescript
-import Avala from "@avala-ai/sdk";
+import Avala from "@avala-ai/sdk";  // or: import { Client } from "@avala-ai/sdk"
 
 const avala = new Avala();  // reads AVALA_API_KEY env var
 

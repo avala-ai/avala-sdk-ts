@@ -23,7 +23,7 @@ const avala = new Avala({ apiKey });
 
 const server = new McpServer({
   name: "avala",
-  version: "0.4.0",
+  version: "0.6.0",
 });
 
 registerTools(server, avala, { allowMutations });
