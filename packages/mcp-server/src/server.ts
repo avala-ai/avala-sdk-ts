@@ -14,6 +14,7 @@ import { registerStatsTools } from "./tools/stats.js";
 import { registerStorageTools } from "./tools/storage.js";
 import { registerTaskTools } from "./tools/tasks.js";
 import { registerWebhookTools } from "./tools/webhooks.js";
+import { registerWorkflowTools } from "./tools/workflows.js";
 
 export interface McpServerOptions {
   allowMutations: boolean;
@@ -38,4 +39,5 @@ export function registerTools(
   registerFleetTools(server, avala, options.allowMutations);
   registerOrganizationTools(server, avala);
   registerSliceTools(server, avala);
+  registerWorkflowTools(server, avala, options.allowMutations);
 }
