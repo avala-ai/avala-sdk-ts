@@ -1,8 +1,11 @@
 {
   "private": true,
   "scripts": {
-    "build": "pnpm -r run build",
-    "test": "pnpm -r run test",
-    "lint": "pnpm -r run lint"
-  }
+    "build": "bun run --filter '*' build",
+    "test": "bun run --filter '*' test",
+    "lint": "bun run --filter '*' lint"
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }
