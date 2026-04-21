@@ -68,8 +68,7 @@ describe("storage tools", () => {
       s3BucketName: "my-bucket",
       s3BucketRegion: "us-west-2",
       s3BucketPrefix: "data/",
-      s3AccessKeyId: "TEST_KEY_NOT_REAL",
-      s3SecretAccessKey: "TEST_SECRET_NOT_REAL",
+      s3IsAccelerated: true,
     });
 
     expect(avala.storageConfigs.create).toHaveBeenCalledWith({
@@ -78,14 +77,15 @@ describe("storage tools", () => {
       s3BucketName: "my-bucket",
       s3BucketRegion: "us-west-2",
       s3BucketPrefix: "data/",
-      s3AccessKeyId: "TEST_KEY_NOT_REAL",
-      s3SecretAccessKey: "TEST_SECRET_NOT_REAL",
+      s3IsAccelerated: true,
       gcStorageBucketName: undefined,
       gcStoragePrefix: undefined,
     });
-    const parsed = JSON.parse(result.content[0].text);
+    const [jsonPart] = result.content[0].text.split("\n\nNOTE:");
+    const parsed = JSON.parse(jsonPart);
     expect(parsed.uid).toBe("sc-2");
     expect(parsed.provider).toBe("s3");
+    expect(result.content[0].text).toContain("Add credentials via the Avala web console");
   });
 
   it("create_storage_config works with GCS params", async () => {
@@ -106,12 +106,12 @@ describe("storage tools", () => {
       s3BucketName: undefined,
       s3BucketRegion: undefined,
       s3BucketPrefix: undefined,
-      s3AccessKeyId: undefined,
-      s3SecretAccessKey: undefined,
+      s3IsAccelerated: undefined,
       gcStorageBucketName: "my-gcs-bucket",
       gcStoragePrefix: "datasets/",
     });
-    const parsed = JSON.parse(result.content[0].text);
+    const [jsonPart] = result.content[0].text.split("\n\nNOTE:");
+    const parsed = JSON.parse(jsonPart);
     expect(parsed.provider).toBe("gcs");
   });
 

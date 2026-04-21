@@ -26,22 +26,16 @@ export function registerStorageTools(server: McpServer, avala: Avala, allowMutat
   if (allowMutations) {
     server.tool(
       "create_storage_config",
-      "Create a new storage configuration (S3 or Google Cloud Storage). Note: credentials are transmitted securely to the API and stored server-side.",
+      "Create a new storage configuration (S3 or Google Cloud Storage) with non-sensitive settings only (bucket, region, prefix). Credentials must be provisioned separately through the Avala web console — this tool will NOT accept access keys or service-account JSON, because any value passed here is stored in the LLM's conversation context and logs.",
       {
         name: z.string().describe("Name for the storage configuration"),
         provider: z.string().describe("Storage provider type (e.g. 's3', 'gcs')"),
         s3BucketName: z.string().optional().describe("S3 bucket name"),
         s3BucketRegion: z.string().optional().describe("S3 bucket region"),
         s3BucketPrefix: z.string().optional().describe("S3 key prefix"),
-        s3AccessKeyId: z.string().optional().describe("S3 access key ID (stored securely server-side)"),
-        s3SecretAccessKey: z.string().optional().describe("S3 secret access key (stored securely server-side)"),
         s3IsAccelerated: z.boolean().optional().describe("Enable S3 Transfer Acceleration"),
         gcStorageBucketName: z.string().optional().describe("Google Cloud Storage bucket name"),
         gcStoragePrefix: z.string().optional().describe("Google Cloud Storage prefix"),
-        gcStorageAuthJsonContent: z
-          .string()
-          .optional()
-          .describe("GCS service account JSON credentials (stored securely server-side)"),
       },
       async ({
         name,
@@ -49,12 +43,9 @@ export function registerStorageTools(server: McpServer, avala: Avala, allowMutat
         s3BucketName,
         s3BucketRegion,
         s3BucketPrefix,
-        s3AccessKeyId,
-        s3SecretAccessKey,
         s3IsAccelerated,
         gcStorageBucketName,
         gcStoragePrefix,
-        gcStorageAuthJsonContent,
       }) => {
         const config = await avala.storageConfigs.create({
           name,
@@ -62,18 +53,18 @@ export function registerStorageTools(server: McpServer, avala: Avala, allowMutat
           s3BucketName,
           s3BucketRegion,
           s3BucketPrefix,
-          s3AccessKeyId,
-          s3SecretAccessKey,
           s3IsAccelerated,
           gcStorageBucketName,
           gcStoragePrefix,
-          gcStorageAuthJsonContent,
         });
         return {
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify(config, null, 2),
+              text:
+                JSON.stringify(config, null, 2) +
+                "\n\nNOTE: This storage config has no credentials attached. " +
+                "Add credentials via the Avala web console (Settings → Storage) before attaching datasets.",
             },
           ],
         };

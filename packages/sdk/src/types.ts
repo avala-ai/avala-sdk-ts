@@ -252,6 +252,8 @@ export interface Organization {
   joinedAt: string | null;
   allowedDomains: string[] | null;
   slugEditsRemaining: number | null;
+  billingStatus: string | null;
+  publicSlug: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }

@@ -25,7 +25,7 @@ function isLocalHost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
 }
 
-function resolveBaseUrl(baseUrl: string): string {
+export function resolveBaseUrl(baseUrl: string): string {
   const parsed = new URL(baseUrl);
   const allowInsecure = isTruthy(
     typeof process !== "undefined" ? process.env.AVALA_ALLOW_INSECURE_BASE_URL : undefined,

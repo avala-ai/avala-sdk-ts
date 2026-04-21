@@ -83,7 +83,19 @@ export class HttpTransport {
         },
         body: options?.json ? JSON.stringify(options.json) : undefined,
         signal: controller.signal,
+        // Never follow redirects — the Fetch spec replays non-Authorization
+        // headers (including X-Avala-Api-Key) on cross-origin redirects,
+        // which would leak the API key to any redirect target.
+        redirect: "manual",
       });
+
+      if (response.status >= 300 && response.status < 400) {
+        throw new AvalaError(
+          `Unexpected redirect (HTTP ${response.status}) from ${url}. The SDK does not follow redirects to avoid leaking credentials.`,
+          response.status,
+          null,
+        );
+      }
 
       this.extractRateLimitHeaders(response);
 
@@ -110,6 +122,26 @@ export class HttpTransport {
     }
     if (path.includes("\r") || path.includes("\n")) {
       throw new Error("Path must not contain control characters.");
+    }
+
+    // Defense-in-depth against path-traversal pivots via unescaped resource
+    // identifiers. Resource classes interpolate caller-supplied values (UIDs,
+    // slugs, owner names) into URL paths; a malicious value like "../admin"
+    // could otherwise reach a different endpoint. Reject the traversal markers
+    // here rather than auditing every interpolation site.
+    const pathOnly = path.split("?", 1)[0] ?? path;
+    const lowered = pathOnly.toLowerCase();
+    if (lowered.includes("://")) {
+      throw new Error("Path must not contain a URL scheme.");
+    }
+    if (pathOnly.includes("/../") || pathOnly.endsWith("/..") || pathOnly.includes("/./")) {
+      throw new Error("Path must not contain traversal segments.");
+    }
+    if (lowered.includes("%2e%2e") || lowered.includes("%2f%2e%2e")) {
+      throw new Error("Path must not contain URL-encoded traversal segments.");
+    }
+    if (pathOnly.slice(1).includes("//")) {
+      throw new Error("Path must not contain '//' segments.");
     }
 
     let url = `${this.config.baseUrl}${path}`;

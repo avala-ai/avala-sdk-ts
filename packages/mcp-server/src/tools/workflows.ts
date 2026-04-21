@@ -6,6 +6,24 @@ function settled<T>(result: PromiseSettledResult<T>): T | null {
   return result.status === "fulfilled" ? result.value : null;
 }
 
+/**
+ * Render a rejected promise's reason as LLM-safe text.
+ *
+ * The raw `reason` often contains request URLs, body snippets, and stack
+ * traces — anything in those ends up in the model's conversation context
+ * and the MCP client's logs. We surface only an error class name and, for
+ * Avala SDK errors, the HTTP status code.
+ */
+function safeErrorSummary(reason: unknown): string {
+  if (reason && typeof reason === "object") {
+    const r = reason as { name?: string; statusCode?: number };
+    const name = r.name ?? "Error";
+    const status = typeof r.statusCode === "number" ? ` (HTTP ${r.statusCode})` : "";
+    return `${name}${status}`;
+  }
+  return "Error";
+}
+
 export function registerWorkflowTools(server: McpServer, avala: Avala, allowMutations = false): void {
   if (allowMutations) {
     server.tool(
@@ -35,7 +53,7 @@ export function registerWorkflowTools(server: McpServer, avala: Avala, allowMuta
             summary.export = { uid: exportJob.uid, status: exportJob.status };
           } catch (err) {
             summary.export = {
-              error: err instanceof Error ? err.message : String(err),
+              error: safeErrorSummary(err),
               note: "Dataset was created successfully but export failed. You can retry the export separately.",
             };
           }
@@ -87,9 +105,9 @@ export function registerWorkflowTools(server: McpServer, avala: Avala, allowMuta
       };
 
       const errors: string[] = [];
-      if (devicesResult.status === "rejected") errors.push(`devices: ${devicesResult.reason}`);
-      if (alertsResult.status === "rejected") errors.push(`alerts: ${alertsResult.reason}`);
-      if (recordingsResult.status === "rejected") errors.push(`recordings: ${recordingsResult.reason}`);
+      if (devicesResult.status === "rejected") errors.push(`devices: ${safeErrorSummary(devicesResult.reason)}`);
+      if (alertsResult.status === "rejected") errors.push(`alerts: ${safeErrorSummary(alertsResult.reason)}`);
+      if (recordingsResult.status === "rejected") errors.push(`recordings: ${safeErrorSummary(recordingsResult.reason)}`);
       if (errors.length > 0) summary.errors = errors;
 
       return {
@@ -137,9 +155,9 @@ export function registerWorkflowTools(server: McpServer, avala: Avala, allowMuta
       };
 
       const errors: string[] = [];
-      if (projectResult.status === "rejected") errors.push(`project: ${projectResult.reason}`);
-      if (targetsResult.status === "rejected") errors.push(`qualityTargets: ${targetsResult.reason}`);
-      if (consensusResult.status === "rejected") errors.push(`consensus: ${consensusResult.reason}`);
+      if (projectResult.status === "rejected") errors.push(`project: ${safeErrorSummary(projectResult.reason)}`);
+      if (targetsResult.status === "rejected") errors.push(`qualityTargets: ${safeErrorSummary(targetsResult.reason)}`);
+      if (consensusResult.status === "rejected") errors.push(`consensus: ${safeErrorSummary(consensusResult.reason)}`);
       if (errors.length > 0) summary.errors = errors;
 
       return {
@@ -188,10 +206,10 @@ export function registerWorkflowTools(server: McpServer, avala: Avala, allowMuta
       };
 
       const errors: string[] = [];
-      if (orgsResult.status === "rejected") errors.push(`organizations: ${orgsResult.reason}`);
-      if (datasetsResult.status === "rejected") errors.push(`datasets: ${datasetsResult.reason}`);
-      if (projectsResult.status === "rejected") errors.push(`projects: ${projectsResult.reason}`);
-      if (exportsResult.status === "rejected") errors.push(`exports: ${exportsResult.reason}`);
+      if (orgsResult.status === "rejected") errors.push(`organizations: ${safeErrorSummary(orgsResult.reason)}`);
+      if (datasetsResult.status === "rejected") errors.push(`datasets: ${safeErrorSummary(datasetsResult.reason)}`);
+      if (projectsResult.status === "rejected") errors.push(`projects: ${safeErrorSummary(projectsResult.reason)}`);
+      if (exportsResult.status === "rejected") errors.push(`exports: ${safeErrorSummary(exportsResult.reason)}`);
       if (errors.length > 0) summary.errors = errors;
 
       return {

@@ -372,4 +372,35 @@ describe("HttpTransport", () => {
       }
     });
   });
+
+  describe("path validation (security)", () => {
+    it("rejects path-traversal segments", async () => {
+      const http = makeTransport();
+      await expect(http.request("GET", "/datasets/../admin/")).rejects.toThrow(/traversal/);
+      await expect(http.request("GET", "/datasets/foo/..")).rejects.toThrow(/traversal/);
+      await expect(http.request("GET", "/datasets/./admin/")).rejects.toThrow(/traversal/);
+    });
+
+    it("rejects URL-encoded path-traversal segments", async () => {
+      const http = makeTransport();
+      await expect(http.request("GET", "/datasets/%2e%2e/admin/")).rejects.toThrow(/URL-encoded/);
+      await expect(http.request("GET", "/datasets/%2E%2E/admin/")).rejects.toThrow(/URL-encoded/);
+    });
+
+    it("rejects mid-path '//' segments", async () => {
+      const http = makeTransport();
+      await expect(http.request("GET", "/datasets//admin/")).rejects.toThrow(/'\/\/'/);
+    });
+
+    it("rejects URL schemes embedded in the path portion", async () => {
+      const http = makeTransport();
+      await expect(http.request("GET", "/datasets/http://evil.example.com/")).rejects.toThrow(/URL scheme/);
+    });
+
+    it("rejects redirects to avoid leaking the API key", async () => {
+      mockFetch({ ok: false, status: 302, json: () => Promise.resolve({}), headers: new Headers() });
+      const http = makeTransport();
+      await expect(http.request("GET", "/test/")).rejects.toThrow(/redirect/i);
+    });
+  });
 });

@@ -1,3 +1,4 @@
+import { resolveBaseUrl } from "./client.js";
 import {
   AuthenticationError,
   AvalaError,
@@ -68,7 +69,12 @@ async function handleError(response: Response): Promise<never> {
  * user and their API key.
  */
 export async function signup(options: SignupOptions): Promise<SignupResponse> {
-  const baseUrl = options.baseUrl ?? process.env.AVALA_BASE_URL ?? DEFAULT_BASE_URL;
+  // Validate the base URL — signup sends the user's password, so a rogue env
+  // var like AVALA_BASE_URL=http://evil.example.com would otherwise leak it.
+  // resolveBaseUrl enforces https: unless AVALA_ALLOW_INSECURE_BASE_URL=true
+  // and the host is localhost.
+  const rawBaseUrl = options.baseUrl ?? process.env.AVALA_BASE_URL ?? DEFAULT_BASE_URL;
+  const baseUrl = resolveBaseUrl(rawBaseUrl);
   const timeout = options.timeout ?? DEFAULT_TIMEOUT;
 
   const payload: Record<string, string> = {
@@ -90,7 +96,17 @@ export async function signup(options: SignupOptions): Promise<SignupResponse> {
       },
       body: JSON.stringify(payload),
       signal: controller.signal,
+      // Never follow redirects — the signup payload contains the user's password.
+      redirect: "manual",
     });
+
+    if (response.status >= 300 && response.status < 400) {
+      throw new AvalaError(
+        `Unexpected redirect (HTTP ${response.status}) from signup endpoint. The SDK does not follow redirects to avoid leaking credentials.`,
+        response.status,
+        null,
+      );
+    }
 
     if (!response.ok) {
       await handleError(response);
