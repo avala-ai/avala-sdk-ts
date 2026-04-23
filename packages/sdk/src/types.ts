@@ -461,8 +461,11 @@ export interface DatasetHealth {
   itemCount: number;
   sequenceCount: number;
   totalFrames: number;
+  /** Owner/staff only. Null for non-owners even on public datasets. */
   s3Prefix: string | null;
-  lastItemUpdatedAt: string | null;
+  /** Owner/staff only. Null for non-owners or when provider is not GCS. */
+  gcStoragePrefix: string | null;
+  lastUpdatedAt: string | null;
   sequences: SequenceHealth[];
   ingestOk: boolean;
   issues: string[];

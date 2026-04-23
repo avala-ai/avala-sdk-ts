@@ -340,7 +340,8 @@ describe("datasets resource", () => {
     sequence_count: 1,
     total_frames: 569,
     s3_prefix: "third-dimension/alf_data/third-dimension-095940-full-scene/full-scene-569",
-    last_item_updated_at: "2026-04-21T15:33:02Z",
+    gc_storage_prefix: null,
+    last_updated_at: "2026-04-21T15:33:02Z",
     sequences: [
       {
         uid: "55555555-5555-5555-5555-555555555555",
@@ -443,6 +444,7 @@ describe("datasets resource", () => {
     const health = await avala.datasets.getHealth("thirddimension", "third-dimension-095940-full-scene");
     expect(health.totalFrames).toBe(569);
     expect(health.ingestOk).toBe(true);
+    expect(health.gcStoragePrefix).toBeNull();
     expect(health.sequences).toHaveLength(1);
     expect(health.sequences[0].frameCount).toBe(569);
     expect(health.sequences[0].hasLidarCalibration).toBe(true);
