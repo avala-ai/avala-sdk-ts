@@ -292,4 +292,163 @@ describe("datasets resource", () => {
     const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(callArgs[0]).toContain("/datasets/acme-corp/my-dataset/sequences/");
   });
+
+  // --- Validation-friendly reads: getFrame / getCalibration / getHealth ---
+
+  const sampleFrame = {
+    frame_index: 0,
+    key: "frame-0.json",
+    model: "pinhole",
+    camera_model: "pinhole",
+    xi: null,
+    alpha: null,
+    device_position: { x: 1.0, y: 2.0, z: 3.0 },
+    device_heading: { x: 0, y: 0, z: 0, w: 1 },
+    images: [
+      {
+        image_url: "s3://bucket/frame-0/cam_01.jpg",
+        position: { x: 0.1, y: 0.2, z: 0.3 },
+        heading: { x: 0, y: 0, z: 0, w: 1 },
+        width: 1920,
+        height: 1080,
+        fx: 824.74,
+        fy: 834.49,
+        cx: 960.0,
+        cy: 540.0,
+        model: "pinhole",
+      },
+    ],
+  };
+
+  const sequencePayload = {
+    uid: "55555555-5555-5555-5555-555555555555",
+    key: "full-scene-569",
+    status: "completed",
+    number_of_frames: 1,
+    frames: [sampleFrame],
+    dataset_uid: "44444444-4444-4444-4444-444444444444",
+    allow_lidar_calibration: true,
+    lidar_calibration_enabled: true,
+    camera_calibration_enabled: true,
+  };
+
+  const healthPayload = {
+    dataset_uid: "44444444-4444-4444-4444-444444444444",
+    dataset_slug: "third-dimension-095940-full-scene",
+    dataset_status: "created",
+    item_count: 569,
+    sequence_count: 1,
+    total_frames: 569,
+    s3_prefix: "third-dimension/alf_data/third-dimension-095940-full-scene/full-scene-569",
+    last_item_updated_at: "2026-04-21T15:33:02Z",
+    sequences: [
+      {
+        uid: "55555555-5555-5555-5555-555555555555",
+        key: "full-scene-569",
+        status: "completed",
+        frame_count: 569,
+        has_lidar_calibration: true,
+        has_camera_calibration: true,
+      },
+    ],
+    ingest_ok: true,
+    issues: [],
+  };
+
+  it("getFrame returns typed frame metadata", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve(sequencePayload),
+      }),
+    );
+
+    const avala = new Avala({ apiKey: "test-key" });
+    const frame = await avala.datasets.getFrame(
+      "thirddimension",
+      "third-dimension-095940-full-scene",
+      "55555555-5555-5555-5555-555555555555",
+      0,
+    );
+
+    expect(frame.frameIndex).toBe(0);
+    expect(frame.model).toBe("pinhole");
+    expect(frame.devicePosition?.x).toBe(1.0);
+    expect(frame.images).toHaveLength(1);
+    expect(frame.images?.[0].fx).toBe(824.74);
+    expect(frame.images?.[0].cy).toBe(540.0);
+    expect(frame.raw).toBeDefined();
+  });
+
+  it("getFrame throws RangeError for out-of-range index", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve(sequencePayload),
+      }),
+    );
+
+    const avala = new Avala({ apiKey: "test-key" });
+    await expect(
+      avala.datasets.getFrame(
+        "thirddimension",
+        "third-dimension-095940-full-scene",
+        "55555555-5555-5555-5555-555555555555",
+        99,
+      ),
+    ).rejects.toThrow(RangeError);
+  });
+
+  it("getCalibration extracts per-camera rig from frame[0]", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve(sequencePayload),
+      }),
+    );
+
+    const avala = new Avala({ apiKey: "test-key" });
+    const calib = await avala.datasets.getCalibration(
+      "thirddimension",
+      "third-dimension-095940-full-scene",
+      "55555555-5555-5555-5555-555555555555",
+    );
+    expect(calib.sequenceUid).toBe("55555555-5555-5555-5555-555555555555");
+    expect(calib.cameras).toHaveLength(1);
+    expect(calib.cameras[0].model).toBe("pinhole");
+    expect(calib.cameras[0].fx).toBe(824.74);
+  });
+
+  it("getHealth returns typed snapshot", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve(healthPayload),
+      }),
+    );
+
+    const avala = new Avala({ apiKey: "test-key" });
+    const health = await avala.datasets.getHealth("thirddimension", "third-dimension-095940-full-scene");
+    expect(health.totalFrames).toBe(569);
+    expect(health.ingestOk).toBe(true);
+    expect(health.sequences).toHaveLength(1);
+    expect(health.sequences[0].frameCount).toBe(569);
+    expect(health.sequences[0].hasLidarCalibration).toBe(true);
+    expect(health.issues).toEqual([]);
+
+    const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(callArgs[0]).toContain("/datasets/thirddimension/third-dimension-095940-full-scene/health/");
+  });
 });

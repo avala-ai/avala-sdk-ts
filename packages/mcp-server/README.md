@@ -61,7 +61,7 @@ avala-mcp-server
 
 | Tool Category | Description |
 |---------------|-------------|
-| Datasets | List and inspect annotation datasets |
+| Datasets | List and inspect datasets, sequences, frames, calibration, and ingest health |
 | Projects | List and inspect projects |
 | Exports | List, inspect, and create annotation exports |
 | Fleet | Device management, recordings, events, alerts, rules |

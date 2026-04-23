@@ -377,6 +377,97 @@ export interface DatasetSequence {
   cameraCalibrationEnabled: boolean | null;
 }
 
+// ── Validation APIs (agent-friendly reads) ───────────────────
+
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface Quat {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+}
+
+export interface FrameImage {
+  imageUrl?: string | null;
+  position?: Vec3 | null;
+  heading?: Quat | null;
+  width?: number | null;
+  height?: number | null;
+  fx?: number | null;
+  fy?: number | null;
+  cx?: number | null;
+  cy?: number | null;
+  model?: string | null;
+  cameraModel?: string | null;
+  xi?: number | null;
+  alpha?: number | null;
+}
+
+/** A single frame's LiDAR JSON metadata — the blob Mission Control loads. */
+export interface DatasetFrame {
+  frameIndex: number;
+  key?: string | null;
+  model?: string | null;
+  cameraModel?: string | null;
+  xi?: number | null;
+  alpha?: number | null;
+  devicePosition?: Vec3 | null;
+  deviceHeading?: Quat | null;
+  images?: FrameImage[];
+  raw: Record<string, unknown>;
+}
+
+export interface CameraCalibration {
+  cameraId?: string | null;
+  position?: Vec3 | null;
+  heading?: Quat | null;
+  width?: number | null;
+  height?: number | null;
+  fx?: number | null;
+  fy?: number | null;
+  cx?: number | null;
+  cy?: number | null;
+  model?: string | null;
+  xi?: number | null;
+  alpha?: number | null;
+}
+
+/** Canonicalized rig view, derived from frame[0] of the sequence. */
+export interface DatasetCalibration {
+  sequenceUid: string;
+  cameras: CameraCalibration[];
+  datasetLevelCameraCalibration?: Record<string, unknown> | null;
+}
+
+export interface SequenceHealth {
+  uid: string;
+  key: string | null;
+  status: string | null;
+  frameCount: number;
+  hasLidarCalibration: boolean;
+  hasCameraCalibration: boolean;
+}
+
+/** Read-only health snapshot from `GET /datasets/<owner>/<slug>/health/`. */
+export interface DatasetHealth {
+  datasetUid: string;
+  datasetSlug: string;
+  datasetStatus: string | null;
+  itemCount: number;
+  sequenceCount: number;
+  totalFrames: number;
+  s3Prefix: string | null;
+  lastItemUpdatedAt: string | null;
+  sequences: SequenceHealth[];
+  ingestOk: boolean;
+  issues: string[];
+}
+
 // ── Annotation Issues ────────────────────────────────────────
 
 export interface AnnotationIssueProject {
