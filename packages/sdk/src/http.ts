@@ -6,6 +6,7 @@ import {
   ServerError,
   ValidationError,
 } from "./errors.js";
+import { redact, redactString } from "./redaction.js";
 import type { CursorPage, RateLimitInfo, RawPageResponse } from "./types.js";
 
 export interface HttpConfig {
@@ -196,7 +197,20 @@ export class HttpTransport {
       body = await response.json();
       if (typeof body === "object" && body !== null) {
         if ("detail" in body) {
-          message = (body as { detail: string }).detail;
+          // Codex P1 on PR #11315: ``body.detail`` is not always a
+          // string. The server can return ``{"detail": {...}}`` for
+          // structured validation errors, in which case casting to
+          // ``string`` and then calling ``redactString`` below would
+          // throw ``TypeError`` (.replace undefined on non-strings)
+          // and replace the ``AvalaError`` subclass that callers
+          // expect with a runtime crash. Only adopt the detail when
+          // it actually IS a string; otherwise leave the default
+          // ``HTTP <status>`` message and let callers inspect the
+          // raw ``body``.
+          const rawDetail = (body as { detail: unknown }).detail;
+          if (typeof rawDetail === "string") {
+            message = rawDetail;
+          }
         } else {
           // Django returns field-level validation errors as { field: ["error", ...] }
           const entries = Object.entries(body as Record<string, unknown>);
@@ -214,6 +228,14 @@ export class HttpTransport {
     } catch {
       // ignore JSON parse errors
     }
+
+    // Pentest finding sdks/s3-4 (MED, CWE-200/209): the server commonly
+    // echoes parts of the request payload in 4xx/5xx ``detail`` strings
+    // (validation errors quote the offending field value). Without
+    // redaction, secrets in the request body flow directly into caller
+    // logs / Sentry / stdout via the thrown error's message and body.
+    message = redactString(message);
+    body = redact(body);
 
     const status = response.status;
     if (status === 401) throw new AuthenticationError(message, body);
