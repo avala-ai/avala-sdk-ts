@@ -160,7 +160,6 @@ export function registerDatasetTools(server: McpServer, avala: Avala, allowMutat
         name: z.string().describe("Display name for the dataset"),
         slug: z.string().describe("URL-friendly identifier for the dataset"),
         dataType: z.string().describe("Type of data: 'image', 'video', 'lidar', or 'mcap'"),
-        isSequence: z.boolean().optional().describe("Whether the dataset contains sequences (default: false)"),
         visibility: z.string().optional().describe("Dataset visibility: 'private' or 'public' (default: 'private')"),
         createMetadata: z.boolean().optional().describe("Whether to create dataset metadata (default: true)"),
         providerConfig: z
@@ -169,12 +168,11 @@ export function registerDatasetTools(server: McpServer, avala: Avala, allowMutat
           .describe("Cloud storage provider configuration (S3 bucket, region, prefix, credentials)"),
         ownerName: z.string().optional().describe("Dataset owner username or email"),
       },
-      async ({ name, slug, dataType, isSequence, visibility, createMetadata, providerConfig, ownerName }) => {
+      async ({ name, slug, dataType, visibility, createMetadata, providerConfig, ownerName }) => {
         const dataset = await avala.datasets.create({
           name,
           slug,
           dataType,
-          isSequence,
           visibility,
           createMetadata,
           providerConfig,

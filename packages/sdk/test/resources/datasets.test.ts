@@ -199,7 +199,6 @@ describe("datasets resource", () => {
       name: "New Dataset",
       slug: "new-dataset",
       dataType: "lidar",
-      isSequence: true,
       visibility: "private",
     });
 
@@ -214,7 +213,7 @@ describe("datasets resource", () => {
     expect(body.name).toBe("New Dataset");
     expect(body.slug).toBe("new-dataset");
     expect(body.data_type).toBe("lidar");
-    expect(body.is_sequence).toBe(true);
+    expect(body.is_sequence).toBeUndefined();
     expect(body.visibility).toBe("private");
   });
 

@@ -100,7 +100,6 @@ describe("dataset tools", () => {
       name: "New Dataset",
       slug: "new-dataset",
       dataType: "lidar",
-      isSequence: true,
       visibility: "private",
     });
 
@@ -108,7 +107,6 @@ describe("dataset tools", () => {
       name: "New Dataset",
       slug: "new-dataset",
       dataType: "lidar",
-      isSequence: true,
       visibility: "private",
       createMetadata: undefined,
       providerConfig: undefined,

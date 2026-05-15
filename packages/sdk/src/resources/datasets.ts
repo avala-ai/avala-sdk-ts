@@ -85,7 +85,6 @@ export interface CreateDatasetOptions {
   name: string;
   slug: string;
   dataType: string;
-  isSequence?: boolean;
   visibility?: string;
   createMetadata?: boolean;
   providerConfig?: Record<string, unknown>;
@@ -99,7 +98,6 @@ export class DatasetsResource extends BaseResource {
       slug: options.slug,
       data_type: options.dataType,
     };
-    if (options.isSequence !== undefined) payload.is_sequence = options.isSequence;
     if (options.visibility !== undefined) payload.visibility = options.visibility;
     if (options.createMetadata !== undefined) payload.create_metadata = options.createMetadata;
     if (options.providerConfig !== undefined) payload.provider_config = options.providerConfig;
