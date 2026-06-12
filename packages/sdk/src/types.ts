@@ -375,6 +375,8 @@ export interface DatasetSequence {
   allowLidarCalibration: boolean | null;
   lidarCalibrationEnabled: boolean | null;
   cameraCalibrationEnabled: boolean | null;
+  // Detail-serializer only (staff-gated); absent from list responses.
+  cocTimeline?: Record<string, unknown>[] | null;
 }
 
 // ── Validation APIs (agent-friendly reads) ───────────────────
