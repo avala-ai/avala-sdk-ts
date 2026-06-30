@@ -12,9 +12,15 @@ import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 
-// Load the contract file
+// Load the contract file. It lives in the monorepo root (avala-ai/avala) and is
+// NOT present when this package is built standalone from the public mirror repo
+// (avala-ai/avala-sdk-ts). In that case the contract checks are skipped — they
+// run as a gate in the monorepo CI, not at publish time.
 const contractPath = path.resolve(__dirname, "../../../../../contracts/api_contracts.json");
-const contract = JSON.parse(fs.readFileSync(contractPath, "utf-8"));
+const contractAvailable = fs.existsSync(contractPath);
+const contract = contractAvailable
+  ? JSON.parse(fs.readFileSync(contractPath, "utf-8"))
+  : { types: {}, endpoints: {} };
 
 /**
  * Convert a snake_case field name to camelCase (matching SDK's snakeToCamel).
@@ -84,7 +90,7 @@ function parseInterfaceFields(source: string, interfaceName: string): Set<string
 // Read the actual types.ts source file once for all tests
 const typesSource = fs.readFileSync(path.resolve(__dirname, "../src/types.ts"), "utf-8");
 
-describe("SDK types cover all contract fields", () => {
+describe.skipIf(!contractAvailable)("SDK types cover all contract fields", () => {
   const typeChecks: Array<{ typeName: string; fields: string[] }> = [];
 
   for (const [typeName, typeDef] of Object.entries(contract.types) as Array<[string, Record<string, unknown>]>) {
@@ -122,7 +128,7 @@ describe("SDK types cover all contract fields", () => {
 
 // ── Response shape tests ───────────────────────────────────────
 
-describe("SDK methods use correct transport for response shape", () => {
+describe.skipIf(!contractAvailable)("SDK methods use correct transport for response shape", () => {
   const resourceFileMap: Record<string, string> = {
     organizations: "organizations.ts",
     slices: "slices.ts",
@@ -186,7 +192,7 @@ describe("SDK methods use correct transport for response shape", () => {
 // These tests verify that mock API responses can be properly constructed
 // with all contract-specified fields as camelCase properties.
 
-describe("SDK types accept all contract fields after snakeToCamel conversion", () => {
+describe.skipIf(!contractAvailable)("SDK types accept all contract fields after snakeToCamel conversion", () => {
   it("Organization mock has all contract fields", () => {
     const allFields = [
       ...contract.types.Organization.list_fields,
