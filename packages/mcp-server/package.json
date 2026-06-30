@@ -1,8 +1,13 @@
 {
   "name": "@avala-ai/mcp-server",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "MCP server for the Avala API",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/avala-ai/avala-sdk-ts.git",
+    "directory": "packages/mcp-server"
+  },
   "main": "./dist/index.js",
   "bin": {
     "avala-mcp-server": "./dist/index.js"

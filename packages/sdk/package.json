@@ -1,8 +1,13 @@
 {
   "name": "@avala-ai/sdk",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Official TypeScript SDK for the Avala API",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/avala-ai/avala-sdk-ts.git",
+    "directory": "packages/sdk"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

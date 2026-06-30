@@ -1,0 +1,86 @@
+# =============================================================================
+# Publish @avala-ai/sdk + @avala-ai/mcp-server to npm
+# =============================================================================
+#
+# This file lives in the PUBLIC mirror repo (avala-ai/avala-sdk-ts). It is
+# mirrored from the private monorepo (avala-ai/avala @ sdks/typescript) — make
+# changes there, not here.
+#
+# Auth: npm Trusted Publishing (OIDC). No NPM_TOKEN — the `id-token: write`
+# permission lets npm (>= 11.5.1) exchange a short-lived OIDC token, and a
+# trusted publisher must be configured on each package pointing at:
+#   org: avala-ai · repo: avala-sdk-ts · workflow: publish.yml
+# Provenance attestations are generated automatically (`--provenance`).
+#
+# Trigger: push a tag `v<version>` to this repo (the monorepo mirror does this
+# automatically on a version bump), or run manually (dry-run by default).
+# =============================================================================
+
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build + test only, do not publish"
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write # OIDC for npm Trusted Publishing + provenance
+  contents: write # create the GitHub Release
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Test
+        run: bun run test
+
+      - name: Upgrade npm (Trusted Publishing needs npm >= 11.5.1)
+        run: npm install -g npm@latest
+
+      - name: Publish @avala-ai/sdk
+        if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+        working-directory: packages/sdk
+        run: npm publish --provenance --access public
+
+      - name: Publish @avala-ai/mcp-server
+        if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+        working-directory: packages/mcp-server
+        run: npm publish --provenance --access public
+
+      - name: Create GitHub Release
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "TypeScript SDKs ${{ github.ref_name }}"
+          generate_release_notes: true
+          body: |
+            **Packages:**
+            - [`@avala-ai/sdk`](https://www.npmjs.com/package/@avala-ai/sdk)
+            - [`@avala-ai/mcp-server`](https://www.npmjs.com/package/@avala-ai/mcp-server)
+
+            Published from this repo via npm Trusted Publishing (OIDC) with provenance.
