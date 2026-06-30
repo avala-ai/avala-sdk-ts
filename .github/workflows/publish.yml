@@ -12,6 +12,18 @@
 #   org: avala-ai · repo: avala-sdk-ts · workflow: publish.yml
 # Provenance attestations are generated automatically (`--provenance`).
 #
+# The build and publish stages are separate jobs on purpose: the OIDC
+# `id-token: write` permission is granted ONLY to the `publish` job, which does
+# nothing but download the already-built tarballs and upload them to npm.
+# Dependency install, tests, and the build run in `build` with no minting
+# permission, and the GitHub Release runs in `release` with only
+# `contents: write` — so the trusted-publishing token is never in scope during
+# install/test/build or the release action.
+#
+# `build` packs each workspace package into a tarball with `npm pack`, which
+# resolves the `workspace:*` dependency (mcp-server -> sdk) to the concrete
+# version, so the tarballs are self-contained and publish standalone.
+#
 # Trigger: push a tag `v<version>` to this repo (the monorepo mirror does this
 # automatically on a version bump), or run manually (dry-run by default).
 # =============================================================================
@@ -29,21 +41,20 @@ on:
         type: boolean
         default: true
 
-permissions:
-  id-token: write # OIDC for npm Trusted Publishing + provenance
-  contents: write # create the GitHub Release
+permissions: {} # least privilege by default; each job elevates only what it needs
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          registry-url: "https://registry.npmjs.org"
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -58,26 +69,79 @@ jobs:
       - name: Test
         run: bun run test
 
+      - name: Upgrade npm (npm pack workspace resolution + Trusted Publishing need npm >= 11.5.1)
+        run: npm install -g npm@latest
+
+      - name: Pack tarballs (resolves workspace:* to concrete versions)
+        run: |
+          mkdir -p dist-release
+          npm pack --workspace @avala-ai/sdk --pack-destination dist-release
+          npm pack --workspace @avala-ai/mcp-server --pack-destination dist-release
+          ls -la dist-release/
+
+      - name: Upload tarballs
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-tarballs
+          path: dist-release/*.tgz
+          if-no-files-found: error
+
+  # Minimal OIDC boundary: this job holds `id-token: write` and does NOTHING but
+  # download the built tarballs and hand them to npm. No checkout, no install, no
+  # test, no release action — nothing else runs while the token is mintable.
+  publish:
+    needs: build
+    # On a tag push, always publish. On manual dispatch, only when dry_run=false.
+    if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write # OIDC for npm Trusted Publishing + provenance
+    steps:
+      - name: Download tarballs
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-tarballs
+          path: dist-release/
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Upgrade npm (Trusted Publishing needs npm >= 11.5.1)
         run: npm install -g npm@latest
 
       - name: Publish @avala-ai/sdk
-        if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
-        working-directory: packages/sdk
-        run: npm publish --provenance --access public
+        run: npm publish dist-release/avala-ai-sdk-*.tgz --provenance --access public
 
       - name: Publish @avala-ai/mcp-server
-        if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
-        working-directory: packages/mcp-server
-        run: npm publish --provenance --access public
+        run: npm publish dist-release/avala-ai-mcp-server-*.tgz --provenance --access public
+
+  # Separate from publish so the GitHub Release action never runs with
+  # `id-token: write` in scope. Only `contents: write` here, no OIDC.
+  release:
+    needs: publish
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the GitHub Release
+    steps:
+      - name: Download tarballs
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-tarballs
+          path: dist-release/
 
       - name: Create GitHub Release
-        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: "TypeScript SDKs ${{ github.ref_name }}"
           generate_release_notes: true
+          files: |
+            dist-release/*.tgz
           body: |
             **Packages:**
             - [`@avala-ai/sdk`](https://www.npmjs.com/package/@avala-ai/sdk)
