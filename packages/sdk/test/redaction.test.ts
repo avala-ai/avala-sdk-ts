@@ -30,6 +30,20 @@ describe("redactString", () => {
     expect(out).toContain("[redacted]");
   });
 
+  it("redacts modern hyphenated provider keys (sk-proj / sk-ant)", () => {
+    // Bug-bounty: OpenAI `sk-proj-...` and Anthropic `sk-ant-api03-...` are
+    // `-`-separated, so the underscore-keyed pattern missed them and an
+    // inference `config.api_key` echoed in a `detail` string leaked.
+    for (const leaky of [
+      "Invalid provider config api_key=sk-proj-NotARealKeyJustATestValue0123456789abcdef",
+      "bad anthropic key sk-ant-api03-NotARealKeyJustATestValue0123456789abcdef",
+    ]) {
+      const out = redactString(leaky);
+      expect(out).not.toContain("NotARealKeyJustATestValue0123456789abcdef");
+      expect(out).toContain("[redacted]");
+    }
+  });
+
   it("redacts the Avala 40-hex API key shape", () => {
     const leaky = "Auth failed for key 0123456789abcdef0123456789abcdef01234567";
     const out = redactString(leaky);

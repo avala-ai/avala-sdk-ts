@@ -2,6 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Avala } from "@avala-ai/sdk";
 import { z } from "zod";
 
+import { safeStringify } from "../redact.js";
+
 export function registerFleetTools(server: McpServer, avala: Avala, allowMutations = false): void {
   server.tool(
     "fleet_list_devices",
@@ -15,7 +17,7 @@ export function registerFleetTools(server: McpServer, avala: Avala, allowMutatio
     async ({ status, type, limit, cursor }) => {
       const page = await avala.fleet.devices.list({ status, type, limit, cursor });
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(page, null, 2) }],
+        content: [{ type: "text" as const, text: safeStringify(page) }],
       };
     }
   );
@@ -29,7 +31,7 @@ export function registerFleetTools(server: McpServer, avala: Avala, allowMutatio
     async ({ uid }) => {
       const device = await avala.fleet.devices.get(uid);
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(device, null, 2) }],
+        content: [{ type: "text" as const, text: safeStringify(device) }],
       };
     }
   );
@@ -46,7 +48,7 @@ export function registerFleetTools(server: McpServer, avala: Avala, allowMutatio
     async ({ device, status, limit, cursor }) => {
       const page = await avala.fleet.recordings.list({ device, status, limit, cursor });
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(page, null, 2) }],
+        content: [{ type: "text" as const, text: safeStringify(page) }],
       };
     }
   );
@@ -60,7 +62,7 @@ export function registerFleetTools(server: McpServer, avala: Avala, allowMutatio
     async ({ uid }) => {
       const recording = await avala.fleet.recordings.get(uid);
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(recording, null, 2) }],
+        content: [{ type: "text" as const, text: safeStringify(recording) }],
       };
     }
   );
@@ -79,7 +81,7 @@ export function registerFleetTools(server: McpServer, avala: Avala, allowMutatio
     async ({ recording, device, type, severity, limit, cursor }) => {
       const page = await avala.fleet.events.list({ recording, device, type, severity, limit, cursor });
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(page, null, 2) }],
+        content: [{ type: "text" as const, text: safeStringify(page) }],
       };
     }
   );
@@ -98,7 +100,7 @@ export function registerFleetTools(server: McpServer, avala: Avala, allowMutatio
     async ({ status, severity, device, rule, limit, cursor }) => {
       const page = await avala.fleet.alerts.list({ status, severity, device, rule, limit, cursor });
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(page, null, 2) }],
+        content: [{ type: "text" as const, text: safeStringify(page) }],
       };
     }
   );
@@ -114,7 +116,7 @@ export function registerFleetTools(server: McpServer, avala: Avala, allowMutatio
     async ({ enabled, limit, cursor }) => {
       const page = await avala.fleet.rules.list({ enabled, limit, cursor });
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(page, null, 2) }],
+        content: [{ type: "text" as const, text: safeStringify(page) }],
       };
     }
   );
@@ -131,6 +133,10 @@ export function registerFleetTools(server: McpServer, avala: Avala, allowMutatio
       },
       async ({ name, type, firmwareVersion, tags }) => {
         const device = await avala.fleet.devices.register({ name, type, firmwareVersion, tags });
+        // The create response is the ONLY place the caller receives the new
+        // device's deviceToken (get/list omit it). Return it raw — redacting it
+        // here would create a device the user cannot configure. This is a
+        // user-invoked mutation, so the token is the intended result.
         return {
           content: [{ type: "text" as const, text: JSON.stringify(device, null, 2) }],
         };
@@ -146,7 +152,7 @@ export function registerFleetTools(server: McpServer, avala: Avala, allowMutatio
       async ({ uid }) => {
         const alert = await avala.fleet.alerts.acknowledge(uid);
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(alert, null, 2) }],
+          content: [{ type: "text" as const, text: safeStringify(alert) }],
         };
       }
     );

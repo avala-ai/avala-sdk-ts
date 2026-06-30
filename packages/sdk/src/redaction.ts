@@ -41,6 +41,12 @@ const REDACTION_PATTERNS: RegExp[] = [
   /\b(?:aws[_-]?secret[_-]?access[_-]?key|secretaccesskey)["']?\s*[:=]\s*["']?[A-Za-z0-9/+=]{20,}/gi,
   // Generic prefix-keyed secret tokens (Stripe / Resend / Supabase shapes).
   /\b(?:sk|pk|secret|key|token)_(?:live|test|prod)?_?[A-Za-z0-9]{16,}/g,
+  // Modern hyphenated provider keys: OpenAI `sk-proj-...` / legacy `sk-...`
+  // and Anthropic `sk-ant-api03-...`. The underscore-keyed pattern above
+  // misses these because the segments are `-`-separated. Reported via the
+  // bug-bounty program: inference-provider `config.api_key` secrets echoed in
+  // a `detail` string leaked through unredacted.
+  /\bsk-[A-Za-z0-9][A-Za-z0-9_-]{20,}/g,
   // Avala API key shape: 40 hex chars.
   /\b[a-f0-9]{40}\b/g,
   // Authorization: Bearer <token>.

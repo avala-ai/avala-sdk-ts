@@ -326,6 +326,10 @@ export interface SliceItem {
   uid: string;
   key: string | null;
   dataset: string | null;
+  // Detail-only: the list serializer (DatasetListItemSerializer) omits these, so
+  // they are absent (undefined) on listItems() results and present only on get().
+  datasetOwnerName?: string | null;
+  datasetSlug?: string | null;
   url: string | null;
   gpuTextureUrl: string | null;
   thumbnails: string[] | null;
@@ -345,6 +349,10 @@ export interface DatasetItem {
   uid: string;
   key: string | null;
   dataset: string | null;
+  // Detail-only: the list serializer (DatasetListItemSerializer) omits these, so
+  // they are absent (undefined) on listItems() results and present only on get().
+  datasetOwnerName?: string | null;
+  datasetSlug?: string | null;
   url: string | null;
   gpuTextureUrl: string | null;
   thumbnails: string[] | null;
