@@ -8,6 +8,7 @@ import {
   ValidationError,
 } from "./errors.js";
 import { snakeToCamel } from "./http.js";
+import { redact, redactString } from "./redaction.js";
 import type { SignupResponse } from "./types.js";
 
 const DEFAULT_BASE_URL = "https://api.avala.ai/api/v1";
@@ -29,7 +30,17 @@ async function handleError(response: Response): Promise<never> {
     body = await response.json();
     if (typeof body === "object" && body !== null) {
       if ("detail" in body) {
-        message = (body as { detail: string }).detail;
+        // Codex P1 on PR #11315 (mirrored here for the signup path): the server
+        // can return `{"detail": {...}}` for structured validation errors, so
+        // casting to string and then calling redactString below would throw a
+        // TypeError and replace the AvalaError subclass callers expect with a
+        // runtime crash. Only adopt the detail when it actually IS a string;
+        // otherwise keep the default `HTTP <status>` message and let callers
+        // inspect the (redacted) raw body.
+        const rawDetail = (body as { detail: unknown }).detail;
+        if (typeof rawDetail === "string") {
+          message = rawDetail;
+        }
       } else {
         const entries = Object.entries(body as Record<string, unknown>);
         const fieldErrors: string[] = [];
@@ -46,6 +57,15 @@ async function handleError(response: Response): Promise<never> {
   } catch {
     // ignore JSON parse errors
   }
+
+  // AVALA-SEC-2026-0012 (CWE-200): the server can echo parts of the request
+  // payload in its error `detail` (e.g. a validation error quoting a submitted
+  // value). Without redaction, a secret in the request flows straight into the
+  // thrown error's message and body — and callers routinely log SDK exceptions
+  // to stdout / Sentry / APM. Redact secret-shaped fragments here, mirroring the
+  // main HTTP transport in http.ts, so the signup helper closes the same gap.
+  message = redactString(message);
+  body = redact(body);
 
   const status = response.status;
   if (status === 401) throw new AuthenticationError(message, body);

@@ -148,3 +148,27 @@ describe("storage tools", () => {
     expect(server.getHandler("delete_storage_config")).toBeDefined();
   });
 });
+
+describe("storage tools — read-only mode (allowMutations=false)", () => {
+  let server: ReturnType<typeof createMockServer>;
+  let avala: ReturnType<typeof createMockAvala>;
+
+  beforeEach(() => {
+    server = createMockServer();
+    avala = createMockAvala();
+    registerStorageTools(server as never, avala as never, false);
+  });
+
+  it("registers only the read-only list tool", () => {
+    expect(server.tool).toHaveBeenCalledTimes(1);
+    expect(server.getHandler("list_storage_configs")).toBeDefined();
+  });
+
+  // AVALA-SEC-2026-0010: test_storage_config triggers a state-changing POST
+  // (storageConfigs.test), so it must NOT be exposed in read-only mode.
+  it("does not expose test_storage_config or any mutation tool", () => {
+    expect(server.getHandler("test_storage_config")).toBeUndefined();
+    expect(server.getHandler("create_storage_config")).toBeUndefined();
+    expect(server.getHandler("delete_storage_config")).toBeUndefined();
+  });
+});

@@ -72,24 +72,30 @@ export function registerStorageTools(server: McpServer, avala: Avala, allowMutat
     );
   }
 
-  server.tool(
-    "test_storage_config",
-    "Test connectivity for a storage configuration.",
-    {
-      uid: z.string().describe("The unique identifier (UUID) of the storage config to test"),
-    },
-    async ({ uid }) => {
-      const result = await avala.storageConfigs.test(uid);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-  );
+  // AVALA-SEC-2026-0010: test_storage_config issues a state-changing POST
+  // (storageConfigs.test -> POST /storage-configs/{uid}/test/), so it must be
+  // gated behind allowMutations like every other write tool. Registering it
+  // unconditionally exposed a mutation surface in read-only mode.
+  if (allowMutations) {
+    server.tool(
+      "test_storage_config",
+      "Test connectivity for a storage configuration.",
+      {
+        uid: z.string().describe("The unique identifier (UUID) of the storage config to test"),
+      },
+      async ({ uid }) => {
+        const result = await avala.storageConfigs.test(uid);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+    );
+  }
 
   if (allowMutations) {
     server.tool(

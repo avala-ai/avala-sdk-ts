@@ -67,14 +67,14 @@ avala-mcp-server
 | Fleet | Device management, recordings, events, alerts, rules |
 | Agents | List and inspect automation agents |
 | Webhooks | List and inspect webhook subscriptions |
-| Storage | List and test storage configurations |
+| Storage | List storage configurations |
 | Quality | Quality targets and consensus scoring |
 | Annotation Issues | List and manage annotation issue data |
 | Organizations | List organizations and members |
 | Slices | List and inspect data slices |
 | Stats | Get overview statistics for your account |
 | **Workflows** | **Composite tools: fleet health overview, project quality summary, workspace overview, annotation pipeline creation** |
-| Note | Write/delete tools (`create_*`, `delete_*`, `evaluate_quality`, `compute_consensus`) require `AVALA_MCP_ENABLE_MUTATIONS=true`. |
+| Note | Write/delete tools (`create_*`, `delete_*`, `test_storage_config`, `evaluate_quality`, `compute_consensus`) require `AVALA_MCP_ENABLE_MUTATIONS=true`. |
 
 ## Documentation
 

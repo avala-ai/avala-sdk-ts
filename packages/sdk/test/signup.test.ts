@@ -110,4 +110,52 @@ describe("signup", () => {
       expect((error as RateLimitError).retryAfter).toBe(60);
     }
   });
+
+  // AVALA-SEC-2026-0012 (CWE-200): a secret echoed in the server error detail
+  // must not survive into the thrown error's message or body.
+  it("redacts secret-shaped fragments echoed in the error detail", async () => {
+    const fakeAws = "AKIAIOSFODNN7EXAMPLE";
+    const fakeKey = "a".repeat(40); // Avala 40-hex api-key shape
+    mockFetch({
+      ok: false,
+      status: 422,
+      json: () =>
+        Promise.resolve({
+          detail: `Invalid config: aws key ${fakeAws} and api key ${fakeKey} rejected`,
+          aws_secret_access_key: fakeAws,
+        }),
+    });
+
+    try {
+      await signup({ email: "dev@acme.com", password: "secret123", baseUrl: BASE_URL });
+      expect.fail("should have thrown");
+    } catch (error) {
+      const err = error as ValidationError;
+      expect(err).toBeInstanceOf(ValidationError);
+      const serialized = err.message + JSON.stringify(err.body);
+      expect(serialized).not.toContain(fakeAws);
+      expect(serialized).not.toContain(fakeKey);
+      expect(err.message).toContain("[redacted]");
+    }
+  });
+
+  // Codex P2 on #12894: a structured (non-string) `detail` must not make
+  // redactString throw a TypeError — it should still raise the expected
+  // AvalaError subclass with a redacted body.
+  it("does not throw TypeError when detail is a structured object", async () => {
+    mockFetch({
+      ok: false,
+      status: 422,
+      json: () => Promise.resolve({ detail: { email: ["invalid"] } }),
+    });
+
+    try {
+      await signup({ email: "dev@acme.com", password: "secret123", baseUrl: BASE_URL });
+      expect.fail("should have thrown");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ValidationError);
+      // Falls back to the default status message, not a crash.
+      expect((error as ValidationError).message).toBe("HTTP 422");
+    }
+  });
 });
