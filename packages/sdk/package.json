@@ -1,6 +1,6 @@
 {
   "name": "@avala-ai/sdk",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "Official TypeScript SDK for the Avala API",
   "type": "module",
   "repository": {

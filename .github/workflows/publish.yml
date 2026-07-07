@@ -113,10 +113,10 @@ jobs:
         run: npm install -g npm@latest
 
       - name: Publish @avala-ai/sdk
-        run: npm publish dist-release/avala-ai-sdk-*.tgz --provenance --access public
+        run: npm publish ./dist-release/avala-ai-sdk-*.tgz --provenance --access public
 
       - name: Publish @avala-ai/mcp-server
-        run: npm publish dist-release/avala-ai-mcp-server-*.tgz --provenance --access public
+        run: npm publish ./dist-release/avala-ai-mcp-server-*.tgz --provenance --access public
 
   # Separate from publish so the GitHub Release action never runs with
   # `id-token: write` in scope. Only `contents: write` here, no OIDC.
