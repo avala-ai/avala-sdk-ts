@@ -380,9 +380,13 @@ export interface DatasetSequence {
   frames: Record<string, unknown>[] | null;
   metrics: Record<string, unknown> | null;
   datasetUid: string | null;
+  // Detail-serializer only; absent from list and api-key-list responses.
+  deviceId?: string | null;
   allowLidarCalibration: boolean | null;
   lidarCalibrationEnabled: boolean | null;
   cameraCalibrationEnabled: boolean | null;
+  // Detail-serializer only; one entry per camera in cameraCalibrationData.
+  cameraCalibration?: Record<string, unknown>[] | null;
   // Detail-serializer only (staff-gated); absent from list responses.
   cocTimeline?: Record<string, unknown>[] | null;
 }
