@@ -1,12 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerStorageTools } from "../../src/tools/storage.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[] }>;
+type ToolHandler = (args: Record<string, unknown>) => Promise<{
+  content: { type: string; text: string }[];
+  structuredContent?: Record<string, unknown>;
+}>;
 
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
     tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+      handlers.set(name, handler);
+    }),
+    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
       handlers.set(name, handler);
     }),
     getHandler(name: string) {
@@ -17,9 +23,29 @@ function createMockServer() {
 
 function createMockAvala() {
   return {
-    storageConfigs: { list: vi.fn(), create: vi.fn(), test: vi.fn(), delete: vi.fn() },
+    transport: { requestPage: vi.fn() },
+    storageConfigs: { create: vi.fn(), test: vi.fn(), delete: vi.fn() },
   };
 }
+
+const MOCK_STORAGE_CONFIG = {
+  uid: "sc-1",
+  name: "Production S3",
+  provider: "aws_s3",
+  s3BucketName: "robotics-data",
+  s3BucketRegion: "us-west-2",
+  s3BucketPrefix: "datasets/",
+  s3IsAccelerated: false,
+  s3AuthMethod: "iam_role",
+  gcStorageBucketName: null,
+  gcStoragePrefix: null,
+  r2AccountId: null,
+  r2PublicBaseUrl: null,
+  isVerified: true,
+  lastVerifiedAt: "2025-01-01T00:00:00Z",
+  createdAt: "2025-01-01T00:00:00Z",
+  updatedAt: "2025-01-02T00:00:00Z",
+};
 
 describe("storage tools", () => {
   let server: ReturnType<typeof createMockServer>;
@@ -28,33 +54,39 @@ describe("storage tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerStorageTools(server as never, avala as never, true);
+    registerStorageTools(server as never, (() => avala) as never, true);
   });
 
-  it("list_storage_configs calls avala.storageConfigs.list and returns JSON", async () => {
+  it("list_storage_configs dispatches its declared route and returns structured JSON", async () => {
     const mockPage = {
-      items: [{ uid: "sc-1", name: "Production S3", provider: "s3" }],
+      items: [MOCK_STORAGE_CONFIG],
       nextCursor: null,
       previousCursor: null,
       hasMore: false,
     };
-    avala.storageConfigs.list.mockResolvedValue(mockPage);
+    avala.transport.requestPage.mockResolvedValue(mockPage);
 
     const handler = server.getHandler("list_storage_configs")!;
     const result = await handler({});
 
-    expect(avala.storageConfigs.list).toHaveBeenCalled();
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/storage-configs/", undefined);
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].name).toBe("Production S3");
+    expect(result.structuredContent).toEqual(mockPage);
   });
 
   it("list_storage_configs passes limit and cursor", async () => {
-    avala.storageConfigs.list.mockResolvedValue({ items: [], nextCursor: null, previousCursor: null, hasMore: false });
+    avala.transport.requestPage.mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      previousCursor: null,
+      hasMore: false,
+    });
 
     const handler = server.getHandler("list_storage_configs")!;
     await handler({ limit: 5, cursor: "abc" });
 
-    expect(avala.storageConfigs.list).toHaveBeenCalledWith({ limit: 5, cursor: "abc" });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/storage-configs/", { limit: "5", cursor: "abc" });
   });
 
   it("create_storage_config calls avala.storageConfigs.create with all params and returns JSON", async () => {
@@ -141,7 +173,8 @@ describe("storage tools", () => {
   });
 
   it("registers all four storage tools", () => {
-    expect(server.tool).toHaveBeenCalledTimes(4);
+    expect(server.registerTool).toHaveBeenCalledTimes(1);
+    expect(server.tool).toHaveBeenCalledTimes(3);
     expect(server.getHandler("list_storage_configs")).toBeDefined();
     expect(server.getHandler("create_storage_config")).toBeDefined();
     expect(server.getHandler("test_storage_config")).toBeDefined();
@@ -156,11 +189,12 @@ describe("storage tools — read-only mode (allowMutations=false)", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerStorageTools(server as never, avala as never, false);
+    registerStorageTools(server as never, (() => avala) as never, false);
   });
 
   it("registers only the read-only list tool", () => {
-    expect(server.tool).toHaveBeenCalledTimes(1);
+    expect(server.registerTool).toHaveBeenCalledTimes(1);
+    expect(server.tool).not.toHaveBeenCalled();
     expect(server.getHandler("list_storage_configs")).toBeDefined();
   });
 

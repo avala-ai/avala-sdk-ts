@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Avala } from "@avala-ai/sdk";
+import type { GetClient } from "../client.js";
 import { z } from "zod";
 
-export function registerAnnotationIssueTools(server: McpServer, avala: Avala, allowMutations = false): void {
+export function registerAnnotationIssueTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
   server.tool(
     "list_annotation_issues_by_sequence",
     "List annotation issues for a specific sequence.",
@@ -12,6 +12,7 @@ export function registerAnnotationIssueTools(server: McpServer, avala: Avala, al
       projectUid: z.string().optional().describe("Filter by project UID"),
     },
     async ({ sequenceUid, datasetItemUid, projectUid }) => {
+      const avala = getClient();
       const result = await avala.annotationIssues.listBySequence(sequenceUid, {
         datasetItemUid,
         projectUid,
@@ -45,6 +46,7 @@ export function registerAnnotationIssueTools(server: McpServer, avala: Avala, al
         objectUid: z.string().optional().describe("The UID of the annotation object"),
       },
       async ({ sequenceUid, ...options }) => {
+        const avala = getClient();
         const result = await avala.annotationIssues.create(sequenceUid, options);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
@@ -71,6 +73,7 @@ export function registerAnnotationIssueTools(server: McpServer, avala: Avala, al
         framesAffected: z.string().optional().describe("Frames affected by the issue"),
       },
       async ({ sequenceUid, issueUid, ...options }) => {
+        const avala = getClient();
         const result = await avala.annotationIssues.update(sequenceUid, issueUid, options);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
@@ -86,6 +89,7 @@ export function registerAnnotationIssueTools(server: McpServer, avala: Avala, al
         issueUid: z.string().describe("The UID of the annotation issue"),
       },
       async ({ sequenceUid, issueUid }) => {
+        const avala = getClient();
         await avala.annotationIssues.delete(sequenceUid, issueUid);
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ success: true }, null, 2) }],
@@ -103,6 +107,7 @@ export function registerAnnotationIssueTools(server: McpServer, avala: Avala, al
       sequenceUid: z.string().optional().describe("Filter by sequence UID"),
     },
     async ({ owner, datasetSlug, sequenceUid }) => {
+      const avala = getClient();
       const result = await avala.annotationIssues.listByDataset(owner, datasetSlug, {
         sequenceUid,
       });
@@ -121,6 +126,7 @@ export function registerAnnotationIssueTools(server: McpServer, avala: Avala, al
       sequenceUid: z.string().optional().describe("Filter by sequence UID"),
     },
     async ({ owner, datasetSlug, sequenceUid }) => {
+      const avala = getClient();
       const result = await avala.annotationIssues.getMetrics(owner, datasetSlug, {
         sequenceUid,
       });
@@ -137,6 +143,7 @@ export function registerAnnotationIssueTools(server: McpServer, avala: Avala, al
       datasetType: z.string().describe("The dataset type (e.g. 'image', 'video', 'lidar')"),
     },
     async ({ datasetType }) => {
+      const avala = getClient();
       const result = await avala.annotationIssues.listTools({ datasetType });
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],

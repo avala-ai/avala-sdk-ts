@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Avala } from "@avala-ai/sdk";
+import type { GetClient } from "../client.js";
 import { z } from "zod";
 
-export function registerExportTools(server: McpServer, avala: Avala, allowMutations = false): void {
+export function registerExportTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
   if (allowMutations) {
     server.tool(
       "create_export",
@@ -12,6 +12,7 @@ export function registerExportTools(server: McpServer, avala: Avala, allowMutati
         dataset: z.string().optional().describe("Dataset UID to export"),
       },
       async ({ project, dataset }) => {
+        const avala = getClient();
         const exportJob = await avala.exports.create({ project, dataset });
         return {
           content: [
@@ -33,6 +34,7 @@ export function registerExportTools(server: McpServer, avala: Avala, allowMutati
       cursor: z.string().optional().describe("Pagination cursor from a previous request"),
     },
     async ({ limit, cursor }) => {
+      const avala = getClient();
       const page = await avala.exports.list({ limit, cursor });
       return {
         content: [
@@ -52,6 +54,7 @@ export function registerExportTools(server: McpServer, avala: Avala, allowMutati
       uid: z.string().describe("The unique identifier (UUID) of the export"),
     },
     async ({ uid }) => {
+      const avala = getClient();
       const exportJob = await avala.exports.get(uid);
       return {
         content: [

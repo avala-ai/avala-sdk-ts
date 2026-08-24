@@ -31,7 +31,7 @@ describe("stats tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerStatsTools(server as never, avala as never);
+    registerStatsTools(server as never, (() => avala) as never);
   });
 
   it("get_workspace_stats calls datasets.list, projects.list, and exports.list", async () => {

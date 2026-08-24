@@ -34,7 +34,7 @@ describe("project tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerProjectTools(server as never, avala as never);
+    registerProjectTools(server as never, (() => avala) as never);
   });
 
   it("list_projects calls avala.projects.list and returns JSON", async () => {

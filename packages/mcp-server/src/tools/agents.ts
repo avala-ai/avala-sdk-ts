@@ -1,46 +1,72 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Avala } from "@avala-ai/sdk";
+import type { GetClient } from "../client.js";
+import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
 import { z } from "zod";
 
-export function registerAgentTools(server: McpServer, avala: Avala, allowMutations = false): void {
-  server.tool(
-    "list_agents",
-    "List all automation agents configured in your workspace.",
-    {
-      limit: z.number().optional().describe("Maximum number of agents to return"),
-      cursor: z.string().optional().describe("Pagination cursor from a previous request"),
-    },
-    async ({ limit, cursor }) => {
-      const page = await avala.agents.list({ limit, cursor });
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(page, null, 2),
-          },
-        ],
-      };
-    }
-  );
+const agentOutputFields = {
+  uid: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  events: z.array(z.string()),
+  callbackUrl: z.string().nullable(),
+  isActive: z.boolean(),
+  project: z.string().nullable(),
+  taskTypes: z.array(z.string()),
+  createdAt: z.string().nullable(),
+  updatedAt: z.string().nullable(),
+};
 
-  server.tool(
-    "get_agent",
-    "Get detailed information about a specific automation agent.",
-    {
-      uid: z.string().describe("The unique identifier (UUID) of the agent"),
-    },
-    async ({ uid }) => {
-      const agent = await avala.agents.get(uid);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(agent, null, 2),
-          },
-        ],
-      };
-    }
-  );
+const agentListOutputSchema = z.object(agentOutputFields).passthrough();
+const agentDetailOutputSchema = z
+  .object({
+    ...agentOutputFields,
+    executionStats: z.record(z.number()),
+  })
+  .passthrough();
+
+const listAgentsTool = defineReadCatalogTool({
+  name: "list_agents",
+  title: "List agents",
+  description: "List all automation agents configured in your workspace.",
+  inputSchema: z.object({
+    limit: z.number().int().positive().optional().describe("Maximum number of agents to return"),
+    cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+  }),
+  outputSchema: definePageOutputSchema(agentListOutputSchema),
+  route: {
+    name: "agent-list",
+    method: "GET",
+    path: "/agents/",
+    query: { limit: "limit", cursor: "cursor" },
+    response: "page",
+    scope: "agents.read",
+    toolset: "agents",
+  },
+});
+
+const getAgentTool = defineReadCatalogTool({
+  name: "get_agent",
+  title: "Get agent",
+  description: "Get detailed information about a specific automation agent.",
+  inputSchema: z.object({
+    uid: z.string().describe("The unique identifier (UUID) of the agent"),
+  }),
+  outputSchema: agentDetailOutputSchema,
+  route: {
+    name: "agent-detail",
+    method: "GET",
+    path: "/agents/{uid}/",
+    response: "single",
+    scope: "agents.read",
+    toolset: "agents",
+  },
+});
+
+export const AGENT_READ_CATALOG_TOOLS = [listAgentsTool, getAgentTool] as const;
+
+export function registerAgentTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
+  registerReadCatalogTool(server, getClient, listAgentsTool);
+  registerReadCatalogTool(server, getClient, getAgentTool);
 
   if (allowMutations) {
     server.tool(
@@ -55,6 +81,7 @@ export function registerAgentTools(server: McpServer, avala: Avala, allowMutatio
         taskTypes: z.array(z.string()).optional().describe("Task types the agent handles"),
       },
       async ({ name, events, callbackUrl, description, project, taskTypes }) => {
+        const avala = getClient();
         const agent = await avala.agents.create({
           name,
           events,
@@ -81,6 +108,7 @@ export function registerAgentTools(server: McpServer, avala: Avala, allowMutatio
         uid: z.string().describe("The unique identifier (UUID) of the agent to delete"),
       },
       async ({ uid }) => {
+        const avala = getClient();
         await avala.agents.delete(uid);
         return {
           content: [

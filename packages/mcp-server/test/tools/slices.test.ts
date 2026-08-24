@@ -1,12 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerSliceTools } from "../../src/tools/slices.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[] }>;
+type ToolHandler = (args: Record<string, unknown>) => Promise<{
+  content: { type: string; text: string }[];
+  structuredContent?: Record<string, unknown>;
+}>;
 
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
     tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+      handlers.set(name, handler);
+    }),
+    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
       handlers.set(name, handler);
     }),
     getHandler(name: string) {
@@ -17,9 +23,23 @@ function createMockServer() {
 
 function createMockAvala() {
   return {
-    slices: { list: vi.fn(), get: vi.fn() },
+    transport: { requestPage: vi.fn(), requestSingle: vi.fn() },
   };
 }
+
+const MOCK_SLICE = {
+  uid: "slice-1",
+  slug: "training-set",
+  name: "Training Set",
+  ownerName: "acme",
+  organization: null,
+  visibility: "private",
+  status: "created",
+  itemCount: 100,
+  subSlices: [],
+  sourceData: [],
+  featuredSliceItemUrls: [],
+};
 
 describe("slice tools", () => {
   let server: ReturnType<typeof createMockServer>;
@@ -28,50 +48,59 @@ describe("slice tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerSliceTools(server as never, avala as never);
+    registerSliceTools(server as never, (() => avala) as never);
   });
 
-  it("list_slices calls avala.slices.list with owner and options", async () => {
+  it("list_slices dispatches its declared route with pagination", async () => {
     const mockPage = {
-      items: [{ slug: "training-set", name: "Training Set", itemCount: 100 }],
+      items: [MOCK_SLICE],
       nextCursor: null,
       previousCursor: null,
       hasMore: false,
     };
-    avala.slices.list.mockResolvedValue(mockPage);
+    avala.transport.requestPage.mockResolvedValue(mockPage);
 
     const handler = server.getHandler("list_slices")!;
     const result = await handler({ owner: "acme", limit: 10, cursor: "xyz" });
 
-    expect(avala.slices.list).toHaveBeenCalledWith("acme", { limit: 10, cursor: "xyz" });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/slices/acme/list/", {
+      limit: "10",
+      cursor: "xyz",
+    });
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].slug).toBe("training-set");
+    expect(result.structuredContent).toEqual(mockPage);
   });
 
   it("list_slices passes owner without optional params", async () => {
-    avala.slices.list.mockResolvedValue({ items: [], nextCursor: null, previousCursor: null, hasMore: false });
+    avala.transport.requestPage.mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      previousCursor: null,
+      hasMore: false,
+    });
 
     const handler = server.getHandler("list_slices")!;
     await handler({ owner: "acme" });
 
-    expect(avala.slices.list).toHaveBeenCalledWith("acme", { limit: undefined, cursor: undefined });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/slices/acme/list/", undefined);
   });
 
-  it("get_slice calls avala.slices.get with owner and slug", async () => {
-    const mockSlice = { slug: "training-set", name: "Training Set", itemCount: 100, createdAt: "2025-01-01" };
-    avala.slices.get.mockResolvedValue(mockSlice);
+  it("get_slice dispatches its declared detail route", async () => {
+    avala.transport.requestSingle.mockResolvedValue(MOCK_SLICE);
 
     const handler = server.getHandler("get_slice")!;
     const result = await handler({ owner: "acme", slug: "training-set" });
 
-    expect(avala.slices.get).toHaveBeenCalledWith("acme", "training-set");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/slices/acme/training-set/");
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.slug).toBe("training-set");
     expect(parsed.itemCount).toBe(100);
   });
 
   it("registers both list_slices and get_slice tools", () => {
-    expect(server.tool).toHaveBeenCalledTimes(2);
+    expect(server.registerTool).toHaveBeenCalledTimes(2);
+    expect(server.tool).not.toHaveBeenCalled();
     expect(server.getHandler("list_slices")).toBeDefined();
     expect(server.getHandler("get_slice")).toBeDefined();
   });

@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Avala } from "@avala-ai/sdk";
+import type { GetClient } from "../client.js";
 import { z } from "zod";
 
-export function registerProjectTools(server: McpServer, avala: Avala): void {
+export function registerProjectTools(server: McpServer, getClient: GetClient): void {
   server.tool(
     "list_projects",
     "List all annotation projects with their status and progress.",
@@ -11,6 +11,7 @@ export function registerProjectTools(server: McpServer, avala: Avala): void {
       cursor: z.string().optional().describe("Pagination cursor from a previous request"),
     },
     async ({ limit, cursor }) => {
+      const avala = getClient();
       const page = await avala.projects.list({ limit, cursor });
       return {
         content: [
@@ -30,6 +31,7 @@ export function registerProjectTools(server: McpServer, avala: Avala): void {
       uid: z.string().describe("The unique identifier (UUID) of the project"),
     },
     async ({ uid }) => {
+      const avala = getClient();
       const project = await avala.projects.get(uid);
       return {
         content: [

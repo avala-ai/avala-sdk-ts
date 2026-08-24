@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Avala } from "@avala-ai/sdk";
+import type { GetClient } from "../client.js";
 import { z } from "zod";
 
 function settled<T>(result: PromiseSettledResult<T>): T | null {
@@ -24,7 +24,7 @@ function safeErrorSummary(reason: unknown): string {
   return "Error";
 }
 
-export function registerWorkflowTools(server: McpServer, avala: Avala, allowMutations = false): void {
+export function registerWorkflowTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
   if (allowMutations) {
     server.tool(
       "create_annotation_pipeline",
@@ -36,6 +36,7 @@ export function registerWorkflowTools(server: McpServer, avala: Avala, allowMuta
         projectUid: z.string().optional().describe("If provided, an export will be created for this project after the dataset is created"),
       },
       async ({ name, slug, dataType, projectUid }) => {
+        const avala = getClient();
         const dataset = await avala.datasets.create({ name, slug, dataType });
 
         const summary: Record<string, unknown> = {
@@ -73,6 +74,7 @@ export function registerWorkflowTools(server: McpServer, avala: Avala, allowMuta
       deviceType: z.string().optional().describe("Optional filter by device type"),
     },
     async ({ deviceType }) => {
+      const avala = getClient();
       const [devicesResult, alertsResult, recordingsResult] = await Promise.allSettled([
         avala.fleet.devices.list({ type: deviceType, limit: 100 }),
         avala.fleet.alerts.list({ status: "open", limit: 100 }),
@@ -123,6 +125,7 @@ export function registerWorkflowTools(server: McpServer, avala: Avala, allowMuta
       projectUid: z.string().describe("The unique identifier (UUID) of the project"),
     },
     async ({ projectUid }) => {
+      const avala = getClient();
       const [projectResult, targetsResult, consensusResult] = await Promise.allSettled([
         avala.projects.get(projectUid),
         avala.qualityTargets.list(projectUid, { limit: 50 }),
@@ -171,6 +174,7 @@ export function registerWorkflowTools(server: McpServer, avala: Avala, allowMuta
     "Get a high-level overview of the workspace — organizations, recent datasets, recent projects, and recent exports. Use when a user first connects or asks 'what do I have?' or 'show me my workspace.'",
     {},
     async () => {
+      const avala = getClient();
       const [orgsResult, datasetsResult, projectsResult, exportsResult] = await Promise.allSettled([
         avala.organizations.list({ limit: 10 }),
         avala.datasets.list({ limit: 5 }),

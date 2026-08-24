@@ -69,7 +69,16 @@ export class Avala {
   public readonly slices: SlicesResource;
   public readonly fleet: FleetResource;
 
-  private readonly http: HttpTransport;
+  /**
+   * The hardened HTTP transport shared by every typed resource client.
+   *
+   * This is public for declarative consumers such as the Avala MCP catalog,
+   * where the reviewed route metadata must drive the actual HTTP method and
+   * path. Keeping one transport preserves the SDK's credential forwarding,
+   * redirect refusal, traversal checks, timeouts, error redaction, and rate
+   * limit tracking for both typed resources and declarative calls.
+   */
+  public readonly transport: HttpTransport;
 
   constructor(config?: AvalaConfig) {
     const apiKey = config?.apiKey ?? (typeof process !== "undefined" ? process.env.AVALA_API_KEY : undefined);
@@ -80,31 +89,31 @@ export class Avala {
     }
 
     const baseUrl = resolveBaseUrl(config?.baseUrl ?? "https://api.avala.ai/api/v1");
-    this.http = new HttpTransport({
+    this.transport = new HttpTransport({
       apiKey,
       baseUrl,
       timeout: config?.timeout ?? 30_000,
     });
 
-    this.datasets = new DatasetsResource(this.http);
-    this.projects = new ProjectsResource(this.http);
-    this.exports = new ExportsResource(this.http);
-    this.tasks = new TasksResource(this.http);
-    this.storageConfigs = new StorageConfigsResource(this.http);
-    this.agents = new AgentsResource(this.http);
-    this.annotationIssues = new AnnotationIssuesResource(this.http);
-    this.inferenceProviders = new InferenceProvidersResource(this.http);
-    this.autoLabelJobs = new AutoLabelJobsResource(this.http);
-    this.qualityTargets = new QualityTargetsResource(this.http);
-    this.consensus = new ConsensusResource(this.http);
-    this.webhooks = new WebhooksResource(this.http);
-    this.webhookDeliveries = new WebhookDeliveriesResource(this.http);
-    this.organizations = new OrganizationsResource(this.http);
-    this.slices = new SlicesResource(this.http);
-    this.fleet = new FleetResource(this.http);
+    this.datasets = new DatasetsResource(this.transport);
+    this.projects = new ProjectsResource(this.transport);
+    this.exports = new ExportsResource(this.transport);
+    this.tasks = new TasksResource(this.transport);
+    this.storageConfigs = new StorageConfigsResource(this.transport);
+    this.agents = new AgentsResource(this.transport);
+    this.annotationIssues = new AnnotationIssuesResource(this.transport);
+    this.inferenceProviders = new InferenceProvidersResource(this.transport);
+    this.autoLabelJobs = new AutoLabelJobsResource(this.transport);
+    this.qualityTargets = new QualityTargetsResource(this.transport);
+    this.consensus = new ConsensusResource(this.transport);
+    this.webhooks = new WebhooksResource(this.transport);
+    this.webhookDeliveries = new WebhookDeliveriesResource(this.transport);
+    this.organizations = new OrganizationsResource(this.transport);
+    this.slices = new SlicesResource(this.transport);
+    this.fleet = new FleetResource(this.transport);
   }
 
   get rateLimitInfo(): RateLimitInfo {
-    return this.http.lastRateLimit;
+    return this.transport.lastRateLimit;
   }
 }

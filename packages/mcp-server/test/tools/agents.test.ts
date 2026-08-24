@@ -1,12 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerAgentTools } from "../../src/tools/agents.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[] }>;
+type ToolHandler = (args: Record<string, unknown>) => Promise<{
+  content: { type: string; text: string }[];
+  structuredContent?: Record<string, unknown>;
+}>;
 
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
     tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+      handlers.set(name, handler);
+    }),
+    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
       handlers.set(name, handler);
     }),
     getHandler(name: string) {
@@ -17,9 +23,23 @@ function createMockServer() {
 
 function createMockAvala() {
   return {
-    agents: { list: vi.fn(), get: vi.fn(), create: vi.fn(), delete: vi.fn() },
+    transport: { requestPage: vi.fn(), requestSingle: vi.fn() },
+    agents: { create: vi.fn(), delete: vi.fn() },
   };
 }
+
+const MOCK_AGENT = {
+  uid: "agent-1",
+  name: "My Agent",
+  description: "Processes completed tasks",
+  events: ["task.completed"],
+  callbackUrl: "https://example.com/hook",
+  isActive: true,
+  project: null,
+  taskTypes: ["annotation"],
+  createdAt: "2025-01-01T00:00:00Z",
+  updatedAt: "2025-01-02T00:00:00Z",
+};
 
 describe("agent tools", () => {
   let server: ReturnType<typeof createMockServer>;
@@ -28,43 +48,49 @@ describe("agent tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerAgentTools(server as never, avala as never, true);
+    registerAgentTools(server as never, (() => avala) as never, true);
   });
 
-  it("list_agents calls avala.agents.list and returns JSON", async () => {
+  it("list_agents dispatches its declared route and returns structured JSON", async () => {
     const mockPage = {
-      items: [{ uid: "agent-1", name: "My Agent", events: ["task.completed"] }],
+      items: [MOCK_AGENT],
       nextCursor: null,
       previousCursor: null,
       hasMore: false,
     };
-    avala.agents.list.mockResolvedValue(mockPage);
+    avala.transport.requestPage.mockResolvedValue(mockPage);
 
     const handler = server.getHandler("list_agents")!;
     const result = await handler({});
 
-    expect(avala.agents.list).toHaveBeenCalled();
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/agents/", undefined);
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].name).toBe("My Agent");
+    expect(result.structuredContent).toEqual(mockPage);
   });
 
   it("list_agents passes limit and cursor", async () => {
-    avala.agents.list.mockResolvedValue({ items: [], nextCursor: null, previousCursor: null, hasMore: false });
+    avala.transport.requestPage.mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      previousCursor: null,
+      hasMore: false,
+    });
 
     const handler = server.getHandler("list_agents")!;
     await handler({ limit: 5, cursor: "abc" });
 
-    expect(avala.agents.list).toHaveBeenCalledWith({ limit: 5, cursor: "abc" });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/agents/", { limit: "5", cursor: "abc" });
   });
 
-  it("get_agent calls avala.agents.get and returns JSON", async () => {
-    const mockAgent = { uid: "agent-1", name: "My Agent", events: ["task.completed"], callbackUrl: "https://example.com/hook" };
-    avala.agents.get.mockResolvedValue(mockAgent);
+  it("get_agent dispatches its declared detail route", async () => {
+    const mockAgent = { ...MOCK_AGENT, executionStats: { completed: 2 } };
+    avala.transport.requestSingle.mockResolvedValue(mockAgent);
 
     const handler = server.getHandler("get_agent")!;
     const result = await handler({ uid: "agent-1" });
 
-    expect(avala.agents.get).toHaveBeenCalledWith("agent-1");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/agents/agent-1/");
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.name).toBe("My Agent");
     expect(parsed.callbackUrl).toBe("https://example.com/hook");
@@ -110,7 +136,8 @@ describe("agent tools", () => {
   });
 
   it("registers all four agent tools", () => {
-    expect(server.tool).toHaveBeenCalledTimes(4);
+    expect(server.registerTool).toHaveBeenCalledTimes(2);
+    expect(server.tool).toHaveBeenCalledTimes(2);
     expect(server.getHandler("list_agents")).toBeDefined();
     expect(server.getHandler("get_agent")).toBeDefined();
     expect(server.getHandler("create_agent")).toBeDefined();

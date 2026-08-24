@@ -20,10 +20,26 @@ describe("Avala client", () => {
 
   it("creates client with explicit API key", () => {
     const avala = new Avala({ apiKey: "test-key" });
+    expect(avala.transport).toBeDefined();
     expect(avala.datasets).toBeDefined();
     expect(avala.projects).toBeDefined();
     expect(avala.exports).toBeDefined();
     expect(avala.tasks).toBeDefined();
+  });
+
+  it("exposes the same hardened transport used by typed resources", async () => {
+    const avala = new Avala({ apiKey: "test-key" });
+    const requestPage = vi.spyOn(avala.transport, "requestPage").mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      previousCursor: null,
+      hasMore: false,
+    });
+
+    await avala.datasets.list();
+
+    expect(requestPage).toHaveBeenCalledOnce();
+    expect(requestPage).toHaveBeenCalledWith("/datasets/", undefined);
   });
 
   it("reads API key from AVALA_API_KEY env var and sends it in requests", async () => {

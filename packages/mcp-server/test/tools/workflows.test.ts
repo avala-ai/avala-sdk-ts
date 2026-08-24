@@ -59,7 +59,7 @@ describe("workflow tools", () => {
 
   describe("with allowMutations = true", () => {
     beforeEach(() => {
-      registerWorkflowTools(server as never, avala as never, true);
+      registerWorkflowTools(server as never, (() => avala) as never, true);
     });
 
     it("registers all workflow tools including mutation tools", () => {
@@ -105,7 +105,7 @@ describe("workflow tools", () => {
 
   describe("with allowMutations = false", () => {
     beforeEach(() => {
-      registerWorkflowTools(server as never, avala as never, false);
+      registerWorkflowTools(server as never, (() => avala) as never, false);
     });
 
     it("does not register create_annotation_pipeline without allowMutations", () => {
@@ -121,7 +121,7 @@ describe("workflow tools", () => {
 
   describe("get_fleet_health", () => {
     beforeEach(() => {
-      registerWorkflowTools(server as never, avala as never, false);
+      registerWorkflowTools(server as never, (() => avala) as never, false);
     });
 
     it("returns aggregated fleet health summary", async () => {
@@ -178,7 +178,7 @@ describe("workflow tools", () => {
 
   describe("get_project_quality_summary", () => {
     beforeEach(() => {
-      registerWorkflowTools(server as never, avala as never, false);
+      registerWorkflowTools(server as never, (() => avala) as never, false);
     });
 
     it("returns combined project, quality targets, and consensus data", async () => {
@@ -216,7 +216,7 @@ describe("workflow tools", () => {
 
   describe("get_workspace_overview", () => {
     beforeEach(() => {
-      registerWorkflowTools(server as never, avala as never, false);
+      registerWorkflowTools(server as never, (() => avala) as never, false);
     });
 
     it("returns combined workspace data from all resources", async () => {

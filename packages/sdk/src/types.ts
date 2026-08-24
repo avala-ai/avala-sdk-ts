@@ -389,6 +389,11 @@ export interface DatasetSequence {
   cameraCalibration?: Record<string, unknown>[] | null;
   // Detail-serializer only (staff-gated); absent from list responses.
   cocTimeline?: Record<string, unknown>[] | null;
+  // Workflow descriptors are permission-gated and omitted for callers that
+  // cannot inspect the dataset's workflow configuration.
+  isWorkflowTerminal?: boolean | null;
+  sequenceStatusWorkflow?: Record<string, unknown> | null;
+  sequenceDeliverableWorkflow?: Record<string, unknown> | null;
 }
 
 // ── Validation APIs (agent-friendly reads) ───────────────────

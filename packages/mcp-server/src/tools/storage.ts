@@ -1,27 +1,53 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Avala } from "@avala-ai/sdk";
+import type { GetClient } from "../client.js";
+import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
 import { z } from "zod";
 
-export function registerStorageTools(server: McpServer, avala: Avala, allowMutations = false): void {
-  server.tool(
-    "list_storage_configs",
-    "List all storage configurations in your workspace.",
-    {
-      limit: z.number().optional().describe("Maximum number of storage configs to return"),
-      cursor: z.string().optional().describe("Pagination cursor from a previous request"),
-    },
-    async ({ limit, cursor }) => {
-      const page = await avala.storageConfigs.list({ limit, cursor });
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(page, null, 2),
-          },
-        ],
-      };
-    }
-  );
+const storageConfigOutputSchema = z
+  .object({
+    uid: z.string(),
+    name: z.string(),
+    provider: z.string(),
+    s3BucketName: z.string().nullable(),
+    s3BucketRegion: z.string().nullable(),
+    s3BucketPrefix: z.string().nullable(),
+    s3IsAccelerated: z.boolean(),
+    s3AuthMethod: z.string().nullable(),
+    gcStorageBucketName: z.string().nullable(),
+    gcStoragePrefix: z.string().nullable(),
+    r2AccountId: z.string().nullable(),
+    r2PublicBaseUrl: z.string().nullable(),
+    isVerified: z.boolean(),
+    lastVerifiedAt: z.string().nullable(),
+    createdAt: z.string().nullable(),
+    updatedAt: z.string().nullable(),
+  })
+  .passthrough();
+
+const listStorageConfigsTool = defineReadCatalogTool({
+  name: "list_storage_configs",
+  title: "List storage configurations",
+  description: "List all storage configurations in your workspace.",
+  inputSchema: z.object({
+    limit: z.number().int().positive().optional().describe("Maximum number of storage configs to return"),
+    cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+  }),
+  outputSchema: definePageOutputSchema(storageConfigOutputSchema),
+  route: {
+    name: "storage-config-list",
+    method: "GET",
+    path: "/storage-configs/",
+    query: { limit: "limit", cursor: "cursor" },
+    response: "page",
+    scope: "storage.read",
+    toolset: "storage",
+  },
+});
+
+export const STORAGE_READ_CATALOG_TOOLS = [listStorageConfigsTool] as const;
+
+export function registerStorageTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
+  registerReadCatalogTool(server, getClient, listStorageConfigsTool);
 
   if (allowMutations) {
     server.tool(
@@ -47,6 +73,7 @@ export function registerStorageTools(server: McpServer, avala: Avala, allowMutat
         gcStorageBucketName,
         gcStoragePrefix,
       }) => {
+        const avala = getClient();
         const config = await avala.storageConfigs.create({
           name,
           provider,
@@ -84,6 +111,7 @@ export function registerStorageTools(server: McpServer, avala: Avala, allowMutat
         uid: z.string().describe("The unique identifier (UUID) of the storage config to test"),
       },
       async ({ uid }) => {
+        const avala = getClient();
         const result = await avala.storageConfigs.test(uid);
         return {
           content: [
@@ -105,6 +133,7 @@ export function registerStorageTools(server: McpServer, avala: Avala, allowMutat
         uid: z.string().describe("The unique identifier (UUID) of the storage config to delete"),
       },
       async ({ uid }) => {
+        const avala = getClient();
         await avala.storageConfigs.delete(uid);
         return {
           content: [

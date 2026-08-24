@@ -3,6 +3,8 @@ export { Avala as Client } from "./client.js";
 export { Avala as default } from "./client.js";
 export { signup } from "./signup.js";
 export type { SignupOptions } from "./signup.js";
+export { HttpTransport } from "./http.js";
+export type { HttpConfig } from "./http.js";
 export type {
   Agent,
   AgentExecution,

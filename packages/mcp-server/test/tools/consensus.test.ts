@@ -1,12 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerConsensusTools } from "../../src/tools/consensus.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[] }>;
+type ToolHandler = (args: Record<string, unknown>) => Promise<{
+  content: { type: string; text: string }[];
+  structuredContent?: Record<string, unknown>;
+}>;
 
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
     tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+      handlers.set(name, handler);
+    }),
+    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
       handlers.set(name, handler);
     }),
     getHandler(name: string) {
@@ -17,7 +23,8 @@ function createMockServer() {
 
 function createMockAvala() {
   return {
-    consensus: { getSummary: vi.fn(), compute: vi.fn() },
+    transport: { requestSingle: vi.fn() },
+    consensus: { compute: vi.fn() },
   };
 }
 
@@ -28,25 +35,30 @@ describe("consensus tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerConsensusTools(server as never, avala as never, true);
+    registerConsensusTools(server as never, (() => avala) as never, true);
   });
 
-  it("get_consensus_summary calls avala.consensus.getSummary with projectUid and returns JSON", async () => {
+  it("get_consensus_summary dispatches its declared route and returns structured JSON", async () => {
     const mockSummary = {
-      projectUid: "proj-1",
       meanScore: 0.89,
       medianScore: 0.91,
-      distribution: { high: 50, medium: 30, low: 20 },
+      minScore: 0.7,
+      maxScore: 1,
+      totalItems: 10,
+      itemsWithConsensus: 8,
+      scoreDistribution: { "0.8-1.0": 8 },
+      byTaskName: [{ taskName: "label", meanScore: 0.89, count: 8 }],
     };
-    avala.consensus.getSummary.mockResolvedValue(mockSummary);
+    avala.transport.requestSingle.mockResolvedValue(mockSummary);
 
     const handler = server.getHandler("get_consensus_summary")!;
     const result = await handler({ projectUid: "proj-1" });
 
-    expect(avala.consensus.getSummary).toHaveBeenCalledWith("proj-1");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/projects/proj-1/consensus/");
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.meanScore).toBe(0.89);
     expect(parsed.medianScore).toBe(0.91);
+    expect(result.structuredContent).toEqual(mockSummary);
   });
 
   it("compute_consensus calls avala.consensus.compute with projectUid and returns JSON", async () => {
@@ -67,7 +79,8 @@ describe("consensus tools", () => {
   });
 
   it("registers both get_consensus_summary and compute_consensus tools", () => {
-    expect(server.tool).toHaveBeenCalledTimes(2);
+    expect(server.registerTool).toHaveBeenCalledTimes(1);
+    expect(server.tool).toHaveBeenCalledTimes(1);
     expect(server.getHandler("get_consensus_summary")).toBeDefined();
     expect(server.getHandler("compute_consensus")).toBeDefined();
   });

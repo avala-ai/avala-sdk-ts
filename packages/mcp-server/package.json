@@ -18,7 +18,7 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
-    "lint": "tsc --project ../sdk/tsconfig.json --emitDeclarationOnly && tsc --noEmit",
+    "lint": "tsc --project ../sdk/tsconfig.json --emitDeclarationOnly && tsc --noEmit && tsc --project scripts/tsconfig.json",
     "docs:generate": "bun scripts/generate-mcp-docs.ts",
     "docs:check": "bun scripts/generate-mcp-docs.ts --check",
     "docs:list": "bun scripts/generate-mcp-docs.ts --list"

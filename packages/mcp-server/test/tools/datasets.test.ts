@@ -1,12 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerDatasetTools } from "../../src/tools/datasets.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[] }>;
+type ToolHandler = (args: Record<string, unknown>) => Promise<{
+  content: { type: string; text: string }[];
+  structuredContent?: Record<string, unknown>;
+}>;
 
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
     tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+      handlers.set(name, handler);
+    }),
+    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
       handlers.set(name, handler);
     }),
     getHandler(name: string) {
@@ -17,6 +23,10 @@ function createMockServer() {
 
 function createMockAvala() {
   return {
+    transport: {
+      requestPage: vi.fn(),
+      requestSingle: vi.fn(),
+    },
     datasets: {
       list: vi.fn(),
       get: vi.fn(),
@@ -40,52 +50,60 @@ describe("dataset tools", () => {
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerDatasetTools(server as never, avala as never, true);
+    registerDatasetTools(server as never, (() => avala) as never, true);
   });
 
-  it("list_datasets calls avala.datasets.list and returns JSON", async () => {
+  it("list_datasets dispatches its declared route and returns structured JSON", async () => {
     const mockPage = {
-      items: [{ uid: "ds-1", name: "Dataset 1", itemCount: 100 }],
+      items: [{ uid: "ds-1", name: "Dataset 1", slug: "dataset-1", itemCount: 100, dataType: "image" }],
       nextCursor: null,
       previousCursor: null,
       hasMore: false,
     };
-    avala.datasets.list.mockResolvedValue(mockPage);
+    avala.transport.requestPage.mockResolvedValue(mockPage);
 
     const handler = server.getHandler("list_datasets")!;
     const result = await handler({});
 
-    expect(avala.datasets.list).toHaveBeenCalled();
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/datasets/", undefined);
     expect(result.content).toHaveLength(1);
     expect(result.content[0].type).toBe("text");
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].name).toBe("Dataset 1");
+    expect(result.structuredContent).toEqual(mockPage);
   });
 
   it("list_datasets passes limit and cursor", async () => {
-    avala.datasets.list.mockResolvedValue({ items: [], nextCursor: null, previousCursor: null, hasMore: false });
+    avala.transport.requestPage.mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      previousCursor: null,
+      hasMore: false,
+    });
 
     const handler = server.getHandler("list_datasets")!;
     await handler({ limit: 5, cursor: "abc" });
 
-    expect(avala.datasets.list).toHaveBeenCalledWith({
-      dataType: undefined,
-      name: undefined,
-      status: undefined,
-      visibility: undefined,
-      limit: 5,
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/datasets/", {
+      limit: "5",
       cursor: "abc",
     });
   });
 
-  it("get_dataset calls avala.datasets.get and returns JSON", async () => {
-    const mockDataset = { uid: "ds-1", name: "Dataset 1", itemCount: 100, dataType: "image" };
-    avala.datasets.get.mockResolvedValue(mockDataset);
+  it("get_dataset dispatches its declared detail route and returns JSON", async () => {
+    const mockDataset = {
+      uid: "ds-1",
+      name: "Dataset 1",
+      slug: "dataset-1",
+      itemCount: 100,
+      dataType: "image",
+    };
+    avala.transport.requestSingle.mockResolvedValue(mockDataset);
 
     const handler = server.getHandler("get_dataset")!;
     const result = await handler({ uid: "ds-1" });
 
-    expect(avala.datasets.get).toHaveBeenCalledWith("ds-1");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/datasets/ds-1/");
     expect(result.content).toHaveLength(1);
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.name).toBe("Dataset 1");
@@ -140,29 +158,50 @@ describe("dataset tools", () => {
 
   // --- Validation tools ---
 
-  it("list_sequences calls avala.datasets.listSequences and returns JSON", async () => {
+  it("list_sequences dispatches its declared route and returns JSON", async () => {
     const page = {
-      items: [{ uid: "seq-1", key: "full-scene-569", status: "completed", numberOfFrames: 569 }],
+      items: [
+        {
+          uid: "seq-1",
+          customUuid: null,
+          key: "full-scene-569",
+          status: "completed",
+          featuredImage: null,
+          numberOfFrames: 569,
+        },
+      ],
       nextCursor: null,
       previousCursor: null,
       hasMore: false,
     };
-    avala.datasets.listSequences.mockResolvedValue(page);
+    avala.transport.requestPage.mockResolvedValue(page);
 
     const handler = server.getHandler("list_sequences")!;
     const result = await handler({ owner: "thirddimension", slug: "third-dimension-095940-full-scene" });
 
-    expect(avala.datasets.listSequences).toHaveBeenCalledWith("thirddimension", "third-dimension-095940-full-scene", {
-      limit: undefined,
-      cursor: undefined,
-    });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/datasets/thirddimension/third-dimension-095940-full-scene/sequences/",
+      undefined,
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].uid).toBe("seq-1");
   });
 
-  it("get_sequence calls avala.datasets.getSequence and returns JSON", async () => {
-    const seq = { uid: "seq-1", key: "full-scene-569", status: "completed", frames: [] };
-    avala.datasets.getSequence.mockResolvedValue(seq);
+  it("get_sequence dispatches its declared route and returns JSON", async () => {
+    const seq = {
+      uid: "seq-1",
+      key: "full-scene-569",
+      status: "completed",
+      predefinedLabels: [],
+      frames: [],
+      metrics: null,
+      datasetUid: "ds-1",
+      allowLidarCalibration: false,
+      lidarCalibrationEnabled: false,
+      cameraCalibrationEnabled: false,
+      cropData: null,
+    };
+    avala.transport.requestSingle.mockResolvedValue(seq);
 
     const handler = server.getHandler("get_sequence")!;
     const result = await handler({
@@ -171,10 +210,8 @@ describe("dataset tools", () => {
       sequenceUid: "seq-1",
     });
 
-    expect(avala.datasets.getSequence).toHaveBeenCalledWith(
-      "thirddimension",
-      "third-dimension-095940-full-scene",
-      "seq-1",
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/datasets/thirddimension/third-dimension-095940-full-scene/sequences/seq-1/",
     );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.uid).toBe("seq-1");
@@ -229,21 +266,29 @@ describe("dataset tools", () => {
     expect(parsed.cameras[0].cameraId).toBe("cam_01");
   });
 
-  it("get_dataset_health calls avala.datasets.getHealth and returns JSON", async () => {
+  it("get_dataset_health dispatches its declared route and returns JSON", async () => {
     const health = {
       datasetUid: "ds-1",
       datasetSlug: "third-dimension-095940-full-scene",
+      datasetStatus: "created",
+      itemCount: 569,
+      sequenceCount: 1,
       totalFrames: 569,
+      s3Prefix: "datasets/thirddimension/third-dimension-095940-full-scene",
+      gcStoragePrefix: null,
+      lastUpdatedAt: "2026-08-24T00:00:00Z",
       ingestOk: true,
       sequences: [],
       issues: [],
     };
-    avala.datasets.getHealth.mockResolvedValue(health);
+    avala.transport.requestSingle.mockResolvedValue(health);
 
     const handler = server.getHandler("get_dataset_health")!;
     const result = await handler({ owner: "thirddimension", slug: "third-dimension-095940-full-scene" });
 
-    expect(avala.datasets.getHealth).toHaveBeenCalledWith("thirddimension", "third-dimension-095940-full-scene");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/datasets/thirddimension/third-dimension-095940-full-scene/health/",
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.totalFrames).toBe(569);
     expect(parsed.ingestOk).toBe(true);
@@ -262,7 +307,8 @@ describe("dataset tools", () => {
     // 2 pre-existing reads (list_datasets, get_dataset)
     // + 5 validation reads (list_sequences, get_sequence, get_frame, get_calibration, get_dataset_health)
     // + 1 mutation (create_dataset)
-    expect(server.tool).toHaveBeenCalledTimes(8);
+    expect(server.registerTool).toHaveBeenCalledTimes(5);
+    expect(server.tool).toHaveBeenCalledTimes(3);
     expect(server.getHandler("list_datasets")).toBeDefined();
     expect(server.getHandler("get_dataset")).toBeDefined();
     expect(server.getHandler("list_sequences")).toBeDefined();

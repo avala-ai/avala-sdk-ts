@@ -1,12 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Avala } from "@avala-ai/sdk";
+import type { GetClient } from "../client.js";
 
-export function registerStatsTools(server: McpServer, avala: Avala): void {
+export function registerStatsTools(server: McpServer, getClient: GetClient): void {
   server.tool(
     "get_workspace_stats",
     "Get a summary of workspace usage including dataset count and project count.",
     {},
     async () => {
+      const avala = getClient();
       const [datasets, projects, exports] = await Promise.all([
         avala.datasets.list({ limit: 1 }),
         avala.projects.list({ limit: 1 }),

@@ -1,9 +1,9 @@
 /**
  * MCP Documentation Generator
  *
- * Extracts tool metadata from the MCP server source files and generates
- * a markdown tool reference. Used by CI to detect drift between the
- * MCP server implementation and the published documentation.
+ * Registers the live MCP catalog against a metadata-capturing server and
+ * generates a markdown tool reference. Used by CI to detect drift between
+ * the MCP server implementation and the published documentation.
  *
  * Usage:
  *   npx tsx scripts/generate-mcp-docs.ts           # Print generated docs to stdout
@@ -11,9 +11,10 @@
  *   npx tsx scripts/generate-mcp-docs.ts --list     # Print tool names only
  */
 
-import { readFileSync, readdirSync } from "fs";
-import { join, basename, dirname } from "path";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { TOOL_REGISTRARS } from "../src/server.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -52,132 +53,111 @@ const CATEGORY_ORDER: Record<string, string> = {
   consensus: "Quality & Consensus",
   annotationIssues: "Annotation Issues & QC",
   fleet: "Fleet",
+  workflows: "Workflows",
 };
 
 // ── Parser ─────────────────────────────────────────────────────────────────
 
-function parseToolFile(filePath: string): Tool[] {
-  const content = readFileSync(filePath, "utf-8");
-  const categoryName = basename(filePath, ".ts");
-  const tools: Tool[] = [];
-
-  // Track whether we're inside an `if (allowMutations)` block
-  let inMutationBlock = false;
-  let braceDepth = 0;
-  let mutationBraceStart = 0;
-
-  const lines = content.split("\n");
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Detect mutation block start
-    if (line.includes("if (allowMutations)") || line.includes("if(allowMutations)")) {
-      inMutationBlock = true;
-      mutationBraceStart = 0;
-      // Count braces from this point to find the block end
-      for (let j = i; j < lines.length; j++) {
-        for (const ch of lines[j]) {
-          if (ch === "{") mutationBraceStart++;
-          if (ch === "}") {
-            mutationBraceStart--;
-            if (mutationBraceStart === 0) {
-              // Mark the end line
-              braceDepth = j;
-              break;
-            }
-          }
-        }
-        if (mutationBraceStart === 0 && j > i) break;
-      }
-    }
-
-    // Detect server.tool( call
-    if (line.includes("server.tool(")) {
-      const isMutation = inMutationBlock && i <= braceDepth;
-
-      // Extract tool name (next line or same line with string)
-      const toolLines = lines.slice(i, Math.min(i + 80, lines.length)).join("\n");
-
-      // Extract name - first string argument
-      const nameMatch = toolLines.match(/server\.tool\(\s*"([^"]+)"/);
-      if (!nameMatch) continue;
-      const toolName = nameMatch[1];
-
-      // Extract description - second string argument
-      const descMatch = toolLines.match(/server\.tool\(\s*"[^"]+",\s*"([^"]+)"/);
-      const toolDesc = descMatch ? descMatch[1] : "";
-
-      // Extract parameters from the Zod schema object
-      const params = extractParams(toolLines);
-
-      tools.push({
-        name: toolName,
-        description: toolDesc,
-        params,
-        isMutation,
-        category: categoryName,
-      });
-    }
-  }
-
-  return tools;
+interface ZodLike {
+  description?: string;
+  isOptional?: () => boolean;
+  _def?: {
+    description?: string;
+    innerType?: ZodLike;
+    shape?: (() => Record<string, ZodLike>) | Record<string, ZodLike>;
+    typeName?: string;
+    values?: string[];
+  };
 }
 
-function extractParams(toolBlock: string): ToolParam[] {
-  const params: ToolParam[] = [];
+interface RegisteredTool {
+  category: string;
+  description: string;
+  inputSchema: unknown;
+  name: string;
+}
 
-  // Find the schema object (third argument - the { ... } block after the description)
-  // Pattern: after the description string, find the next { ... } block
-  const schemaStart = toolBlock.indexOf("{", toolBlock.indexOf('",'));
-  if (schemaStart === -1) return params;
+function inputShape(inputSchema: unknown): Record<string, ZodLike> {
+  if (typeof inputSchema !== "object" || inputSchema === null) return {};
+  const schema = inputSchema as ZodLike;
+  const shape = schema._def?.shape;
+  if (typeof shape === "function") return shape();
+  if (typeof shape === "object" && shape !== null) return shape;
+  return inputSchema as Record<string, ZodLike>;
+}
 
-  // Find matching closing brace
-  let depth = 0;
-  let schemaEnd = schemaStart;
-  for (let i = schemaStart; i < toolBlock.length; i++) {
-    if (toolBlock[i] === "{") depth++;
-    if (toolBlock[i] === "}") {
-      depth--;
-      if (depth === 0) {
-        schemaEnd = i;
-        break;
-      }
-    }
+function parameterType(schema: ZodLike): string {
+  let current = schema;
+  while (["ZodOptional", "ZodNullable", "ZodDefault"].includes(current._def?.typeName ?? "")) {
+    if (!current._def?.innerType) break;
+    current = current._def.innerType;
   }
 
-  const schemaBlock = toolBlock.slice(schemaStart + 1, schemaEnd);
+  switch (current._def?.typeName) {
+    case "ZodNumber":
+      return "number";
+    case "ZodBoolean":
+      return "boolean";
+    case "ZodArray":
+      return "array";
+    case "ZodRecord":
+    case "ZodObject":
+      return "object";
+    case "ZodEnum":
+      return current._def.values?.length
+        ? `string (${current._def.values.map((value) => `\`${value}\``).join(", ")})`
+        : "string";
+    default:
+      return "string";
+  }
+}
 
-  // Extract each parameter line: name: z.type().optional().describe("...")
-  const paramRegex = /(\w+):\s*z\.([\w()., ]+?)\.describe\("([^"]+)"\)/g;
-  let match;
-
-  while ((match = paramRegex.exec(schemaBlock)) !== null) {
-    const [, name, zodChain, description] = match;
-    const isOptional = zodChain.includes(".optional()");
-
-    // Determine type from zod chain
-    let type = "string";
-    if (zodChain.startsWith("number")) type = "number";
-    else if (zodChain.startsWith("boolean")) type = "boolean";
-    else if (zodChain.startsWith("array")) type = "string[]";
-    else if (zodChain.startsWith("record")) type = "object";
-    else if (zodChain.startsWith("enum")) {
-      const enumMatch = zodChain.match(/enum\(\[([^\]]+)\]/);
-      if (enumMatch) {
-        type = `string (${enumMatch[1].replace(/"/g, "`").replace(/,\s*/g, ", ")})`;
-      }
-    }
-
-    params.push({
+function extractParams(inputSchema: unknown): ToolParam[] {
+  return Object.entries(inputShape(inputSchema)).map(([name, schema]) => {
+    const required = typeof schema.isOptional === "function" ? !schema.isOptional() : true;
+    return {
       name,
-      type,
-      required: !isOptional,
-      description,
-    });
+      type: parameterType(schema),
+      required,
+      description: schema.description ?? schema._def?.description ?? "",
+    };
+  });
+}
+
+function collectRegisteredTools(allowMutations: boolean): Map<string, RegisteredTool> {
+  const registrations = new Map<string, RegisteredTool>();
+
+  for (const registrar of TOOL_REGISTRARS) {
+    const capture = (name: string, description: string, inputSchema: unknown): void => {
+      if (registrations.has(name)) throw new Error(`Duplicate MCP tool registration: ${name}`);
+      registrations.set(name, { category: registrar.category, description, inputSchema, name });
+    };
+    const server = {
+      tool: (name: string, description: string, inputSchema: unknown): void =>
+        capture(name, description, inputSchema),
+      registerTool: (
+        name: string,
+        config: { description?: string; inputSchema?: unknown },
+      ): void => capture(name, config.description ?? "", config.inputSchema),
+    };
+    const getClient = (): never => {
+      throw new Error("Tool registrars must not resolve an API client during registration.");
+    };
+    registrar.register(server as never, getClient as never, { allowMutations });
   }
 
-  return params;
+  return registrations;
+}
+
+function registeredTools(): Tool[] {
+  const readOnlyNames = new Set(collectRegisteredTools(false).keys());
+  return [...collectRegisteredTools(true).values()].map((tool) => ({
+    category: tool.category,
+    description: tool.description,
+    isMutation: !readOnlyNames.has(tool.name),
+    name: tool.name,
+    params: extractParams(tool.inputSchema),
+  }));
 }
 
 // ── Generator ──────────────────────────────────────────────────────────────
@@ -240,16 +220,7 @@ function generateToolDefinitions(tools: Tool[]): string {
 // ── Main ───────────────────────────────────────────────────────────────────
 
 function main(): void {
-  const toolsDir = join(__dirname, "..", "src", "tools");
-  const files = readdirSync(toolsDir)
-    .filter((f) => f.endsWith(".ts") && !f.includes(".test."))
-    .sort();
-
-  const allTools: Tool[] = [];
-  for (const file of files) {
-    const tools = parseToolFile(join(toolsDir, file));
-    allTools.push(...tools);
-  }
+  const allTools = registeredTools();
 
   const mode = process.argv[2];
 
@@ -273,15 +244,17 @@ function main(): void {
       process.exit(1);
     }
 
+    const availableToolsSection = docsContent.match(/## Available MCP Tools([\s\S]*?)## Tool Definitions/)?.[1];
+    if (!availableToolsSection) {
+      console.error("Cannot find the Available MCP Tools section in the MCP setup docs.");
+      process.exit(1);
+    }
+
     const documentedTools = new Set<string>();
-    const toolNameRegex = /`(\w+)`\s*\|/g;
+    const toolNameRegex = /^\|\s*`([A-Za-z0-9_]+)`\s*\|/gm;
     let toolMatch;
-    while ((toolMatch = toolNameRegex.exec(docsContent)) !== null) {
-      const name = toolMatch[1];
-      // Filter to actual tool names (not parameter names)
-      if (allTools.some((t) => t.name === name)) {
-        documentedTools.add(name);
-      }
+    while ((toolMatch = toolNameRegex.exec(availableToolsSection)) !== null) {
+      documentedTools.add(toolMatch[1]);
     }
 
     const implementedNames = new Set(allTools.map((t) => t.name));
