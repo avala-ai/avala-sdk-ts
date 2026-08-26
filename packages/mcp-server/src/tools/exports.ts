@@ -1,6 +1,70 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { GetClient } from "../client.js";
+import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
+import { sanitizeForOutput } from "../redact.js";
 import { z } from "zod";
+
+const sanitizedRecordSchema = z.record(z.unknown()).transform(
+  (value): Record<string, unknown> => sanitizeForOutput(value) as Record<string, unknown>,
+);
+
+const exportOutputSchema = z
+  .object({
+    uid: z.string(),
+    name: z.string(),
+    format: z.string(),
+    filterQueryString: z.string().nullable(),
+    totalTaskCount: z.number().int().nonnegative().nullable(),
+    exportedTaskCount: z.number().int().nonnegative().nullable(),
+    downloadUrl: z.string().nullable(),
+    status: z.string(),
+    datasets: z.array(z.string()),
+    slices: z.array(z.string()),
+    projects: z.array(z.string()),
+    organization: sanitizedRecordSchema.nullable().optional(),
+    createdAt: z.string().nullable(),
+  })
+  .strip();
+
+const listExportsTool = defineReadCatalogTool({
+  name: "list_exports",
+  title: "List exports",
+  description: "List all exports with their formats, creation dates, and download URLs.",
+  inputSchema: z.object({
+    limit: z.number().int().positive().optional().describe("Maximum number of exports to return"),
+    cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+  }),
+  outputSchema: definePageOutputSchema(exportOutputSchema),
+  route: {
+    name: "export-list",
+    method: "GET",
+    path: "/exports/",
+    query: { limit: "limit", cursor: "cursor" },
+    response: "page",
+    scope: "exports.read",
+    toolset: "exports",
+  },
+});
+
+const getExportStatusTool = defineReadCatalogTool({
+  name: "get_export_status",
+  title: "Get export status",
+  description: "Check whether an export is still processing, completed, or failed.",
+  inputSchema: z.object({
+    uid: z.string().describe("The unique identifier (UUID) of the export"),
+  }),
+  outputSchema: exportOutputSchema,
+  route: {
+    name: "export-detail",
+    method: "GET",
+    path: "/exports/{uid}/",
+    response: "single",
+    scope: "exports.read",
+    toolset: "exports",
+  },
+});
+
+export const EXPORT_READ_CATALOG_TOOLS = [listExportsTool, getExportStatusTool] as const;
 
 export function registerExportTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
   if (allowMutations) {
@@ -12,7 +76,7 @@ export function registerExportTools(server: McpServer, getClient: GetClient, all
         dataset: z.string().optional().describe("Dataset UID to export"),
       },
       async ({ project, dataset }) => {
-        const avala = getClient();
+        const avala = getClient("create_export");
         const exportJob = await avala.exports.create({ project, dataset });
         return {
           content: [
@@ -26,44 +90,6 @@ export function registerExportTools(server: McpServer, getClient: GetClient, all
     );
   }
 
-  server.tool(
-    "list_exports",
-    "List all exports with their formats, creation dates, and download URLs.",
-    {
-      limit: z.number().optional().describe("Maximum number of exports to return"),
-      cursor: z.string().optional().describe("Pagination cursor from a previous request"),
-    },
-    async ({ limit, cursor }) => {
-      const avala = getClient();
-      const page = await avala.exports.list({ limit, cursor });
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(page, null, 2),
-          },
-        ],
-      };
-    }
-  );
-
-  server.tool(
-    "get_export_status",
-    "Check whether an export is still processing, completed, or failed.",
-    {
-      uid: z.string().describe("The unique identifier (UUID) of the export"),
-    },
-    async ({ uid }) => {
-      const avala = getClient();
-      const exportJob = await avala.exports.get(uid);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(exportJob, null, 2),
-          },
-        ],
-      };
-    }
-  );
+  registerReadCatalogTool(server, getClient, listExportsTool);
+  registerReadCatalogTool(server, getClient, getExportStatusTool);
 }

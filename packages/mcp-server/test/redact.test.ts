@@ -60,4 +60,50 @@ describe("sanitizeForOutput (AVL-MCP-02)", () => {
     expect(text).toContain("[redacted]");
     expect(text).toContain("dev_1");
   });
+
+  it("redacts provider-prefixed credential aliases at key-word boundaries", () => {
+    const input = {
+      s3_secret_access_key: "s3-secret",
+      stripe_secret_key: "stripe-secret",
+      providerSecretKey: "provider-secret",
+      auth_json_content: "auth-json",
+      gcStorageAuthJsonContent: "storage-auth-json",
+      auth_header: "auth-header",
+      providerAuthHeader: "provider-auth-header",
+      authorization_header: "authorization-header",
+      aws_access_key: "aws-access-key",
+      githubAuthToken: "github-token",
+      provider_api_token: "provider-token",
+      workerJwt: "worker-jwt",
+      tenantApiKey: "tenant-key",
+      kmsPrivateKey: "private-key",
+      tokenCount: 12,
+      jwtAlgorithm: "RS256",
+      responseKey: "items",
+      sequence_key: "capture-sequence",
+      secretRotationDays: 30,
+    };
+
+    expect(sanitizeForOutput(input)).toEqual({
+      s3_secret_access_key: "[redacted]",
+      stripe_secret_key: "[redacted]",
+      providerSecretKey: "[redacted]",
+      auth_json_content: "[redacted]",
+      gcStorageAuthJsonContent: "[redacted]",
+      auth_header: "[redacted]",
+      providerAuthHeader: "[redacted]",
+      authorization_header: "[redacted]",
+      aws_access_key: "[redacted]",
+      githubAuthToken: "[redacted]",
+      provider_api_token: "[redacted]",
+      workerJwt: "[redacted]",
+      tenantApiKey: "[redacted]",
+      kmsPrivateKey: "[redacted]",
+      tokenCount: 12,
+      jwtAlgorithm: "RS256",
+      responseKey: "items",
+      sequence_key: "capture-sequence",
+      secretRotationDays: 30,
+    });
+  });
 });

@@ -47,7 +47,7 @@ export function registerConsensusTools(server: McpServer, getClient: GetClient, 
         projectUid: z.string().describe("The unique identifier (UUID) of the project"),
       },
       async ({ projectUid }) => {
-        const avala = getClient();
+        const avala = getClient("compute_consensus");
         const result = await avala.consensus.compute(projectUid);
         return {
           content: [

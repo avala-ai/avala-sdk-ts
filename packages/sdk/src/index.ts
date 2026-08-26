@@ -3,7 +3,7 @@ export { Avala as Client } from "./client.js";
 export { Avala as default } from "./client.js";
 export { signup } from "./signup.js";
 export type { SignupOptions } from "./signup.js";
-export { HttpTransport } from "./http.js";
+export { HttpTransport, validateInternalClientSecret } from "./http.js";
 export type { HttpConfig } from "./http.js";
 export type {
   Agent,
@@ -17,6 +17,8 @@ export type {
   ConsensusConfig,
   ConsensusScore,
   ConsensusSummary,
+  CredentialPermissions,
+  CredentialPersona,
   CursorPage,
   Dataset,
   DatasetItem,
@@ -44,6 +46,8 @@ export type {
   Task,
   Team,
   TeamMember,
+  UserPermissions,
+  UserType,
   Webhook,
   WebhookDelivery,
 } from "./types.js";

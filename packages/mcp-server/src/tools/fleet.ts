@@ -96,6 +96,33 @@ const fleetRuleOutputSchema = z
   })
   .strip();
 
+export const FLEET_DEVICE_LIST_ROUTE = {
+  name: "fleet-device-list",
+  method: "GET",
+  path: "/fleet/devices/",
+  response: "page",
+  scope: "fleet.read",
+  toolset: "fleet",
+} as const;
+
+export const FLEET_RECORDING_LIST_ROUTE = {
+  name: "fleet-recording-list",
+  method: "GET",
+  path: "/fleet/recordings/",
+  response: "page",
+  scope: "fleet.read",
+  toolset: "fleet",
+} as const;
+
+export const FLEET_ALERT_LIST_ROUTE = {
+  name: "fleet-alert-list",
+  method: "GET",
+  path: "/fleet/alerts/",
+  response: "page",
+  scope: "fleet.read",
+  toolset: "fleet",
+} as const;
+
 const fleetListDevicesTool = defineReadCatalogTool({
   name: "fleet_list_devices",
   title: "List fleet devices",
@@ -108,13 +135,8 @@ const fleetListDevicesTool = defineReadCatalogTool({
   }),
   outputSchema: definePageOutputSchema(fleetDeviceOutputSchema),
   route: {
-    name: "fleet-device-list",
-    method: "GET",
-    path: "/fleet/devices/",
+    ...FLEET_DEVICE_LIST_ROUTE,
     query: { status: "status", type: "type", limit: "limit", cursor: "cursor" },
-    response: "page",
-    scope: "fleet.read",
-    toolset: "fleet",
   },
 });
 
@@ -146,13 +168,8 @@ const fleetListRecordingsTool = defineReadCatalogTool({
   }),
   outputSchema: definePageOutputSchema(fleetRecordingOutputSchema),
   route: {
-    name: "fleet-recording-list",
-    method: "GET",
-    path: "/fleet/recordings/",
+    ...FLEET_RECORDING_LIST_ROUTE,
     query: { device: "device", status: "status", limit: "limit", cursor: "cursor" },
-    response: "page",
-    scope: "fleet.read",
-    toolset: "fleet",
   },
 });
 
@@ -217,9 +234,7 @@ const fleetListAlertsTool = defineReadCatalogTool({
   }),
   outputSchema: definePageOutputSchema(fleetAlertOutputSchema),
   route: {
-    name: "fleet-alert-list",
-    method: "GET",
-    path: "/fleet/alerts/",
+    ...FLEET_ALERT_LIST_ROUTE,
     query: {
       status: "status",
       severity: "severity",
@@ -228,9 +243,6 @@ const fleetListAlertsTool = defineReadCatalogTool({
       limit: "limit",
       cursor: "cursor",
     },
-    response: "page",
-    scope: "fleet.read",
-    toolset: "fleet",
   },
 });
 
@@ -285,7 +297,7 @@ export function registerFleetTools(server: McpServer, getClient: GetClient, allo
         tags: z.array(z.string()).optional().describe("Tags for the device"),
       },
       async ({ name, type, firmwareVersion, tags }) => {
-        const avala = getClient();
+        const avala = getClient("fleet_register_device");
         const device = await avala.fleet.devices.register({ name, type, firmwareVersion, tags });
         // The create response is the ONLY place the caller receives the new
         // device's deviceToken (get/list omit it). Return it raw — redacting it
@@ -304,7 +316,7 @@ export function registerFleetTools(server: McpServer, getClient: GetClient, allo
         uid: z.string().describe("The unique identifier of the alert to acknowledge"),
       },
       async ({ uid }) => {
-        const avala = getClient();
+        const avala = getClient("fleet_acknowledge_alert");
         const alert = await avala.fleet.alerts.acknowledge(uid);
         return {
           content: [{ type: "text" as const, text: safeStringify(alert) }],

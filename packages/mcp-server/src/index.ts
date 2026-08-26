@@ -15,16 +15,24 @@ if (!allowMutations) {
   console.warn("Avala MCP running in read-only mode. Set AVALA_MCP_ENABLE_MUTATIONS=true to enable write/delete tools.");
 }
 
-// stdio mode: one long-lived client for the whole process, built from the
-// environment credential. Tools still fetch it per call through `getClient`.
-const avala = new Avala({ apiKey });
+// stdio mode: long-lived clients keyed by exact MCP tool name, all built from
+// the environment credential. This preserves the same per-tool REST metadata
+// as hosted mode without sharing mutable request state.
+const clients = new Map<string, Avala>();
+const getClient = (clientName: string): Avala => {
+  const existing = clients.get(clientName);
+  if (existing) return existing;
+  const client = new Avala({ apiKey, clientName });
+  clients.set(clientName, client);
+  return client;
+};
 
 const server = new McpServer({
   name: "avala",
   version: "0.6.0",
 });
 
-registerTools(server, () => avala, { allowMutations });
+registerTools(server, getClient, { allowMutations });
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

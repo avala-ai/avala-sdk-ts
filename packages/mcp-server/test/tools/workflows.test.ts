@@ -1,12 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerWorkflowTools } from "../../src/tools/workflows.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[] }>;
+type ToolHandler = (args: Record<string, unknown>) => Promise<{
+  content: { type: string; text: string }[];
+  structuredContent?: Record<string, unknown>;
+}>;
 
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
     tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+      handlers.set(name, handler);
+    }),
+    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
       handlers.set(name, handler);
     }),
     getHandler(name: string) {
@@ -17,6 +23,7 @@ function createMockServer() {
 
 function createMockAvala() {
   return {
+    transport: { requestPage: vi.fn() },
     datasets: {
       list: vi.fn(),
       get: vi.fn(),
@@ -33,11 +40,6 @@ function createMockAvala() {
     },
     organizations: {
       list: vi.fn(),
-    },
-    fleet: {
-      devices: { list: vi.fn() },
-      alerts: { list: vi.fn() },
-      recordings: { list: vi.fn() },
     },
     qualityTargets: {
       list: vi.fn(),
@@ -63,6 +65,8 @@ describe("workflow tools", () => {
     });
 
     it("registers all workflow tools including mutation tools", () => {
+      expect(server.registerTool).toHaveBeenCalledTimes(1);
+      expect(server.tool).toHaveBeenCalledTimes(3);
       expect(server.getHandler("create_annotation_pipeline")).toBeDefined();
       expect(server.getHandler("get_fleet_health")).toBeDefined();
       expect(server.getHandler("get_project_quality_summary")).toBeDefined();
@@ -113,6 +117,8 @@ describe("workflow tools", () => {
     });
 
     it("registers read-only workflow tools", () => {
+      expect(server.registerTool).toHaveBeenCalledTimes(1);
+      expect(server.tool).toHaveBeenCalledTimes(2);
       expect(server.getHandler("get_fleet_health")).toBeDefined();
       expect(server.getHandler("get_project_quality_summary")).toBeDefined();
       expect(server.getHandler("get_workspace_overview")).toBeDefined();
@@ -125,34 +131,38 @@ describe("workflow tools", () => {
     });
 
     it("returns aggregated fleet health summary", async () => {
-      avala.fleet.devices.list.mockResolvedValue({
-        items: [
-          { uid: "d-1", status: "online" },
-          { uid: "d-2", status: "online" },
-          { uid: "d-3", status: "offline" },
-          { uid: "d-4", status: "maintenance" },
-        ],
-        nextCursor: null,
-        hasMore: false,
-      });
-      avala.fleet.alerts.list.mockResolvedValue({
-        items: [
-          { uid: "a-1", severity: "critical" },
-          { uid: "a-2", severity: "warning" },
-          { uid: "a-3", severity: "critical" },
-        ],
-        nextCursor: null,
-        hasMore: false,
-      });
-      avala.fleet.recordings.list.mockResolvedValue({
-        items: [{ uid: "r-1" }, { uid: "r-2" }],
-        nextCursor: null,
-        hasMore: false,
+      avala.transport.requestPage.mockImplementation(async (path: string) => {
+        if (path === "/fleet/devices/") {
+          return {
+            items: [
+              { uid: "d-1", status: "online" },
+              { uid: "d-2", status: "online" },
+              { uid: "d-3", status: "offline" },
+              { uid: "d-4", status: "maintenance" },
+            ],
+          };
+        }
+        if (path === "/fleet/alerts/") {
+          return {
+            items: [
+              { uid: "a-1", severity: "critical" },
+              { uid: "a-2", severity: "warning" },
+              { uid: "a-3", severity: "critical" },
+            ],
+          };
+        }
+        return { items: [{ uid: "r-1" }, { uid: "r-2" }] };
       });
 
       const handler = server.getHandler("get_fleet_health")!;
       const result = await handler({});
 
+      expect(avala.transport.requestPage).toHaveBeenNthCalledWith(1, "/fleet/devices/", { limit: "100" });
+      expect(avala.transport.requestPage).toHaveBeenNthCalledWith(2, "/fleet/alerts/", {
+        status: "open",
+        limit: "100",
+      });
+      expect(avala.transport.requestPage).toHaveBeenNthCalledWith(3, "/fleet/recordings/", { limit: "20" });
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.devices.total).toBe(4);
       expect(parsed.devices.online).toBe(2);
@@ -162,17 +172,39 @@ describe("workflow tools", () => {
       expect(parsed.alerts.bySeverity.critical).toBe(2);
       expect(parsed.alerts.bySeverity.warning).toBe(1);
       expect(parsed.recordings.recentCount).toBe(2);
+      expect(result.structuredContent).toEqual(parsed);
     });
 
-    it("passes deviceType filter to devices list", async () => {
-      avala.fleet.devices.list.mockResolvedValue({ items: [], nextCursor: null, hasMore: false });
-      avala.fleet.alerts.list.mockResolvedValue({ items: [], nextCursor: null, hasMore: false });
-      avala.fleet.recordings.list.mockResolvedValue({ items: [], nextCursor: null, hasMore: false });
+    it("passes the device type without allowing it to override safety caps", async () => {
+      avala.transport.requestPage.mockResolvedValue({ items: [] });
 
       const handler = server.getHandler("get_fleet_health")!;
       await handler({ deviceType: "robot" });
 
-      expect(avala.fleet.devices.list).toHaveBeenCalledWith({ type: "robot", limit: 100 });
+      expect(avala.transport.requestPage).toHaveBeenNthCalledWith(1, "/fleet/devices/", {
+        type: "robot",
+        limit: "100",
+      });
+    });
+
+    it("keeps partial fleet results and exposes only safe error summaries", async () => {
+      const unsafeError = Object.assign(new Error("https://api.example.com/?token=FAKE-not-a-real-token"), {
+        statusCode: 503,
+      });
+      avala.transport.requestPage.mockImplementation(async (path: string) => {
+        if (path === "/fleet/alerts/") throw unsafeError;
+        return { items: [] };
+      });
+
+      const result = await server.getHandler("get_fleet_health")!({});
+
+      expect(result.structuredContent).toEqual({
+        devices: { total: 0, online: 0, offline: 0, maintenance: 0 },
+        alerts: { totalOpen: 0, bySeverity: {} },
+        recordings: { recentCount: 0 },
+        errors: ["alerts: Error (HTTP 503)"],
+      });
+      expect(result.content[0]!.text).not.toContain("FAKE-not-a-real-token");
     });
   });
 

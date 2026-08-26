@@ -68,7 +68,7 @@ node dist/http.js
 - `POST /mcp` — the MCP endpoint. Every request must carry its own credential: `X-Avala-Api-Key: <key>`, or `Authorization: Bearer <key>` (40-hex Avala API key). The key is forwarded on that request's REST calls only; authorization happens entirely in the Avala REST API.
 - `GET /healthz` — unauthenticated liveness probe.
 - **Read-only**: the hosted transport always serves the read-only catalog. Write/delete tools are stdio-only until server-side scope enforcement and a confirmation flow exist; `AVALA_MCP_ENABLE_MUTATIONS` is ignored here by design.
-- Environment: `PORT` (default `8080`), `AVALA_BASE_URL` (override the REST base URL), `ALLOWED_ORIGINS` (comma-separated browser origins; default empty — requests carrying any `Origin` header are rejected, per the MCP spec's DNS-rebinding defense).
+- Environment: `PORT` (default `8080`), `AVALA_BASE_URL` (override the REST base URL), `ALLOWED_ORIGINS` (comma-separated browser origins; default empty — requests carrying any `Origin` header are rejected, per the MCP spec's DNS-rebinding defense). Avala's hosted task also injects `AVALA_MCP_INTERNAL_CLIENT_SECRET`; it is a private service credential used only to establish audit provenance and is never needed by local stdio users.
 
 Unlike stdio mode, no `AVALA_API_KEY` environment variable is read — the server is multi-tenant, one credential per request.
 
@@ -76,14 +76,14 @@ Unlike stdio mode, no `AVALA_API_KEY` environment variable is read — the serve
 
 | Tool Category | Description |
 |---------------|-------------|
-| Datasets | List and inspect datasets, sequences, frames, calibration, and ingest health |
+| Datasets | List and inspect datasets, sequences, frames, calibration, ingest health, capture campaigns, and submissions |
 | Projects | List and inspect projects |
 | Exports | List, inspect, and create annotation exports |
 | Fleet | Device management, recordings, events, alerts, rules |
 | Agents | List and inspect automation agents |
 | Webhooks | List and inspect webhook subscriptions |
 | Storage | List storage configurations |
-| Quality | Quality targets and consensus scoring |
+| Quality | Quality targets, per-capture verdict evidence, campaign acceptance yield and coverage, and consensus scoring |
 | Annotation Issues | List and manage annotation issue data |
 | Organizations | List organizations and members |
 | Slices | List and inspect data slices |

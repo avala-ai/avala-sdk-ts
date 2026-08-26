@@ -73,7 +73,7 @@ export function registerStorageTools(server: McpServer, getClient: GetClient, al
         gcStorageBucketName,
         gcStoragePrefix,
       }) => {
-        const avala = getClient();
+        const avala = getClient("create_storage_config");
         const config = await avala.storageConfigs.create({
           name,
           provider,
@@ -111,7 +111,7 @@ export function registerStorageTools(server: McpServer, getClient: GetClient, al
         uid: z.string().describe("The unique identifier (UUID) of the storage config to test"),
       },
       async ({ uid }) => {
-        const avala = getClient();
+        const avala = getClient("test_storage_config");
         const result = await avala.storageConfigs.test(uid);
         return {
           content: [
@@ -133,7 +133,7 @@ export function registerStorageTools(server: McpServer, getClient: GetClient, al
         uid: z.string().describe("The unique identifier (UUID) of the storage config to delete"),
       },
       async ({ uid }) => {
-        const avala = getClient();
+        const avala = getClient("delete_storage_config");
         await avala.storageConfigs.delete(uid);
         return {
           content: [

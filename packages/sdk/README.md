@@ -87,6 +87,7 @@ try {
 
 | Resource | Methods | Description |
 |----------|---------|-------------|
+| `avala.permissions` | `get()` | Discover the current credential's scopes, capabilities, and toolsets |
 | `avala.datasets` | `list()`, `get(uid)` | Browse and inspect datasets |
 | `avala.projects` | `list()`, `get(uid)` | Browse and inspect projects |
 | `avala.exports` | `list()`, `get(uid)`, `create()` | Create and manage annotation exports |

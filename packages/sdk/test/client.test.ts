@@ -23,6 +23,7 @@ describe("Avala client", () => {
     expect(avala.transport).toBeDefined();
     expect(avala.datasets).toBeDefined();
     expect(avala.projects).toBeDefined();
+    expect(avala.permissions).toBeDefined();
     expect(avala.exports).toBeDefined();
     expect(avala.tasks).toBeDefined();
   });

@@ -7,17 +7,20 @@ import { createAvalaMcpHttpServer, extractCredential, HEALTH_PATH, MAX_BODY_BYTE
 
 const KEY_A = "ab".repeat(20); // 40 lowercase hex chars — the Avala API key shape
 const KEY_B = "cd".repeat(20);
+const VALID_INTERNAL_CLIENT_SECRET = "s".repeat(32);
 // Header-shaped like a JWT: must be refused (this server never verifies JWTs).
 const JWT_LOOKALIKE = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln";
 
 interface MockAvala {
   apiKey: string;
+  clientName: string;
   transport: { requestPage: ReturnType<typeof vi.fn> };
 }
 
-function makeMockAvala(apiKey: string, listDelayMs = 0): MockAvala {
+function makeMockAvala(apiKey: string, clientName = "test_tool", listDelayMs = 0): MockAvala {
   return {
     apiKey,
+    clientName,
     transport: {
       requestPage: vi.fn(async () => {
         if (listDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, listDelayMs));
@@ -45,10 +48,9 @@ function fakeReq(headers: Record<string, string | string[]>): IncomingMessage {
 }
 
 /**
- * A request as Node actually delivers it (>=18.3): `headersDistinct` keeps one
- * array entry per received header LINE. Plain `headers` joins duplicate custom
- * headers with ", " and drops duplicate Authorization lines entirely, so
- * duplicate detection must go through headersDistinct.
+ * A synthetic request exposing Node's `headersDistinct` representation.
+ * Plain `headers` joins duplicate custom headers with ", " and drops duplicate
+ * Authorization lines entirely, so it cannot enforce credential ambiguity.
  */
 function fakeReqDistinct(headersDistinct: Record<string, string[]>): IncomingMessage {
   const headers: Record<string, string> = {};
@@ -58,6 +60,16 @@ function fakeReqDistinct(headersDistinct: Record<string, string[]>): IncomingMes
     headers[name] = name === "authorization" ? values[0]! : values.join(", ");
   }
   return { headers, headersDistinct } as unknown as IncomingMessage;
+}
+
+/** A synthetic request exposing the cross-runtime raw header representation. */
+function fakeReqRaw(rawHeaders: string[]): IncomingMessage {
+  const headers: Record<string, string> = {};
+  for (let index = 0; index < rawHeaders.length; index += 2) {
+    const name = rawHeaders[index]!.toLowerCase();
+    if (headers[name] === undefined) headers[name] = rawHeaders[index + 1] ?? "";
+  }
+  return { headers, rawHeaders } as unknown as IncomingMessage;
 }
 
 /**
@@ -93,6 +105,24 @@ describe("extractCredential", () => {
 
   it("accepts a single credential presented through headersDistinct", () => {
     expect(extractCredential(fakeReqDistinct({ "x-avala-api-key": [KEY_A] }))).toEqual({ ok: true, apiKey: KEY_A });
+  });
+
+  it("rejects duplicate credential lines from rawHeaders before normalized headers", () => {
+    const req = fakeReqRaw([
+      "X-Avala-Api-Key",
+      KEY_A,
+      "x-avala-api-key",
+      KEY_B,
+      "Authorization",
+      `Bearer ${KEY_A}`,
+      "authorization",
+      `Bearer ${KEY_B}`,
+    ]);
+    expect(extractCredential(req)).toEqual({
+      ok: false,
+      status: 400,
+      message: expect.stringContaining("Multiple X-Avala-Api-Key"),
+    });
   });
 
   it("distinguishes 401 (missing/invalid) from 400 (ambiguous duplicates)", () => {
@@ -138,8 +168,9 @@ describe("Streamable HTTP transport", () => {
   beforeAll(async () => {
     createdClients = [];
     server = createAvalaMcpHttpServer({
-      createClient: (apiKey: string) => {
-        const client = makeMockAvala(apiKey, listDelayMs);
+      internalClientSecret: VALID_INTERNAL_CLIENT_SECRET,
+      createClient: (apiKey: string, clientName: string) => {
+        const client = makeMockAvala(apiKey, clientName, listDelayMs);
         createdClients.push(client);
         return client as unknown as Avala;
       },
@@ -157,6 +188,15 @@ describe("Streamable HTTP transport", () => {
     createdClients.length = 0;
     listDelayMs = 0;
   });
+
+  it.each([undefined, "", "too-short", ` ${"s".repeat(32)}`, "é".repeat(32), "s".repeat(513)])(
+    "rejects a non-canonical hosted secret at startup",
+    (internalClientSecret) => {
+      expect(() => createAvalaMcpHttpServer({ internalClientSecret })).toThrowError(
+        "internalClientSecret must contain 32-512 URL-safe ASCII characters",
+      );
+    },
+  );
 
   function mcpPost(body: unknown, headers: Record<string, string> = {}): Promise<Response> {
     return fetch(`${base}${MCP_PATH}`, {
@@ -237,9 +277,9 @@ describe("Streamable HTTP transport", () => {
     expect(listRes.status).toBe(200);
     const list = (await listRes.json()) as { result: { tools: { name: string }[] } };
     // The hosted transport serves the read-only subset of the stdio catalog
-    // (38 of 55) — mutations are stdio-only for now (§5.5-4); full-catalog
+    // (44 of 61) — mutations are stdio-only for now (§5.5-4); full-catalog
     // parity via the shared registerTools is pinned in server.test.ts.
-    expect(list.result.tools).toHaveLength(38);
+    expect(list.result.tools).toHaveLength(44);
     expect(list.result.tools.map((t) => t.name)).toContain("list_datasets");
     expect(createdClients).toHaveLength(0);
 
@@ -252,6 +292,7 @@ describe("Streamable HTTP transport", () => {
 
     expect(createdClients).toHaveLength(1);
     expect(createdClients[0]!.apiKey).toBe(KEY_A);
+    expect(createdClients[0]!.clientName).toBe("list_datasets");
     expect(createdClients[0]!.transport.requestPage).toHaveBeenCalledWith("/datasets/", undefined);
   });
 
@@ -277,6 +318,7 @@ describe("Streamable HTTP transport", () => {
     // One client per request, keyed by that request's credential, used once.
     expect(createdClients).toHaveLength(2);
     expect(new Set(createdClients.map((c) => c.apiKey))).toEqual(new Set([KEY_A, KEY_B]));
+    expect(createdClients.every((client) => client.clientName === "list_datasets")).toBe(true);
     for (const client of createdClients) {
       expect(client.transport.requestPage).toHaveBeenCalledWith("/datasets/", undefined);
     }
@@ -355,6 +397,7 @@ describe("Streamable HTTP transport", () => {
 
   it("an allowlisted Origin is served", async () => {
     const originServer = createAvalaMcpHttpServer({
+      internalClientSecret: VALID_INTERNAL_CLIENT_SECRET,
       allowedOrigins: ["https://app.avala.ai"],
       createClient: (apiKey: string) => makeMockAvala(apiKey) as unknown as Avala,
     });
@@ -384,6 +427,7 @@ describe("Streamable HTTP transport", () => {
 
   it("a CORS preflight from an allowlisted origin gets 204 with the CORS headers", async () => {
     const originServer = createAvalaMcpHttpServer({
+      internalClientSecret: VALID_INTERNAL_CLIENT_SECRET,
       allowedOrigins: ["https://app.avala.ai"],
       createClient: (apiKey: string) => makeMockAvala(apiKey) as unknown as Avala,
     });
@@ -437,6 +481,7 @@ describe("Streamable HTTP transport", () => {
     const previous = process.env.AVALA_MCP_ENABLE_MUTATIONS;
     process.env.AVALA_MCP_ENABLE_MUTATIONS = "true";
     const roServer = createAvalaMcpHttpServer({
+      internalClientSecret: VALID_INTERNAL_CLIENT_SECRET,
       createClient: (apiKey: string) => makeMockAvala(apiKey) as unknown as Avala,
     });
     await new Promise<void>((resolve) => roServer.listen(0, "127.0.0.1", resolve));
@@ -453,7 +498,7 @@ describe("Streamable HTTP transport", () => {
       });
       expect(res.status).toBe(200);
       const names = ((await res.json()) as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
-      expect(names).toHaveLength(38);
+      expect(names).toHaveLength(44);
       // The full mutation-gated set, esp. the four destructive delete-by-id
       // tools the finding named.
       const gated = [

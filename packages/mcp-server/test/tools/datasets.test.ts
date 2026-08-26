@@ -294,6 +294,215 @@ describe("dataset tools", () => {
     expect(parsed.ingestOk).toBe(true);
   });
 
+  it("list_capture_submissions forwards review filters and returns capture context", async () => {
+    const page = {
+      items: [
+        {
+          resultUid: "result-1",
+          itemUid: "item-1",
+          playbackUrl:
+            "https://bucket.example/capture.mp4?X-Amz-Credential=AKIAEXAMPLE&X-Amz-Signature=signature-value",
+          status: "rejected",
+          mediaWidth: 1920,
+          mediaHeight: 1080,
+          durationS: 12.5,
+          audio: true,
+          submitter: { uid: "user-1", username: "operator" },
+          submittedAt: "2026-08-24T00:00:00Z",
+          rejectReason: "wrong_subject",
+          rejectNote: "The requested tote is not visible.",
+          reviewedBy: { uid: "reviewer-1", username: "reviewer" },
+          reviewedAt: "2026-08-24T00:05:00Z",
+          episodeUid: null,
+          extractionStatus: null,
+          channels: null,
+          thumbnailUrl:
+            "https://bucket.example/thumbnail.jpg?X-Amz-Security-Token=session-token&X-Amz-Signature=signature-value",
+          acceptance: {
+            machineVerdict: "reject",
+            blockingReasons: ["duration_too_short"],
+            unmeasured: [],
+            evaluatedAt: "2026-08-24T00:01:00Z",
+          },
+          campaign: {
+            uid: "campaign-1",
+            name: "Warehouse tote capture",
+            taskDescription: {
+              spec: "front-view",
+              name: "Front view",
+              config: {
+                captureKind: "video",
+                captureTier: "standard",
+                camera: "rear",
+                durationS: 15,
+                audio: true,
+                orientation: "landscape",
+                clipsPerSession: 2,
+                handGuardrail: true,
+                handGuardrailMinHands: 2,
+                subject: "warehouse tote",
+                subjectByLocale: {},
+                instructions: "Keep both hands in frame.",
+                instructionsByLocale: {},
+              },
+            },
+          },
+        },
+      ],
+      nextCursor: "next-capture",
+      previousCursor: null,
+      hasMore: true,
+    };
+    avala.transport.requestPage.mockResolvedValue(page);
+
+    const handler = server.getHandler("list_capture_submissions")!;
+    const result = await handler({
+      datasetUid: "dataset-1",
+      status: "rejected",
+      limit: 10,
+      cursor: "capture-page",
+    });
+
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/datasets/dataset-1/capture-submissions/", {
+      status: "rejected",
+      limit: "10",
+      cursor: "capture-page",
+    });
+    const structured = result.structuredContent as { items: Record<string, unknown>[] };
+    expect(structured.items[0]).not.toHaveProperty("playbackUrl");
+    expect(structured.items[0]).not.toHaveProperty("thumbnailUrl");
+    const text = result.content[0].text;
+    expect(text).not.toContain("X-Amz-Credential");
+    expect(text).not.toContain("X-Amz-Signature");
+    expect(text).not.toContain("X-Amz-Security-Token");
+    expect(JSON.parse(text).items[0].campaign.taskDescription.spec).toBe("front-view");
+  });
+
+  it("get_capture_submission dispatches the tenant-scoped result route", async () => {
+    const capture = {
+      resultUid: "result-1",
+      itemUid: "item-1",
+      playbackUrl:
+        "https://bucket.example/capture.mcap?X-Amz-Credential=AKIAEXAMPLE&X-Amz-Signature=signature-value",
+      status: "pending",
+      mediaWidth: null,
+      mediaHeight: null,
+      durationS: null,
+      audio: null,
+      submitter: { uid: "user-1", username: "operator" },
+      submittedAt: "2026-08-24T00:00:00Z",
+      rejectReason: null,
+      rejectNote: null,
+      reviewedBy: null,
+      reviewedAt: null,
+      episodeUid: "episode-1",
+      extractionStatus: "processing",
+      channels: [],
+      thumbnailUrl:
+        "https://bucket.example/thumbnail.jpg?X-Amz-Security-Token=session-token&X-Amz-Signature=signature-value",
+      acceptance: null,
+      campaign: null,
+    };
+    avala.transport.requestSingle.mockResolvedValue(capture);
+
+    const handler = server.getHandler("get_capture_submission")!;
+    const result = await handler({ resultUid: "result-1" });
+
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/results/result-1/capture-submission/");
+    expect(result.structuredContent).not.toHaveProperty("playbackUrl");
+    expect(result.structuredContent).not.toHaveProperty("thumbnailUrl");
+    expect(result.content[0].text).not.toContain("X-Amz-");
+  });
+
+  it("list_capture_campaigns returns task-description and dataset progress", async () => {
+    const progress = {
+      totalSlots: 12,
+      notRecorded: 3,
+      awaitingReview: 2,
+      accepted: 5,
+      rejected: 1,
+      recaptureRequested: 1,
+    };
+    const campaigns = {
+      campaigns: [
+        {
+          projectUid: "campaign-1",
+          name: "Warehouse tote capture",
+          status: "active",
+          createdAt: "2026-08-24T00:00:00Z",
+          finishedAt: null,
+          config: {
+            captureKind: "video",
+            captureTier: "standard",
+            camera: "rear",
+            durationS: 15,
+            audio: true,
+            orientation: "landscape",
+            clipsPerSession: 2,
+            handGuardrail: true,
+            handGuardrailMinHands: 2,
+            subject: "warehouse tote",
+            subjectByLocale: {},
+            instructions: "Keep both hands in frame.",
+            instructionsByLocale: {},
+          },
+          progress,
+          canManage: true,
+          taskDescriptions: [
+            {
+              spec: "front-view",
+              name: "Front view",
+              config: {
+                captureKind: "video",
+                captureTier: "standard",
+                camera: "rear",
+                durationS: 15,
+                audio: true,
+                orientation: "landscape",
+                clipsPerSession: 2,
+                handGuardrail: true,
+                handGuardrailMinHands: 2,
+                subject: "warehouse tote",
+                subjectByLocale: {},
+                instructions: "Keep both hands in frame.",
+                instructionsByLocale: {},
+              },
+              progress,
+            },
+          ],
+        },
+      ],
+      progress,
+    };
+    avala.transport.requestSingle.mockResolvedValue(campaigns);
+
+    const handler = server.getHandler("list_capture_campaigns")!;
+    const result = await handler({ datasetUid: "dataset-1" });
+
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/datasets/dataset-1/capture-campaigns/");
+    expect(result.structuredContent).toEqual(campaigns);
+    expect(JSON.parse(result.content[0].text).campaigns[0].taskDescriptions[0].progress.accepted).toBe(5);
+  });
+
+  it("list_capture_campaigns preserves the valid no-campaign state", async () => {
+    const empty = {
+      campaigns: [],
+      progress: {
+        totalSlots: 0,
+        notRecorded: 0,
+        awaitingReview: 0,
+        accepted: 0,
+        rejected: 0,
+        recaptureRequested: 0,
+      },
+    };
+    avala.transport.requestSingle.mockResolvedValue(empty);
+
+    const result = await server.getHandler("list_capture_campaigns")!({ datasetUid: "dataset-1" });
+
+    expect(result.structuredContent).toEqual(empty);
+  });
+
   it("create_dataset is not registered without allowMutations", () => {
     const readOnlyServer = createMockServer();
     registerDatasetTools(readOnlyServer as never, avala as never, false);
@@ -305,9 +514,10 @@ describe("dataset tools", () => {
 
   it("registers read-only + mutation tools when allowMutations is true", () => {
     // 2 pre-existing reads (list_datasets, get_dataset)
-    // + 5 validation reads (list_sequences, get_sequence, get_frame, get_calibration, get_dataset_health)
+    // + 8 validation/capture reads (list_sequences, get_sequence, get_frame, get_calibration,
+    // get_dataset_health, list_capture_submissions, get_capture_submission, list_capture_campaigns)
     // + 1 mutation (create_dataset)
-    expect(server.registerTool).toHaveBeenCalledTimes(5);
+    expect(server.registerTool).toHaveBeenCalledTimes(8);
     expect(server.tool).toHaveBeenCalledTimes(3);
     expect(server.getHandler("list_datasets")).toBeDefined();
     expect(server.getHandler("get_dataset")).toBeDefined();
@@ -316,6 +526,9 @@ describe("dataset tools", () => {
     expect(server.getHandler("get_frame")).toBeDefined();
     expect(server.getHandler("get_calibration")).toBeDefined();
     expect(server.getHandler("get_dataset_health")).toBeDefined();
+    expect(server.getHandler("list_capture_submissions")).toBeDefined();
+    expect(server.getHandler("get_capture_submission")).toBeDefined();
+    expect(server.getHandler("list_capture_campaigns")).toBeDefined();
     expect(server.getHandler("create_dataset")).toBeDefined();
   });
 });

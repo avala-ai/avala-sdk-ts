@@ -2,7 +2,29 @@ export interface AvalaConfig {
   apiKey?: string;
   baseUrl?: string;
   timeout?: number;
+  /** Bounded machine-client identifier forwarded as X-Avala-Client. */
+  clientName?: string;
+  /** Trusted internal service credential forwarded as X-Avala-Internal-Client. */
+  internalClientSecret?: string;
 }
+
+/** Known personas plus forward-compatible server-defined agent tiers. */
+export type CredentialPersona = "customer" | "coworker" | (string & {});
+
+/** Effective discovery metadata for the credential used by this client. */
+export interface CredentialPermissions {
+  type: CredentialPersona;
+  isStaffPrivileged: boolean;
+  scopes: string[];
+  capabilities: string[];
+  toolsets: string[];
+}
+
+/** @deprecated Use CredentialPersona. */
+export type UserType = CredentialPersona;
+
+/** @deprecated Use CredentialPermissions. */
+export type UserPermissions = CredentialPermissions;
 
 export interface Dataset {
   uid: string;

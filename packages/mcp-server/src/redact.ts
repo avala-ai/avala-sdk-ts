@@ -47,8 +47,48 @@ const SENSITIVE_KEY_NAMES: ReadonlySet<string> = new Set([
   "accesskeyid",
 ]);
 
+const SENSITIVE_KEY_SUFFIXES: readonly (readonly string[])[] = [
+  ["token"],
+  ["jwt"],
+  ["api", "key"],
+  ["auth", "json", "content"],
+  ["auth", "header"],
+  ["authorization", "header"],
+  ["secret"],
+  ["password"],
+  ["passwd"],
+  ["pwd"],
+  ["credentials"],
+  ["credential"],
+  ["authorization"],
+  ["secret", "key"],
+  ["private", "key"],
+  ["private", "key", "id"],
+  ["secret", "access", "key"],
+  ["access", "key"],
+  ["access", "key", "id"],
+];
+
 function normaliseKey(key: string): string {
   return key.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function keyWords(key: string): string[] {
+  return key
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+function hasSensitiveKeyName(key: string): boolean {
+  if (SENSITIVE_KEY_NAMES.has(normaliseKey(key))) return true;
+  const words = keyWords(key);
+  return SENSITIVE_KEY_SUFFIXES.some(
+    (suffix) =>
+      suffix.length <= words.length && suffix.every((word, index) => words[words.length - suffix.length + index] === word),
+  );
 }
 
 /**
@@ -64,7 +104,7 @@ export function sanitizeForOutput(value: unknown): unknown {
     const out: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
       out[key] =
-        SENSITIVE_KEY_NAMES.has(normaliseKey(key)) && val !== null && val !== undefined
+        hasSensitiveKeyName(key) && val !== null && val !== undefined
           ? REDACTED
           : sanitizeForOutput(val);
     }

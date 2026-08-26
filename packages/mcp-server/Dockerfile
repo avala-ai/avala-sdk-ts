@@ -32,25 +32,16 @@
 # packages have to travel in one build context. (Plan §4.6 floats decoupling
 # this to a published version range later; today it is still workspace:*.)
 #
-# NOT yet added to scripts/build_images.sh / push_images.sh / variables.sh.
-# Every other per-service Dockerfile in this repo (asset_proxy, mission_control,
-# server, ...) is wired into those three scripts with its own ECR image
-# variable, buildx cache tags, and release-tag handling — copying that
-# correctly needs the actual CI/ECR conventions checked by whoever owns that
-# change, not guessed at here. Add an "mcp-server" block there (context =
-# sdks/typescript/, matching the invocation above) mirroring the asset_proxy
-# block, before this image is built in CI. The ECR repo it should push to
-# already exists in Terraform: aws_ecr_repository.mcp_server_repository
+# Production publication is wired through scripts/build_images.sh,
+# push_images.sh, and variables.sh under the `mcp-server` selector. Keep that
+# build's context at sdks/typescript/ when this Dockerfile moves: the selector
+# contract is enforced by scripts/tests/test_mcp_server_image_publication.py.
+# The target ECR repo is aws_ecr_repository.mcp_server_repository
 # ("avala-mcp-server", infra/mcp_server.tf).
 #
-# dist/http.js contract: as of 2026-08-23 the transport implementer confirms
-# feat/mcp-http-transport has updated tsup.config.ts to build BOTH
-# src/index.ts (stdio) and the new http entry, so this Dockerfile's `CMD
-# ["node", "dist/http.js"]` holds once that branch is in the build. As of
-# this commit that branch has not been merged into this one — this worktree's
-# tsup.config.ts still only lists src/index.ts — so `bun run build` here
-# will NOT yet produce dist/http.js. Not fixed here: tsup.config.ts belongs
-# to that branch, not this infra change; it will resolve on merge/rebase.
+# tsup.config.ts builds BOTH src/index.ts (stdio) and src/http.ts, so the
+# runtime command below is produced by this build rather than copied from a
+# separate hosted-only implementation.
 # =============================================================================
 
 FROM oven/bun:1 AS builder
@@ -76,10 +67,14 @@ RUN bun run --filter '@avala-ai/sdk' build
 RUN bun run --filter '@avala-ai/mcp-server' build
 
 # Drop devDependencies (tsup, typescript, vitest, ...) now that the build is
-# done, so the runtime image doesn't carry them. Workspace packages keep
-# resolving via bun's symlinks — --production only skips devDependencies, it
-# does not touch workspace: resolution.
-RUN rm -rf node_modules && bun install --frozen-lockfile --production
+# done, so the runtime image doesn't carry them. Bun 1.4 defaults new
+# workspaces to its isolated linker, whose dependencies live only under the
+# .bun virtual store. That layout works when Bun launches the program but Node
+# cannot resolve @modelcontextprotocol/sdk, @avala-ai/sdk, or zod from the MCP
+# package. The runtime deliberately uses Node, so materialize the supported
+# hoisted layout here. Do not remove --linker hoisted without running the
+# Dockerfile's Node/health smoke test.
+RUN rm -rf node_modules && bun install --frozen-lockfile --production --linker hoisted
 
 # -----------------------------------------------------------------------------
 # Runtime: plain Node, not bun. The published package only requires

@@ -11,7 +11,7 @@ export function registerProjectTools(server: McpServer, getClient: GetClient): v
       cursor: z.string().optional().describe("Pagination cursor from a previous request"),
     },
     async ({ limit, cursor }) => {
-      const avala = getClient();
+      const avala = getClient("list_projects");
       const page = await avala.projects.list({ limit, cursor });
       return {
         content: [
@@ -31,7 +31,7 @@ export function registerProjectTools(server: McpServer, getClient: GetClient): v
       uid: z.string().describe("The unique identifier (UUID) of the project"),
     },
     async ({ uid }) => {
-      const avala = getClient();
+      const avala = getClient("get_project");
       const project = await avala.projects.get(uid);
       return {
         content: [

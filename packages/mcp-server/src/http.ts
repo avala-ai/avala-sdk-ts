@@ -6,6 +6,8 @@
  * Environment:
  *  - PORT                        — listen port (default 8080)
  *  - AVALA_BASE_URL              — override the Avala REST base URL
+ *  - AVALA_MCP_INTERNAL_CLIENT_SECRET — service credential used to mark
+ *                                  verified hosted-MCP REST requests
  *  - ALLOWED_ORIGINS             — comma-separated browser origins allowed to
  *                                  reach the server. Default empty: only
  *                                  requests without an Origin header pass
@@ -36,6 +38,7 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "")
 const server = createAvalaMcpHttpServer({
   baseUrl: process.env.AVALA_BASE_URL,
   allowedOrigins,
+  internalClientSecret: process.env.AVALA_MCP_INTERNAL_CLIENT_SECRET,
 });
 
 server.listen(port, () => {

@@ -13,6 +13,24 @@ export interface HttpConfig {
   apiKey: string;
   baseUrl: string;
   timeout: number;
+  clientName?: string;
+  internalClientSecret?: string;
+}
+
+const CLIENT_NAME_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
+const INTERNAL_CLIENT_SECRET_PATTERN = /^[A-Za-z0-9_-]{32,512}$/;
+
+/** Validate a service credential as one canonical HTTP header value. */
+export function validateInternalClientSecret(value: string | undefined, options: { required?: boolean } = {}): void {
+  if (value === undefined || value === "") {
+    if (options.required) {
+      throw new Error("internalClientSecret must contain 32-512 URL-safe ASCII characters.");
+    }
+    return;
+  }
+  if (!INTERNAL_CLIENT_SECRET_PATTERN.test(value)) {
+    throw new Error("internalClientSecret must contain 32-512 URL-safe ASCII characters.");
+  }
 }
 
 /** Convert snake_case keys to camelCase (deep — recurses into nested objects and arrays) */
@@ -52,6 +70,10 @@ export class HttpTransport {
   private _lastRateLimit: RateLimitInfo = { limit: null, remaining: null, reset: null };
 
   constructor(config: HttpConfig) {
+    if (config.clientName !== undefined && !CLIENT_NAME_PATTERN.test(config.clientName)) {
+      throw new Error("clientName must match ^[a-z][a-z0-9_]{0,63}$.");
+    }
+    validateInternalClientSecret(config.internalClientSecret);
     this.config = config;
   }
 
@@ -79,6 +101,10 @@ export class HttpTransport {
         method,
         headers: {
           "X-Avala-Api-Key": this.config.apiKey,
+          ...(this.config.clientName ? { "X-Avala-Client": this.config.clientName } : {}),
+          ...(this.config.internalClientSecret
+            ? { "X-Avala-Internal-Client": this.config.internalClientSecret }
+            : {}),
           "Accept": "application/json",
           ...(options?.json ? { "Content-Type": "application/json" } : {}),
         },
@@ -170,8 +196,8 @@ export class HttpTransport {
     return raw.map((item) => snakeToCamel(item) as T);
   }
 
-  async requestSingle<T>(path: string): Promise<T> {
-    const raw = await this.request<Record<string, unknown>>("GET", path);
+  async requestSingle<T>(path: string, params?: Record<string, string>): Promise<T> {
+    const raw = await this.request<Record<string, unknown>>("GET", path, { params });
     return snakeToCamel(raw) as T;
   }
 

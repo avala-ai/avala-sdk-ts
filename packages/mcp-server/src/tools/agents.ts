@@ -81,7 +81,7 @@ export function registerAgentTools(server: McpServer, getClient: GetClient, allo
         taskTypes: z.array(z.string()).optional().describe("Task types the agent handles"),
       },
       async ({ name, events, callbackUrl, description, project, taskTypes }) => {
-        const avala = getClient();
+        const avala = getClient("create_agent");
         const agent = await avala.agents.create({
           name,
           events,
@@ -108,7 +108,7 @@ export function registerAgentTools(server: McpServer, getClient: GetClient, allo
         uid: z.string().describe("The unique identifier (UUID) of the agent to delete"),
       },
       async ({ uid }) => {
-        const avala = getClient();
+        const avala = getClient("delete_agent");
         await avala.agents.delete(uid);
         return {
           content: [

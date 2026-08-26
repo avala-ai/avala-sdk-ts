@@ -7,7 +7,7 @@ export function registerStatsTools(server: McpServer, getClient: GetClient): voi
     "Get a summary of workspace usage including dataset count and project count.",
     {},
     async () => {
-      const avala = getClient();
+      const avala = getClient("get_workspace_stats");
       const [datasets, projects, exports] = await Promise.all([
         avala.datasets.list({ limit: 1 }),
         avala.projects.list({ limit: 1 }),

@@ -1,5 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { GetClient } from "../client.js";
+import { defineCompositeReadCatalogTool, registerCompositeReadCatalogTool } from "../catalog.js";
+import { FLEET_ALERT_LIST_ROUTE, FLEET_DEVICE_LIST_ROUTE, FLEET_RECORDING_LIST_ROUTE } from "./fleet.js";
 import { z } from "zod";
 
 function settled<T>(result: PromiseSettledResult<T>): T | null {
@@ -24,6 +26,107 @@ function safeErrorSummary(reason: unknown): string {
   return "Error";
 }
 
+const fleetHealthOutputSchema = z
+  .object({
+    devices: z
+      .object({
+        total: z.number().int().nonnegative(),
+        online: z.number().int().nonnegative(),
+        offline: z.number().int().nonnegative(),
+        maintenance: z.number().int().nonnegative(),
+        note: z.string().optional(),
+      })
+      .strip(),
+    alerts: z
+      .object({
+        totalOpen: z.number().int().nonnegative(),
+        bySeverity: z.record(z.number().int().nonnegative()),
+      })
+      .strip(),
+    recordings: z.object({ recentCount: z.number().int().nonnegative() }).strip(),
+    errors: z.array(z.string()).optional(),
+  })
+  .strip();
+
+const getFleetHealthTool = defineCompositeReadCatalogTool({
+  name: "get_fleet_health",
+  title: "Get fleet health",
+  description:
+    "Get a fleet health overview — device counts by status, open alerts by severity, and recent recording count. Counts are from the first page of results (up to 100 devices, 100 alerts). Use when a user asks about fleet status or device health.",
+  inputSchema: z.object({
+    deviceType: z.string().optional().describe("Optional filter by device type"),
+  }),
+  outputSchema: fleetHealthOutputSchema,
+  routes: [
+    {
+      ...FLEET_DEVICE_LIST_ROUTE,
+      query: { deviceType: "type" },
+      fixedQuery: { limit: "100" },
+    },
+    {
+      ...FLEET_ALERT_LIST_ROUTE,
+      fixedQuery: { status: "open", limit: "100" },
+    },
+    {
+      ...FLEET_RECORDING_LIST_ROUTE,
+      fixedQuery: { limit: "20" },
+    },
+  ],
+  execute: async (_args, read) => {
+    const [devicesResult, alertsResult, recordingsResult] = await Promise.allSettled([
+      read(FLEET_DEVICE_LIST_ROUTE.name),
+      read(FLEET_ALERT_LIST_ROUTE.name),
+      read(FLEET_RECORDING_LIST_ROUTE.name),
+    ]);
+
+    const devices =
+      (settled(devicesResult) as { items?: Array<{ status?: string | null }> } | null)?.items ?? [];
+    const alerts =
+      (settled(alertsResult) as { items?: Array<{ severity?: string | null }> } | null)?.items ?? [];
+    const recordings = (settled(recordingsResult) as { items?: unknown[] } | null)?.items ?? [];
+
+    const alertsBySeverity: Record<string, number> = {};
+    for (const alert of alerts) {
+      const severity = alert.severity ?? "unknown";
+      alertsBySeverity[severity] = (alertsBySeverity[severity] ?? 0) + 1;
+    }
+
+    const deviceSummary: {
+      total: number;
+      online: number;
+      offline: number;
+      maintenance: number;
+      note?: string;
+    } = {
+      total: devices.length,
+      online: devices.filter((device) => device.status === "online").length,
+      offline: devices.filter((device) => device.status === "offline").length,
+      maintenance: devices.filter((device) => device.status === "maintenance").length,
+    };
+    if (devices.length >= 100) deviceSummary.note = "Capped at 100 — actual total may be higher";
+
+    const summary: {
+      devices: typeof deviceSummary;
+      alerts: { totalOpen: number; bySeverity: Record<string, number> };
+      recordings: { recentCount: number };
+      errors?: string[];
+    } = {
+      devices: deviceSummary,
+      alerts: { totalOpen: alerts.length, bySeverity: alertsBySeverity },
+      recordings: { recentCount: recordings.length },
+    };
+
+    const errors: string[] = [];
+    if (devicesResult.status === "rejected") errors.push(`devices: ${safeErrorSummary(devicesResult.reason)}`);
+    if (alertsResult.status === "rejected") errors.push(`alerts: ${safeErrorSummary(alertsResult.reason)}`);
+    if (recordingsResult.status === "rejected") errors.push(`recordings: ${safeErrorSummary(recordingsResult.reason)}`);
+    if (errors.length > 0) summary.errors = errors;
+    return summary;
+  },
+});
+
+export const WORKFLOW_COMPOSITE_READ_CATALOG_TOOLS = [getFleetHealthTool] as const;
+
 export function registerWorkflowTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
   if (allowMutations) {
     server.tool(
@@ -36,7 +139,7 @@ export function registerWorkflowTools(server: McpServer, getClient: GetClient, a
         projectUid: z.string().optional().describe("If provided, an export will be created for this project after the dataset is created"),
       },
       async ({ name, slug, dataType, projectUid }) => {
-        const avala = getClient();
+        const avala = getClient("create_annotation_pipeline");
         const dataset = await avala.datasets.create({ name, slug, dataType });
 
         const summary: Record<string, unknown> = {
@@ -67,56 +170,7 @@ export function registerWorkflowTools(server: McpServer, getClient: GetClient, a
     );
   }
 
-  server.tool(
-    "get_fleet_health",
-    "Get a fleet health overview — device counts by status, open alerts by severity, and recent recording count. Counts are from the first page of results (up to 100 devices, 100 alerts). Use when a user asks about fleet status or device health.",
-    {
-      deviceType: z.string().optional().describe("Optional filter by device type"),
-    },
-    async ({ deviceType }) => {
-      const avala = getClient();
-      const [devicesResult, alertsResult, recordingsResult] = await Promise.allSettled([
-        avala.fleet.devices.list({ type: deviceType, limit: 100 }),
-        avala.fleet.alerts.list({ status: "open", limit: 100 }),
-        avala.fleet.recordings.list({ limit: 20 }),
-      ]);
-
-      const devices = settled(devicesResult)?.items ?? [];
-      const alerts = settled(alertsResult)?.items ?? [];
-      const recordings = settled(recordingsResult)?.items ?? [];
-
-      const alertsBySeverity: Record<string, number> = {};
-      for (const alert of alerts) {
-        const sev = alert.severity ?? "unknown";
-        alertsBySeverity[sev] = (alertsBySeverity[sev] ?? 0) + 1;
-      }
-
-      const summary: Record<string, unknown> = {
-        devices: {
-          total: devices.length,
-          online: devices.filter((d) => d.status === "online").length,
-          offline: devices.filter((d) => d.status === "offline").length,
-          maintenance: devices.filter((d) => d.status === "maintenance").length,
-          note: devices.length >= 100 ? "Capped at 100 — actual total may be higher" : undefined,
-        },
-        alerts: {
-          totalOpen: alerts.length,
-          bySeverity: alertsBySeverity,
-        },
-        recordings: { recentCount: recordings.length },
-      };
-
-      const errors: string[] = [];
-      if (devicesResult.status === "rejected") errors.push(`devices: ${safeErrorSummary(devicesResult.reason)}`);
-      if (alertsResult.status === "rejected") errors.push(`alerts: ${safeErrorSummary(alertsResult.reason)}`);
-      if (recordingsResult.status === "rejected") errors.push(`recordings: ${safeErrorSummary(recordingsResult.reason)}`);
-      if (errors.length > 0) summary.errors = errors;
-
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(summary, null, 2) }],
-      };
-    }
-  );
+  registerCompositeReadCatalogTool(server, getClient, getFleetHealthTool);
 
   server.tool(
     "get_project_quality_summary",
@@ -125,7 +179,7 @@ export function registerWorkflowTools(server: McpServer, getClient: GetClient, a
       projectUid: z.string().describe("The unique identifier (UUID) of the project"),
     },
     async ({ projectUid }) => {
-      const avala = getClient();
+      const avala = getClient("get_project_quality_summary");
       const [projectResult, targetsResult, consensusResult] = await Promise.allSettled([
         avala.projects.get(projectUid),
         avala.qualityTargets.list(projectUid, { limit: 50 }),
@@ -174,7 +228,7 @@ export function registerWorkflowTools(server: McpServer, getClient: GetClient, a
     "Get a high-level overview of the workspace — organizations, recent datasets, recent projects, and recent exports. Use when a user first connects or asks 'what do I have?' or 'show me my workspace.'",
     {},
     async () => {
-      const avala = getClient();
+      const avala = getClient("get_workspace_overview");
       const [orgsResult, datasetsResult, projectsResult, exportsResult] = await Promise.allSettled([
         avala.organizations.list({ limit: 10 }),
         avala.datasets.list({ limit: 5 }),

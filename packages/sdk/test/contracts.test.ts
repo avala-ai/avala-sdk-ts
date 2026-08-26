@@ -17,7 +17,11 @@ import * as path from "path";
 // (avala-ai/avala-sdk-ts). In that case the contract checks are skipped — they
 // run as a gate in the monorepo CI, not at publish time.
 const contractPath = path.resolve(__dirname, "../../../../../contracts/api_contracts.json");
+const monorepoAvailable = fs.existsSync(path.resolve(__dirname, "../../../../../DOCTRINE.md"));
 const contractAvailable = fs.existsSync(contractPath);
+if (monorepoAvailable && !contractAvailable) {
+  throw new Error("Monorepo SDK API contract is missing.");
+}
 const contract = contractAvailable
   ? JSON.parse(fs.readFileSync(contractPath, "utf-8"))
   : { types: {}, endpoints: {} };
@@ -90,7 +94,7 @@ function parseInterfaceFields(source: string, interfaceName: string): Set<string
 // Read the actual types.ts source file once for all tests
 const typesSource = fs.readFileSync(path.resolve(__dirname, "../src/types.ts"), "utf-8");
 
-describe.skipIf(!contractAvailable)("SDK types cover all contract fields", () => {
+describe.skipIf(!monorepoAvailable)("SDK types cover all contract fields", () => {
   const typeChecks: Array<{ typeName: string; fields: string[] }> = [];
 
   for (const [typeName, typeDef] of Object.entries(contract.types) as Array<[string, Record<string, unknown>]>) {
@@ -128,7 +132,7 @@ describe.skipIf(!contractAvailable)("SDK types cover all contract fields", () =>
 
 // ── Response shape tests ───────────────────────────────────────
 
-describe.skipIf(!contractAvailable)("SDK methods use correct transport for response shape", () => {
+describe.skipIf(!monorepoAvailable)("SDK methods use correct transport for response shape", () => {
   const resourceFileMap: Record<string, string> = {
     organizations: "organizations.ts",
     slices: "slices.ts",
@@ -192,7 +196,7 @@ describe.skipIf(!contractAvailable)("SDK methods use correct transport for respo
 // These tests verify that mock API responses can be properly constructed
 // with all contract-specified fields as camelCase properties.
 
-describe.skipIf(!contractAvailable)("SDK types accept all contract fields after snakeToCamel conversion", () => {
+describe.skipIf(!monorepoAvailable)("SDK types accept all contract fields after snakeToCamel conversion", () => {
   it("Organization mock has all contract fields", () => {
     const allFields = [
       ...contract.types.Organization.list_fields,

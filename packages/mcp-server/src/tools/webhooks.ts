@@ -48,7 +48,7 @@ export function registerWebhookTools(server: McpServer, getClient: GetClient, al
         events: z.array(z.string()).describe("List of event types to subscribe to"),
       },
       async ({ targetUrl, events }) => {
-        const avala = getClient();
+        const avala = getClient("create_webhook");
         const webhook = await avala.webhooks.create({ targetUrl, events });
         return {
           content: [
@@ -68,7 +68,7 @@ export function registerWebhookTools(server: McpServer, getClient: GetClient, al
         uid: z.string().describe("The unique identifier (UUID) of the webhook to delete"),
       },
       async ({ uid }) => {
-        const avala = getClient();
+        const avala = getClient("delete_webhook");
         await avala.webhooks.delete(uid);
         return {
           content: [

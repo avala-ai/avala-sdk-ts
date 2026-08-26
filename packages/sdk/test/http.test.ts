@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { HttpTransport } from "../src/http.js";
+import { HttpTransport, type HttpConfig } from "../src/http.js";
 import {
   AuthenticationError,
   NotFoundError,
@@ -9,11 +9,13 @@ import {
   AvalaError,
 } from "../src/errors.js";
 
-function makeTransport(overrides?: { apiKey?: string; baseUrl?: string; timeout?: number }): HttpTransport {
+function makeTransport(overrides?: Partial<HttpConfig>): HttpTransport {
   return new HttpTransport({
     apiKey: overrides?.apiKey ?? "test-api-key",
     baseUrl: overrides?.baseUrl ?? "https://api.example.com",
     timeout: overrides?.timeout ?? 30000,
+    clientName: overrides?.clientName,
+    internalClientSecret: overrides?.internalClientSecret,
   });
 }
 
@@ -46,6 +48,28 @@ describe("HttpTransport", () => {
       expect((options.headers as Record<string, string>)["X-Avala-Api-Key"]).toBe("my-secret-key");
     });
 
+    it("sends bounded client provenance headers when configured", async () => {
+      mockFetch({ ok: true, status: 200, json: () => Promise.resolve({ result: "ok" }) });
+      const http = makeTransport({
+        clientName: "list_datasets",
+        internalClientSecret: "s".repeat(32),
+      });
+      await http.request("GET", "/test/");
+
+      const headers = (vi.mocked(fetch).mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+      expect(headers["X-Avala-Client"]).toBe("list_datasets");
+      expect(headers["X-Avala-Internal-Client"]).toBe("s".repeat(32));
+    });
+
+    it("omits provenance headers when they are not configured", async () => {
+      mockFetch({ ok: true, status: 200, json: () => Promise.resolve({ result: "ok" }) });
+      await makeTransport().request("GET", "/test/");
+
+      const headers = (vi.mocked(fetch).mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+      expect(headers["X-Avala-Client"]).toBeUndefined();
+      expect(headers["X-Avala-Internal-Client"]).toBeUndefined();
+    });
+
     it("sends Accept: application/json header", async () => {
       mockFetch({ ok: true, status: 200, json: () => Promise.resolve({}) });
       const http = makeTransport();
@@ -75,6 +99,28 @@ describe("HttpTransport", () => {
       const fetchCall = vi.mocked(fetch).mock.calls[0];
       const options = fetchCall[1] as RequestInit;
       expect((options.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+    });
+  });
+
+  describe("provenance configuration", () => {
+    it.each(["List_Datasets", "mcp/list_datasets", "list-datasets", "a".repeat(65), "list_datasets\r\nInjected: true"])(
+      "rejects an invalid clientName %j",
+      (clientName) => {
+        expect(() => makeTransport({ clientName })).toThrowError("clientName must match");
+      },
+    );
+
+    it.each([
+      "too-short",
+      ` ${"s".repeat(32)}`,
+      `${"s".repeat(32)} `,
+      "é".repeat(32),
+      "s".repeat(513),
+      "secret\r\nInjected: true".padEnd(32, "s"),
+    ])("rejects a non-canonical internal service secret", (internalClientSecret) => {
+      expect(() => makeTransport({ internalClientSecret })).toThrowError(
+        "internalClientSecret must contain 32-512 URL-safe ASCII characters",
+      );
     });
   });
 
@@ -215,6 +261,22 @@ describe("HttpTransport", () => {
       expect(result.displayName).toBe("Test");
       expect(result.itemCount).toBe(5);
       expect(result.createdAt).toBe("2025-06-01");
+    });
+
+    it("forwards query params while converting the response", async () => {
+      mockFetch({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ status_count: { open: 5 } }),
+      });
+
+      const http = makeTransport({ baseUrl: "https://api.example.com" });
+      const result = await http.requestSingle<{ statusCount: { open: number } }>("/metrics/", {
+        sequence_uid: "seq-001",
+      });
+
+      expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("https://api.example.com/metrics/?sequence_uid=seq-001");
+      expect(result).toEqual({ statusCount: { open: 5 } });
     });
   });
 

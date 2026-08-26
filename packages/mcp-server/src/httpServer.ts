@@ -18,7 +18,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { Avala } from "@avala-ai/sdk";
+import { Avala, validateInternalClientSecret } from "@avala-ai/sdk";
 import { registerTools } from "./server.js";
 
 /** Path serving the MCP Streamable HTTP endpoint. */
@@ -52,9 +52,11 @@ export interface AvalaMcpHttpOptions {
    * Build the per-request Avala client from the request's credential.
    * Injectable for tests; defaults to the real SDK client.
    */
-  createClient?: (apiKey: string) => Avala;
+  createClient?: (apiKey: string, clientName: string) => Avala;
   /** Override the Avala REST base URL (e.g. a staging API). */
   baseUrl?: string;
+  /** Shared secret proving REST requests originated from the hosted MCP service. */
+  internalClientSecret?: string;
   /**
    * Browser origins allowed to reach this server. Default empty: only
    * requests WITHOUT an Origin header (non-browser clients — Claude, Cursor,
@@ -68,15 +70,26 @@ type Credential =
   | { ok: false; status: 400 | 401; message: string };
 
 /**
- * The header fields extractCredential reads. `headersDistinct` (Node ≥18.3)
- * keeps one array entry per received header line; plain `headers` is the
- * fallback for exotic callers, and is lossy: Node joins duplicate custom
- * headers with ", " and silently DROPS duplicate `Authorization` lines, so
- * duplicates cannot be detected there.
+ * The header fields extractCredential reads. `rawHeaders` preserves every
+ * received header line across Node-compatible runtimes. `headersDistinct`
+ * (Node ≥18.3) is the next-best source; plain `headers` is the final fallback
+ * for synthetic/exotic callers and is lossy because runtimes may join or drop
+ * duplicate credential lines.
  */
-type CredentialHeaders = Pick<IncomingMessage, "headers" | "headersDistinct">;
+type CredentialHeaders = Pick<IncomingMessage, "headers"> &
+  Partial<Pick<IncomingMessage, "headersDistinct" | "rawHeaders">>;
 
 function headerValues(req: CredentialHeaders, name: string): string[] {
+  if (req.rawHeaders !== undefined) {
+    const rawValues: string[] = [];
+    for (let index = 0; index < req.rawHeaders.length; index += 2) {
+      if (req.rawHeaders[index]?.toLowerCase() === name) {
+        rawValues.push(req.rawHeaders[index + 1] ?? "");
+      }
+    }
+    if (rawValues.length > 0) return rawValues;
+  }
+
   const distinct = req.headersDistinct?.[name];
   if (distinct !== undefined) return distinct;
   const joined = req.headers[name];
@@ -186,8 +199,19 @@ function readBody(req: IncomingMessage): Promise<string> {
  *  - `GET /healthz`  — 200, for the ALB health check. Unauthenticated.
  */
 export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions = {}): Server {
+  // Validate at process startup, not lazily on the first tool call. Otherwise
+  // /healthz stays green while every authenticated call fails in Fetch header
+  // construction because the injected secret is not a canonical ByteString.
+  validateInternalClientSecret(options.internalClientSecret, { required: true });
   const createClient =
-    options.createClient ?? ((apiKey: string) => new Avala({ apiKey, baseUrl: options.baseUrl }));
+    options.createClient ??
+    ((apiKey: string, clientName: string) =>
+      new Avala({
+        apiKey,
+        baseUrl: options.baseUrl,
+        clientName,
+        internalClientSecret: options.internalClientSecret,
+      }));
   const allowedOrigins = new Set((options.allowedOrigins ?? []).map(normalizeOrigin));
 
   async function handleMcpPost(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -226,13 +250,19 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions = {}): Ser
       return;
     }
 
-    // Fresh server + transport per request (stateless mode), and a lazy
-    // per-request client: constructed at most once per request, on first use,
-    // from THIS request's credential. Nothing here is shared across requests,
-    // so concurrent callers with different keys cannot observe each other's
-    // client.
-    let client: Avala | undefined;
-    const getClient = () => (client ??= createClient(credential.apiKey));
+    // Fresh server + transport per request (stateless mode), and lazy
+    // per-request clients keyed by exact MCP tool name. Each client is built
+    // from THIS request's credential and stamps that tool name onto every REST
+    // request. Nothing here is shared across requests, so concurrent callers
+    // with different keys cannot observe each other's clients.
+    const clients = new Map<string, Avala>();
+    const getClient = (clientName: string): Avala => {
+      const existing = clients.get(clientName);
+      if (existing) return existing;
+      const client = createClient(credential.apiKey, clientName);
+      clients.set(clientName, client);
+      return client;
+    };
 
     const server = new McpServer({ name: "avala", version: "0.6.0" });
     // Hosted v1 is read-only BY CONSTRUCTION — no option, no env var, nothing

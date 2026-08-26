@@ -6,7 +6,7 @@ import { registerTools } from "../src/server.js";
  * registers tools through the same `registerTools`, so this count is the
  * stdio/HTTP parity baseline: if it moves, both transports moved together.
  */
-const FULL_TOOL_COUNT = 55;
+const FULL_TOOL_COUNT = 61;
 
 function createMockServer() {
   const names: string[] = [];
@@ -30,7 +30,7 @@ function createMockServer() {
 }
 
 describe("MCP server", () => {
-  it("registers the full catalog (55 tools) when mutations are enabled", () => {
+  it("registers the full catalog (61 tools) when mutations are enabled", () => {
     const server = createMockServer();
     registerTools(server as never, (() => ({})) as never, { allowMutations: true });
     expect(server.names).toHaveLength(FULL_TOOL_COUNT);
@@ -79,5 +79,7 @@ describe("MCP server", () => {
     expect(clientA.transport.requestPage).toHaveBeenCalledTimes(1);
     expect(clientB.transport.requestPage).toHaveBeenCalledTimes(1);
     expect(getClient).toHaveBeenCalledTimes(2);
+    expect(getClient).toHaveBeenNthCalledWith(1, "list_datasets");
+    expect(getClient).toHaveBeenNthCalledWith(2, "list_datasets");
   });
 });

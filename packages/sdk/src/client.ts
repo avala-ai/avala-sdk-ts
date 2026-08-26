@@ -8,6 +8,7 @@ import { DatasetsResource } from "./resources/datasets.js";
 import { ExportsResource } from "./resources/exports.js";
 import { InferenceProvidersResource } from "./resources/inferenceProviders.js";
 import { OrganizationsResource } from "./resources/organizations.js";
+import { PermissionsResource } from "./resources/permissions.js";
 import { ProjectsResource } from "./resources/projects.js";
 import { QualityTargetsResource } from "./resources/qualityTargets.js";
 import { SlicesResource } from "./resources/slices.js";
@@ -66,6 +67,7 @@ export class Avala {
   public readonly webhooks: WebhooksResource;
   public readonly webhookDeliveries: WebhookDeliveriesResource;
   public readonly organizations: OrganizationsResource;
+  public readonly permissions: PermissionsResource;
   public readonly slices: SlicesResource;
   public readonly fleet: FleetResource;
 
@@ -93,6 +95,8 @@ export class Avala {
       apiKey,
       baseUrl,
       timeout: config?.timeout ?? 30_000,
+      clientName: config?.clientName,
+      internalClientSecret: config?.internalClientSecret,
     });
 
     this.datasets = new DatasetsResource(this.transport);
@@ -109,6 +113,7 @@ export class Avala {
     this.webhooks = new WebhooksResource(this.transport);
     this.webhookDeliveries = new WebhookDeliveriesResource(this.transport);
     this.organizations = new OrganizationsResource(this.transport);
+    this.permissions = new PermissionsResource(this.transport);
     this.slices = new SlicesResource(this.transport);
     this.fleet = new FleetResource(this.transport);
   }
