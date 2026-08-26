@@ -1,6 +1,10 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
-import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
+import {
+  definePageOutputSchema,
+  defineReadCatalogTool,
+  registerReadCatalogTool,
+} from "../catalog.js";
 import { z } from "zod";
 
 const taskOutputSchema = z
@@ -22,15 +26,28 @@ const listTasksTool = defineReadCatalogTool({
   inputSchema: z.object({
     project: z.string().optional().describe("Filter by project UID"),
     status: z.string().optional().describe("Filter by task status"),
-    limit: z.number().int().positive().optional().describe("Maximum number of tasks to return"),
-    cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of tasks to return"),
+    cursor: z
+      .string()
+      .optional()
+      .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(taskOutputSchema),
   route: {
     name: "customer-task-list",
     method: "GET",
     path: "/tasks/",
-    query: { project: "project", status: "status", limit: "limit", cursor: "cursor" },
+    query: {
+      project: "project",
+      status: "status",
+      limit: "limit",
+      cursor: "cursor",
+    },
     response: "page",
     scope: "tasks.read",
     toolset: "tasks",
@@ -57,7 +74,10 @@ const getTaskTool = defineReadCatalogTool({
 
 export const TASK_READ_CATALOG_TOOLS = [listTasksTool, getTaskTool] as const;
 
-export function registerTaskTools(server: McpServer, getClient: GetClient): void {
+export function registerTaskTools(
+  server: McpServer,
+  getClient: GetClient,
+): void {
   registerReadCatalogTool(server, getClient, listTasksTool);
   registerReadCatalogTool(server, getClient, getTaskTool);
 }

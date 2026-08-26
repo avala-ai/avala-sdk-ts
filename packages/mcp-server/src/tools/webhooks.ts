@@ -1,6 +1,10 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
-import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
+import {
+  definePageOutputSchema,
+  defineReadCatalogTool,
+  registerReadCatalogTool,
+} from "../catalog.js";
 import { z } from "zod";
 
 const webhookOutputSchema = z
@@ -19,8 +23,16 @@ const listWebhooksTool = defineReadCatalogTool({
   title: "List webhooks",
   description: "List all webhook subscriptions in your workspace.",
   inputSchema: z.object({
-    limit: z.number().int().positive().optional().describe("Maximum number of webhooks to return"),
-    cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of webhooks to return"),
+    cursor: z
+      .string()
+      .optional()
+      .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(webhookOutputSchema),
   route: {
@@ -36,16 +48,24 @@ const listWebhooksTool = defineReadCatalogTool({
 
 export const WEBHOOK_READ_CATALOG_TOOLS = [listWebhooksTool] as const;
 
-export function registerWebhookTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
+export function registerWebhookTools(
+  server: McpServer,
+  getClient: GetClient,
+  allowMutations = false,
+): void {
   registerReadCatalogTool(server, getClient, listWebhooksTool);
 
   if (allowMutations) {
-    server.tool(
+    server.registerTool(
       "create_webhook",
-      "Create a new webhook subscription for specific events.",
       {
-        targetUrl: z.string().describe("URL to receive webhook deliveries"),
-        events: z.array(z.string()).describe("List of event types to subscribe to"),
+        description: "Create a new webhook subscription for specific events.",
+        inputSchema: z.object({
+          targetUrl: z.string().describe("URL to receive webhook deliveries"),
+          events: z
+            .array(z.string())
+            .describe("List of event types to subscribe to"),
+        }),
       },
       async ({ targetUrl, events }) => {
         const avala = getClient("create_webhook");
@@ -58,14 +78,18 @@ export function registerWebhookTools(server: McpServer, getClient: GetClient, al
             },
           ],
         };
-      }
+      },
     );
 
-    server.tool(
+    server.registerTool(
       "delete_webhook",
-      "Delete a webhook subscription by its UID.",
       {
-        uid: z.string().describe("The unique identifier (UUID) of the webhook to delete"),
+        description: "Delete a webhook subscription by its UID.",
+        inputSchema: z.object({
+          uid: z
+            .string()
+            .describe("The unique identifier (UUID) of the webhook to delete"),
+        }),
       },
       async ({ uid }) => {
         const avala = getClient("delete_webhook");
@@ -74,11 +98,14 @@ export function registerWebhookTools(server: McpServer, getClient: GetClient, al
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify({ success: true, message: `Webhook ${uid} deleted.` }),
+              text: JSON.stringify({
+                success: true,
+                message: `Webhook ${uid} deleted.`,
+              }),
             },
           ],
         };
-      }
+      },
     );
   }
 }

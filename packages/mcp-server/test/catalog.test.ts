@@ -11,24 +11,54 @@ import {
   registerReadCatalogTool,
   renderCatalogPath,
 } from "../src/catalog.js";
-import { AGENT_READ_CATALOG_TOOLS, registerAgentTools } from "../src/tools/agents.js";
+import {
+  AGENT_READ_CATALOG_TOOLS,
+  registerAgentTools,
+} from "../src/tools/agents.js";
 import {
   ANNOTATION_ISSUE_READ_CATALOG_TOOLS,
   registerAnnotationIssueTools,
 } from "../src/tools/annotationIssues.js";
-import { CONSENSUS_READ_CATALOG_TOOLS, registerConsensusTools } from "../src/tools/consensus.js";
-import { DATASET_READ_CATALOG_TOOLS, registerDatasetTools } from "../src/tools/datasets.js";
-import { EXPORT_READ_CATALOG_TOOLS, registerExportTools } from "../src/tools/exports.js";
-import { FLEET_READ_CATALOG_TOOLS, registerFleetTools } from "../src/tools/fleet.js";
+import {
+  CONSENSUS_READ_CATALOG_TOOLS,
+  registerConsensusTools,
+} from "../src/tools/consensus.js";
+import {
+  DATASET_READ_CATALOG_TOOLS,
+  registerDatasetTools,
+} from "../src/tools/datasets.js";
+import {
+  EXPORT_READ_CATALOG_TOOLS,
+  registerExportTools,
+} from "../src/tools/exports.js";
+import {
+  FLEET_READ_CATALOG_TOOLS,
+  registerFleetTools,
+} from "../src/tools/fleet.js";
 import {
   ORGANIZATION_READ_CATALOG_TOOLS,
   registerOrganizationTools,
 } from "../src/tools/organizations.js";
-import { QUALITY_READ_CATALOG_TOOLS, registerQualityTools } from "../src/tools/quality.js";
-import { registerSliceTools, SLICE_READ_CATALOG_TOOLS } from "../src/tools/slices.js";
-import { registerStorageTools, STORAGE_READ_CATALOG_TOOLS } from "../src/tools/storage.js";
-import { registerTaskTools, TASK_READ_CATALOG_TOOLS } from "../src/tools/tasks.js";
-import { registerWebhookTools, WEBHOOK_READ_CATALOG_TOOLS } from "../src/tools/webhooks.js";
+import {
+  QUALITY_READ_CATALOG_TOOLS,
+  registerQualityTools,
+} from "../src/tools/quality.js";
+import {
+  registerSliceTools,
+  SLICE_READ_CATALOG_TOOLS,
+} from "../src/tools/slices.js";
+import {
+  registerStorageTools,
+  STORAGE_READ_CATALOG_TOOLS,
+} from "../src/tools/storage.js";
+import {
+  registerTaskTools,
+  TASK_READ_CATALOG_TOOLS,
+} from "../src/tools/tasks.js";
+import {
+  registerWebhookTools,
+  WEBHOOK_READ_CATALOG_TOOLS,
+} from "../src/tools/webhooks.js";
 import { WORKFLOW_COMPOSITE_READ_CATALOG_TOOLS } from "../src/tools/workflows.js";
 
 interface ManifestRoute {
@@ -41,8 +71,12 @@ interface ManifestRoute {
   shadow_scope_domain?: string | null;
 }
 
-const routeManifestPath = fileURLToPath(new URL("../../../../../server/api_route_manifest.json", import.meta.url));
-const monorepoAvailable = existsSync(fileURLToPath(new URL("../../../../../DOCTRINE.md", import.meta.url)));
+const routeManifestPath = fileURLToPath(
+  new URL("../../../../../server/api_route_manifest.json", import.meta.url),
+);
+const monorepoAvailable = existsSync(
+  fileURLToPath(new URL("../../../../../DOCTRINE.md", import.meta.url)),
+);
 const routeManifestAvailable = existsSync(routeManifestPath);
 if (monorepoAvailable && !routeManifestAvailable) {
   throw new Error("Monorepo API route manifest is missing.");
@@ -72,10 +106,16 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
     limit: 10,
   },
   get_capture_submission: { resultUid: "00000000-0000-0000-0000-000000000021" },
-  list_capture_campaigns: { datasetUid: "00000000-0000-0000-0000-000000000020" },
+  list_capture_campaigns: {
+    datasetUid: "00000000-0000-0000-0000-000000000020",
+  },
   list_slices: { owner: "robotics-team", limit: 10 },
   get_slice: { owner: "robotics-team", slug: "training-set" },
-  list_tasks: { project: "00000000-0000-0000-0000-000000000003", status: "active", limit: 10 },
+  list_tasks: {
+    project: "00000000-0000-0000-0000-000000000003",
+    status: "active",
+    limit: 10,
+  },
   get_task: { uid: "00000000-0000-0000-0000-000000000004" },
   list_organizations: { limit: 10 },
   get_organization: { slug: "robotics-team" },
@@ -83,9 +123,14 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
   get_agent: { uid: "00000000-0000-0000-0000-000000000005" },
   list_webhooks: { limit: 10 },
   list_storage_configs: { limit: 10 },
-  list_quality_targets: { projectUid: "00000000-0000-0000-0000-000000000006", limit: 10 },
+  list_quality_targets: {
+    projectUid: "00000000-0000-0000-0000-000000000006",
+    limit: 10,
+  },
   get_result_acceptance: { resultUid: "00000000-0000-0000-0000-000000000019" },
-  get_campaign_acceptance_summary: { projectUid: "00000000-0000-0000-0000-000000000006" },
+  get_campaign_acceptance_summary: {
+    projectUid: "00000000-0000-0000-0000-000000000006",
+  },
   get_campaign_acceptance_coverage: {
     projectUid: "00000000-0000-0000-0000-000000000006",
     axes: "subject,device_tier",
@@ -175,7 +220,10 @@ const TOOLSET_BY_DOMAIN: Record<string, string> = {
   export: "exports",
 };
 
-function expectedToolsetForRoute(route: ManifestRoute, scopeDomain: string | null | undefined): string | undefined {
+function expectedToolsetForRoute(
+  route: ManifestRoute,
+  scopeDomain: string | null | undefined,
+): string | undefined {
   if (route.path.includes("/consensus/")) return "consensus";
   if (route.app === "quality_control") return "quality";
   if (route.path.includes("/sequences/")) return "sequences";
@@ -194,8 +242,15 @@ function manifestPathPattern(path: string): RegExp {
 
 describe("declarative MCP catalog", () => {
   it("registers and executes every catalog read through its declared transport", async () => {
-    const registrations = new Map<string, { config: Record<string, unknown>; handler: ToolHandler }>();
-    const calls: { method: "GET"; path: string; query?: Record<string, string> }[] = [];
+    const registrations = new Map<
+      string,
+      { config: Record<string, unknown>; handler: ToolHandler }
+    >();
+    const calls: {
+      method: "GET";
+      path: string;
+      query?: Record<string, string>;
+    }[] = [];
     const sampleEntity = {
       uid: "result",
       name: "Result dataset",
@@ -325,7 +380,10 @@ describe("declarative MCP catalog", () => {
       mediaHeight: 1080,
       durationS: 12.5,
       audio: true,
-      submitter: { uid: "00000000-0000-0000-0000-000000000023", username: "operator" },
+      submitter: {
+        uid: "00000000-0000-0000-0000-000000000023",
+        username: "operator",
+      },
       submittedAt: "2026-08-24T00:00:00Z",
       rejectReason: null,
       rejectNote: null,
@@ -554,60 +612,96 @@ describe("declarative MCP catalog", () => {
       ],
     };
     const transport = {
-      requestPage: vi.fn(async (path: string, query?: Record<string, string>) => {
-        calls.push({ method: "GET", path, query });
-        return {
-          items: [path === "/exports/" ? exportItem : sampleEntity],
-          nextCursor: null,
-          previousCursor: null,
-          hasMore: false,
-        };
-      }),
-      requestSingle: vi.fn(async (path: string, query?: Record<string, string>) => {
-        calls.push({ method: "GET", path, query });
-        if (path.endsWith("/annotation-issues/metrics/")) return annotationIssueMetrics;
-        if (path.endsWith("/results/00000000-0000-0000-0000-000000000019/acceptance/")) {
-          return resultAcceptance;
-        }
-        if (path.endsWith("/acceptance/summary/")) return acceptanceSummary;
-        if (path.endsWith("/acceptance/coverage/")) return acceptanceCoverage;
-        if (path.endsWith("/capture-campaigns/")) return captureCampaigns;
-        if (path.startsWith("/exports/")) return exportItem;
-        return sampleEntity;
-      }),
-      requestList: vi.fn(async (path: string, query?: Record<string, string>) => {
-        calls.push({ method: "GET", path, query });
-        if (path === "/qc-available-tools/") return [annotationIssueTool];
-        if (path.includes("/annotation-issues/")) return [annotationIssue];
-        return [sampleEntity];
-      }),
+      requestPage: vi.fn(
+        async (path: string, query?: Record<string, string>) => {
+          calls.push({ method: "GET", path, query });
+          return {
+            items: [path === "/exports/" ? exportItem : sampleEntity],
+            nextCursor: null,
+            previousCursor: null,
+            hasMore: false,
+          };
+        },
+      ),
+      requestSingle: vi.fn(
+        async (path: string, query?: Record<string, string>) => {
+          calls.push({ method: "GET", path, query });
+          if (path.endsWith("/annotation-issues/metrics/"))
+            return annotationIssueMetrics;
+          if (
+            path.endsWith(
+              "/results/00000000-0000-0000-0000-000000000019/acceptance/",
+            )
+          ) {
+            return resultAcceptance;
+          }
+          if (path.endsWith("/acceptance/summary/")) return acceptanceSummary;
+          if (path.endsWith("/acceptance/coverage/")) return acceptanceCoverage;
+          if (path.endsWith("/capture-campaigns/")) return captureCampaigns;
+          if (path.startsWith("/exports/")) return exportItem;
+          return sampleEntity;
+        },
+      ),
+      requestList: vi.fn(
+        async (path: string, query?: Record<string, string>) => {
+          calls.push({ method: "GET", path, query });
+          if (path === "/qc-available-tools/") return [annotationIssueTool];
+          if (path.includes("/annotation-issues/")) return [annotationIssue];
+          return [sampleEntity];
+        },
+      ),
     };
     const server = {
       tool: vi.fn(),
-      registerTool: vi.fn((name: string, config: Record<string, unknown>, handler: ToolHandler) => {
-        registrations.set(name, { config, handler });
-      }),
+      registerTool: vi.fn(
+        (
+          name: string,
+          config: Record<string, unknown>,
+          handler: ToolHandler,
+        ) => {
+          registrations.set(name, { config, handler });
+        },
+      ),
     };
-    registerDatasetTools(server as never, (() => ({ transport })) as never, true);
+    registerDatasetTools(
+      server as never,
+      (() => ({ transport })) as never,
+      true,
+    );
     registerSliceTools(server as never, (() => ({ transport })) as never);
     registerTaskTools(server as never, (() => ({ transport })) as never);
-    registerOrganizationTools(server as never, (() => ({ transport })) as never);
+    registerOrganizationTools(
+      server as never,
+      (() => ({ transport })) as never,
+    );
     registerAgentTools(server as never, (() => ({ transport })) as never);
     registerWebhookTools(server as never, (() => ({ transport })) as never);
     registerStorageTools(server as never, (() => ({ transport })) as never);
     registerQualityTools(server as never, (() => ({ transport })) as never);
     registerConsensusTools(server as never, (() => ({ transport })) as never);
     registerFleetTools(server as never, (() => ({ transport })) as never);
-    registerAnnotationIssueTools(server as never, (() => ({ transport })) as never);
+    registerAnnotationIssueTools(
+      server as never,
+      (() => ({ transport })) as never,
+    );
     registerExportTools(server as never, (() => ({ transport })) as never);
 
     for (const definition of READ_CATALOG_TOOLS) {
-      const manifestRoute = routeManifest.find((route) => route.name === definition.route.name);
+      const manifestRoute = routeManifest.find(
+        (route) => route.name === definition.route.name,
+      );
       if (monorepoAvailable) {
-        expect(manifestRoute, `${definition.name} route is absent from the server manifest`).toBeDefined();
-        expect(manifestRoute!.methods).toContain(definition.route.method.toLowerCase());
+        expect(
+          manifestRoute,
+          `${definition.name} route is absent from the server manifest`,
+        ).toBeDefined();
+        expect(manifestRoute!.methods).toContain(
+          definition.route.method.toLowerCase(),
+        );
 
-        const scopeDomain = manifestRoute!.scope_enforced_domain ?? manifestRoute!.shadow_scope_domain;
+        const scopeDomain =
+          manifestRoute!.scope_enforced_domain ??
+          manifestRoute!.shadow_scope_domain;
         const expectedScopes = manifestRoute!.declares_scope?.length
           ? manifestRoute!.declares_scope!
           : scopeDomain
@@ -615,7 +709,10 @@ describe("declarative MCP catalog", () => {
             : [];
         expect(expectedScopes).toHaveLength(1);
         expect(definition.route.scope).toBe(expectedScopes[0]);
-        const expectedToolset = expectedToolsetForRoute(manifestRoute!, scopeDomain);
+        const expectedToolset = expectedToolsetForRoute(
+          manifestRoute!,
+          scopeDomain,
+        );
         expect(definition.route.toolset).toBe(expectedToolset);
       }
 
@@ -644,12 +741,20 @@ describe("declarative MCP catalog", () => {
       expect(calls).toHaveLength(callCount + 1);
       const actualCall = calls.at(-1)!;
       expect(actualCall.method).toBe(definition.route.method);
-      expect(actualCall.path).toBe(renderCatalogPath(definition.route.path, SAMPLE_ARGS[definition.name]!));
+      expect(actualCall.path).toBe(
+        renderCatalogPath(definition.route.path, SAMPLE_ARGS[definition.name]!),
+      );
       expect(actualCall.query).toEqual(
-        buildCatalogQuery(definition.route.query, SAMPLE_ARGS[definition.name]!, definition.route.fixedQuery),
+        buildCatalogQuery(
+          definition.route.query,
+          SAMPLE_ARGS[definition.name]!,
+          definition.route.fixedQuery,
+        ),
       );
       if (manifestRoute) {
-        expect(manifestPathPattern(manifestRoute.path).test(actualCall.path)).toBe(true);
+        expect(
+          manifestPathPattern(manifestRoute.path).test(actualCall.path),
+        ).toBe(true);
       }
       expect(result.structuredContent).toBeDefined();
       expect(JSON.parse(result.content[0]!.text)).toEqual(
@@ -660,34 +765,55 @@ describe("declarative MCP catalog", () => {
     }
   });
 
-  it.skipIf(!monorepoAvailable)("pins every composite dependency to the route manifest", () => {
-    for (const definition of WORKFLOW_COMPOSITE_READ_CATALOG_TOOLS) {
-      for (const route of definition.routes) {
-        const manifestRoute = routeManifest.find((candidate) => candidate.name === route.name);
-        expect(manifestRoute, `${definition.name} dependency ${route.name} is absent from the server manifest`).toBeDefined();
-        expect(manifestRoute!.methods).toContain(route.method.toLowerCase());
-        expect(manifestPathPattern(manifestRoute!.path).test(renderCatalogPath(route.path, {}))).toBe(true);
+  it.skipIf(!monorepoAvailable)(
+    "pins every composite dependency to the route manifest",
+    () => {
+      for (const definition of WORKFLOW_COMPOSITE_READ_CATALOG_TOOLS) {
+        for (const route of definition.routes) {
+          const manifestRoute = routeManifest.find(
+            (candidate) => candidate.name === route.name,
+          );
+          expect(
+            manifestRoute,
+            `${definition.name} dependency ${route.name} is absent from the server manifest`,
+          ).toBeDefined();
+          expect(manifestRoute!.methods).toContain(route.method.toLowerCase());
+          expect(
+            manifestPathPattern(manifestRoute!.path).test(
+              renderCatalogPath(route.path, {}),
+            ),
+          ).toBe(true);
 
-        const scopeDomain = manifestRoute!.scope_enforced_domain ?? manifestRoute!.shadow_scope_domain;
-        expect(scopeDomain).toBeDefined();
-        expect(route.scope).toBe(SCOPE_BY_DOMAIN[scopeDomain!]);
-        expect(route.toolset).toBe(TOOLSET_BY_DOMAIN[scopeDomain!]);
+          const scopeDomain =
+            manifestRoute!.scope_enforced_domain ??
+            manifestRoute!.shadow_scope_domain;
+          expect(scopeDomain).toBeDefined();
+          expect(route.scope).toBe(SCOPE_BY_DOMAIN[scopeDomain!]);
+          expect(route.toolset).toBe(TOOLSET_BY_DOMAIN[scopeDomain!]);
+        }
       }
-    }
-  });
+    },
+  );
 
   it("encodes one path segment and rejects values that could change routes", () => {
-    expect(renderCatalogPath("/datasets/{owner}/{slug}/", { owner: "person@example.com", slug: "bag 1" })).toBe(
-      "/datasets/person%40example.com/bag%201/",
+    expect(
+      renderCatalogPath("/datasets/{owner}/{slug}/", {
+        owner: "person@example.com",
+        slug: "bag 1",
+      }),
+    ).toBe("/datasets/person%40example.com/bag%201/");
+    expect(() =>
+      renderCatalogPath("/datasets/{owner}/", { owner: "../admin" }),
+    ).toThrow("not a valid URL path segment");
+    expect(() => renderCatalogPath("/datasets/{owner}/", {})).toThrow(
+      "must be a string or number",
     );
-    expect(() => renderCatalogPath("/datasets/{owner}/", { owner: "../admin" })).toThrow(
-      "not a valid URL path segment",
+    expect(() =>
+      renderCatalogPath("//attacker.example/{owner}/", { owner: "safe" }),
+    ).toThrow("must be an absolute, trailing-slash API path");
+    expect(() => renderCatalogPath("/datasets/{not-valid}/", {})).toThrow(
+      "contains an invalid placeholder",
     );
-    expect(() => renderCatalogPath("/datasets/{owner}/", {})).toThrow("must be a string or number");
-    expect(() => renderCatalogPath("//attacker.example/{owner}/", { owner: "safe" })).toThrow(
-      "must be an absolute, trailing-slash API path",
-    );
-    expect(() => renderCatalogPath("/datasets/{not-valid}/", {})).toThrow("contains an invalid placeholder");
   });
 
   it("maps only present primitive query arguments", () => {
@@ -697,7 +823,13 @@ describe("declarative MCP catalog", () => {
         { dataType: "mcap", limit: 25, cursor: undefined },
       ),
     ).toEqual({ data_type: "mcap", limit: "25" });
-    expect(buildCatalogQuery({ limit: "limit" }, { limit: 500 }, { limit: "100", status: "open" })).toEqual({
+    expect(
+      buildCatalogQuery(
+        { limit: "limit" },
+        { limit: 500 },
+        { limit: "100", status: "open" },
+      ),
+    ).toEqual({
       limit: "100",
       status: "open",
     });
@@ -726,17 +858,29 @@ describe("declarative MCP catalog", () => {
     ]);
     let handler: ToolHandler | undefined;
     const server = {
-      registerTool: vi.fn((_name: string, _config: unknown, callback: ToolHandler) => {
-        handler = callback;
-      }),
+      registerTool: vi.fn(
+        (_name: string, _config: unknown, callback: ToolHandler) => {
+          handler = callback;
+        },
+      ),
     };
 
-    registerReadCatalogTool(server as never, (() => ({ transport: { requestList } })) as never, definition);
+    registerReadCatalogTool(
+      server as never,
+      (() => ({ transport: { requestList } })) as never,
+      definition,
+    );
     const result = await handler!({ kind: "camera" });
 
-    expect(requestList).toHaveBeenCalledWith("/example-items/", { kind: "camera" });
-    expect(result.structuredContent).toEqual({ items: [{ uid: "item-1", name: "Example" }] });
-    expect(JSON.parse(result.content[0]!.text)).toEqual([{ uid: "item-1", name: "Example" }]);
+    expect(requestList).toHaveBeenCalledWith("/example-items/", {
+      kind: "camera",
+    });
+    expect(result.structuredContent).toEqual({
+      items: [{ uid: "item-1", name: "Example" }],
+    });
+    expect(JSON.parse(result.content[0]!.text)).toEqual([
+      { uid: "item-1", name: "Example" },
+    ]);
   });
 
   it("redacts sensitive REST fields from text and structured content", async () => {
@@ -748,7 +892,7 @@ describe("declarative MCP catalog", () => {
       outputSchema: z
         .object({
           uid: z.string(),
-          metadata: z.record(z.unknown()),
+          metadata: z.record(z.string(), z.unknown()),
         })
         .passthrough(),
       route: {
@@ -779,12 +923,18 @@ describe("declarative MCP catalog", () => {
     }));
     let handler: ToolHandler | undefined;
     const server = {
-      registerTool: vi.fn((_name: string, _config: unknown, callback: ToolHandler) => {
-        handler = callback;
-      }),
+      registerTool: vi.fn(
+        (_name: string, _config: unknown, callback: ToolHandler) => {
+          handler = callback;
+        },
+      ),
     };
 
-    registerReadCatalogTool(server as never, (() => ({ transport: { requestSingle } })) as never, definition);
+    registerReadCatalogTool(
+      server as never,
+      (() => ({ transport: { requestSingle } })) as never,
+      definition,
+    );
     const result = await handler!({});
 
     expect(result.structuredContent).toEqual({
@@ -804,7 +954,9 @@ describe("declarative MCP catalog", () => {
         secret: null,
       },
     });
-    expect(JSON.parse(result.content[0]!.text)).toEqual(result.structuredContent);
+    expect(JSON.parse(result.content[0]!.text)).toEqual(
+      result.structuredContent,
+    );
     expect(result.content[0]!.text).not.toContain("top-level-token");
     expect(result.content[0]!.text).not.toContain("nested-api-key");
     expect(result.content[0]!.text).not.toContain("nested-s3-secret");
@@ -838,15 +990,23 @@ describe("declarative MCP catalog", () => {
     const requestSingle = vi.fn(async () => ({ total: 3 }));
     let handler: ToolHandler | undefined;
     const server = {
-      registerTool: vi.fn((_name: string, _config: unknown, callback: ToolHandler) => {
-        handler = callback;
-      }),
+      registerTool: vi.fn(
+        (_name: string, _config: unknown, callback: ToolHandler) => {
+          handler = callback;
+        },
+      ),
     };
 
-    registerReadCatalogTool(server as never, (() => ({ transport: { requestSingle } })) as never, definition);
+    registerReadCatalogTool(
+      server as never,
+      (() => ({ transport: { requestSingle } })) as never,
+      definition,
+    );
     const result = await handler!({ sequenceUid: "seq-001" });
 
-    expect(requestSingle).toHaveBeenCalledWith("/example-metrics/", { sequence_uid: "seq-001" });
+    expect(requestSingle).toHaveBeenCalledWith("/example-metrics/", {
+      sequence_uid: "seq-001",
+    });
     expect(result.structuredContent).toEqual({ total: 3 });
     expect(JSON.parse(result.content[0]!.text)).toEqual({ total: 3 });
   });
@@ -856,8 +1016,13 @@ describe("declarative MCP catalog", () => {
       name: "get_example_health",
       title: "Get example health",
       description: "Combine device and alert health.",
-      inputSchema: z.object({ type: z.string().optional(), useUnknown: z.boolean().optional() }),
-      outputSchema: z.object({ deviceCount: z.number(), alertCount: z.number() }).passthrough(),
+      inputSchema: z.object({
+        type: z.string().optional(),
+        useUnknown: z.boolean().optional(),
+      }),
+      outputSchema: z
+        .object({ deviceCount: z.number(), alertCount: z.number() })
+        .passthrough(),
       routes: [
         {
           name: "example-device-list",
@@ -893,31 +1058,51 @@ describe("declarative MCP catalog", () => {
       },
     });
     const transport = {
-      requestPage: vi.fn(async () => ({ items: [{ uid: "device-1" }], hasMore: false })),
+      requestPage: vi.fn(async () => ({
+        items: [{ uid: "device-1" }],
+        hasMore: false,
+      })),
       requestList: vi.fn(async () => [{ uid: "alert-1" }, { uid: "alert-2" }]),
     };
     const getClient = vi.fn(() => ({ transport }));
     let handler: ToolHandler | undefined;
     let config: Record<string, unknown> | undefined;
     const server = {
-      registerTool: vi.fn((_name: string, toolConfig: Record<string, unknown>, callback: ToolHandler) => {
-        config = toolConfig;
-        handler = callback;
-      }),
+      registerTool: vi.fn(
+        (
+          _name: string,
+          toolConfig: Record<string, unknown>,
+          callback: ToolHandler,
+        ) => {
+          config = toolConfig;
+          handler = callback;
+        },
+      ),
     };
 
-    registerCompositeReadCatalogTool(server as never, getClient as never, definition);
+    registerCompositeReadCatalogTool(
+      server as never,
+      getClient as never,
+      definition,
+    );
     const result = await handler!({ type: "camera" });
 
     expect(getClient).toHaveBeenCalledTimes(1);
-    expect(transport.requestPage).toHaveBeenCalledWith("/example-devices/", { limit: "100", type: "camera" });
-    expect(transport.requestList).toHaveBeenCalledWith("/example-alerts/", { status: "open" });
+    expect(transport.requestPage).toHaveBeenCalledWith("/example-devices/", {
+      limit: "100",
+      type: "camera",
+    });
+    expect(transport.requestList).toHaveBeenCalledWith("/example-alerts/", {
+      status: "open",
+    });
     expect(result.structuredContent).toEqual({
       deviceCount: 1,
       alertCount: 2,
       details: { clientSecret: "[redacted]" },
     });
-    expect(JSON.parse(result.content[0]!.text)).toEqual(result.structuredContent);
+    expect(JSON.parse(result.content[0]!.text)).toEqual(
+      result.structuredContent,
+    );
     expect(result.content[0]!.text).not.toContain("composite-secret");
     expect(config!._meta).toEqual({
       "avala.ai/rest-routes": ["example-device-list", "example-alert-list"],
@@ -927,6 +1112,8 @@ describe("declarative MCP catalog", () => {
       "avala.ai/required-scope": "fleet.read",
       "avala.ai/toolset": "fleet",
     });
-    await expect(handler!({ useUnknown: true })).rejects.toThrow("tried to read undeclared route 'undeclared-route'");
+    await expect(handler!({ useUnknown: true })).rejects.toThrow(
+      "tried to read undeclared route 'undeclared-route'",
+    );
   });
 });

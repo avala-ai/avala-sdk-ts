@@ -9,16 +9,43 @@ import {
 import { redact, redactString } from "./redaction.js";
 import type { CursorPage, RateLimitInfo, RawPageResponse } from "./types.js";
 
-export interface HttpConfig {
-  apiKey: string;
+interface HttpConnectionConfig {
   baseUrl: string;
   timeout: number;
   clientName?: string;
   internalClientSecret?: string;
+  forwardedClientIp?: string;
+  mcpSubjectTokenIssuedAt?: number;
 }
+
+export type HttpConfig = HttpConnectionConfig &
+  (
+    | { apiKey: string; accessToken?: never }
+    | { apiKey?: never; accessToken: string }
+  );
 
 const CLIENT_NAME_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 const INTERNAL_CLIENT_SECRET_PATTERN = /^[A-Za-z0-9_-]{32,512}$/;
+// RFC 6750 b64token grammar. Bounding the value keeps one credential from
+// turning into an oversized downstream request header.
+const ACCESS_TOKEN_PATTERN = /^[A-Za-z0-9\-._~+/]+=*$/;
+const MAX_ACCESS_TOKEN_BYTES = 16 * 1024;
+const MAX_FORWARDED_CLIENT_IP_LENGTH = 64;
+
+/** Validate a JWT NumericDate that can be rendered as one canonical header. */
+export function validateMcpSubjectTokenIssuedAt(value: unknown): asserts value is number | undefined {
+  if (value === undefined) return;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    throw new Error("mcpSubjectTokenIssuedAt must be a positive safe-integer Unix timestamp.");
+  }
+}
+
+/** Validate one canonical, bounded RFC 6750 bearer token value. */
+export function validateAccessToken(value: unknown): asserts value is string {
+  if (typeof value !== "string" || !ACCESS_TOKEN_PATTERN.test(value) || value.length > MAX_ACCESS_TOKEN_BYTES) {
+    throw new Error("accessToken must be a canonical RFC 6750 bearer token no larger than 16 KiB.");
+  }
+}
 
 /** Validate a service credential as one canonical HTTP header value. */
 export function validateInternalClientSecret(value: string | undefined, options: { required?: boolean } = {}): void {
@@ -30,6 +57,59 @@ export function validateInternalClientSecret(value: string | undefined, options:
   }
   if (!INTERNAL_CLIENT_SECRET_PATTERN.test(value)) {
     throw new Error("internalClientSecret must contain 32-512 URL-safe ASCII characters.");
+  }
+}
+
+function isCanonicalIpv4(value: string): boolean {
+  const parts = value.split(".");
+  return (
+    parts.length === 4 &&
+    parts.every(
+      (part) =>
+        /^(0|[1-9][0-9]{0,2})$/.test(part) &&
+        Number.parseInt(part, 10) <= 255,
+    )
+  );
+}
+
+function isIpv6(value: string): boolean {
+  if (!value.includes(":") || value.includes("%")) return false;
+  try {
+    // WHATWG URL parsing validates the complete bracketed IPv6 literal and
+    // rejects trailing data, proxy lists, zone identifiers, and bad groups.
+    const parsed = new URL(`http://[${value}]/`);
+    return parsed.hostname.startsWith("[") && parsed.hostname.endsWith("]");
+  } catch {
+    return false;
+  }
+}
+
+/** Validate one exact IPv4/IPv6 header value, never a proxy chain. */
+export function validateForwardedClientIp(value: string | undefined, options: { required?: boolean } = {}): void {
+  if (value === undefined || value === "") {
+    if (options.required) {
+      throw new Error("forwardedClientIp must contain one valid IPv4 or IPv6 address.");
+    }
+    return;
+  }
+  if (
+    value.length > MAX_FORWARDED_CLIENT_IP_LENGTH ||
+    value !== value.trim() ||
+    (!isCanonicalIpv4(value) && !isIpv6(value))
+  ) {
+    throw new Error("forwardedClientIp must contain one valid IPv4 or IPv6 address.");
+  }
+}
+
+/** A forwarded identity is meaningful only with trusted service provenance. */
+export function validateInternalClientContext(
+  internalClientSecret: string | undefined,
+  forwardedClientIp: string | undefined,
+): void {
+  validateInternalClientSecret(internalClientSecret);
+  validateForwardedClientIp(forwardedClientIp);
+  if (forwardedClientIp && !internalClientSecret) {
+    throw new Error("forwardedClientIp requires internalClientSecret.");
   }
 }
 
@@ -66,15 +146,46 @@ function extractCursor(url: string | null): string | null {
 }
 
 export class HttpTransport {
-  private readonly config: HttpConfig;
+  private readonly config: HttpConnectionConfig;
+  private readonly credentialHeaders: Readonly<Record<string, string>>;
   private _lastRateLimit: RateLimitInfo = { limit: null, remaining: null, reset: null };
 
   constructor(config: HttpConfig) {
+    // Treat the presence of each credential field as the discriminant, then
+    // validate the selected value. This keeps runtime JavaScript callers from
+    // creating an ambiguous object such as { apiKey: "...", accessToken: "" }
+    // that validates as API-key mode but later sends an empty Bearer header.
+    const hasApiKeyField = config.apiKey !== undefined;
+    const hasAccessTokenField = config.accessToken !== undefined;
+    if (hasApiKeyField === hasAccessTokenField) {
+      throw new Error("Provide exactly one of apiKey or accessToken.");
+    }
+    if (hasApiKeyField && (typeof config.apiKey !== "string" || config.apiKey === "")) {
+      throw new Error("apiKey must be a non-empty string.");
+    }
+    if (hasAccessTokenField) validateAccessToken(config.accessToken);
     if (config.clientName !== undefined && !CLIENT_NAME_PATTERN.test(config.clientName)) {
       throw new Error("clientName must match ^[a-z][a-z0-9_]{0,63}$.");
     }
-    validateInternalClientSecret(config.internalClientSecret);
-    this.config = config;
+    validateInternalClientContext(config.internalClientSecret, config.forwardedClientIp);
+    validateMcpSubjectTokenIssuedAt(config.mcpSubjectTokenIssuedAt);
+    if (
+      config.mcpSubjectTokenIssuedAt !== undefined &&
+      (!hasAccessTokenField || !config.internalClientSecret || !config.forwardedClientIp)
+    ) {
+      throw new Error("mcpSubjectTokenIssuedAt requires accessToken, internalClientSecret, and forwardedClientIp.");
+    }
+    this.config = {
+      baseUrl: config.baseUrl,
+      timeout: config.timeout,
+      clientName: config.clientName,
+      internalClientSecret: config.internalClientSecret,
+      forwardedClientIp: config.forwardedClientIp,
+      mcpSubjectTokenIssuedAt: config.mcpSubjectTokenIssuedAt,
+    };
+    this.credentialHeaders = hasAccessTokenField
+      ? { Authorization: `Bearer ${config.accessToken as string}` }
+      : { "X-Avala-Api-Key": config.apiKey as string };
   }
 
   get lastRateLimit(): RateLimitInfo {
@@ -100,19 +211,25 @@ export class HttpTransport {
       const response = await fetch(url, {
         method,
         headers: {
-          "X-Avala-Api-Key": this.config.apiKey,
+          ...this.credentialHeaders,
           ...(this.config.clientName ? { "X-Avala-Client": this.config.clientName } : {}),
           ...(this.config.internalClientSecret
             ? { "X-Avala-Internal-Client": this.config.internalClientSecret }
+            : {}),
+          ...(this.config.forwardedClientIp
+            ? { "X-Avala-Forwarded-Client-IP": this.config.forwardedClientIp }
+            : {}),
+          ...(this.config.mcpSubjectTokenIssuedAt !== undefined
+            ? { "X-Avala-OAuth-Subject-Iat": String(this.config.mcpSubjectTokenIssuedAt) }
             : {}),
           "Accept": "application/json",
           ...(options?.json ? { "Content-Type": "application/json" } : {}),
         },
         body: options?.json ? JSON.stringify(options.json) : undefined,
         signal: controller.signal,
-        // Never follow redirects — the Fetch spec replays non-Authorization
-        // headers (including X-Avala-Api-Key) on cross-origin redirects,
-        // which would leak the API key to any redirect target.
+        // Never follow redirects. Fetch may replay non-Authorization headers
+        // such as X-Avala-Api-Key across origins, and relying on runtime rules
+        // for bearer stripping would make the two credential modes diverge.
         redirect: "manual",
       });
 

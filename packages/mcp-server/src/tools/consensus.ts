@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
 import { defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
 import { z } from "zod";
@@ -11,7 +11,7 @@ const consensusSummaryOutputSchema = z
     maxScore: z.number(),
     totalItems: z.number(),
     itemsWithConsensus: z.number(),
-    scoreDistribution: z.record(z.unknown()),
+    scoreDistribution: z.record(z.string(), z.unknown()),
     byTaskName: z.array(z.unknown()),
   })
   .passthrough();
@@ -19,9 +19,12 @@ const consensusSummaryOutputSchema = z
 const getConsensusSummaryTool = defineReadCatalogTool({
   name: "get_consensus_summary",
   title: "Get consensus summary",
-  description: "Get a consensus summary for a project including mean/median scores and distribution.",
+  description:
+    "Get a consensus summary for a project including mean/median scores and distribution.",
   inputSchema: z.object({
-    projectUid: z.string().describe("The unique identifier (UUID) of the project"),
+    projectUid: z
+      .string()
+      .describe("The unique identifier (UUID) of the project"),
   }),
   outputSchema: consensusSummaryOutputSchema,
   route: {
@@ -36,15 +39,23 @@ const getConsensusSummaryTool = defineReadCatalogTool({
 
 export const CONSENSUS_READ_CATALOG_TOOLS = [getConsensusSummaryTool] as const;
 
-export function registerConsensusTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
+export function registerConsensusTools(
+  server: McpServer,
+  getClient: GetClient,
+  allowMutations = false,
+): void {
   registerReadCatalogTool(server, getClient, getConsensusSummaryTool);
 
   if (allowMutations) {
-    server.tool(
+    server.registerTool(
       "compute_consensus",
-      "Trigger consensus computation for a project.",
       {
-        projectUid: z.string().describe("The unique identifier (UUID) of the project"),
+        description: "Trigger consensus computation for a project.",
+        inputSchema: z.object({
+          projectUid: z
+            .string()
+            .describe("The unique identifier (UUID) of the project"),
+        }),
       },
       async ({ projectUid }) => {
         const avala = getClient("compute_consensus");
@@ -57,7 +68,7 @@ export function registerConsensusTools(server: McpServer, getClient: GetClient, 
             },
           ],
         };
-      }
+      },
     );
   }
 }

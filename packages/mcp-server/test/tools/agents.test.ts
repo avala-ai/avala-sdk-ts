@@ -9,12 +9,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -63,7 +67,10 @@ describe("agent tools", () => {
     const handler = server.getHandler("list_agents")!;
     const result = await handler({});
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/agents/", undefined);
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/agents/",
+      undefined,
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].name).toBe("My Agent");
     expect(result.structuredContent).toEqual(mockPage);
@@ -80,7 +87,10 @@ describe("agent tools", () => {
     const handler = server.getHandler("list_agents")!;
     await handler({ limit: 5, cursor: "abc" });
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/agents/", { limit: "5", cursor: "abc" });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/agents/", {
+      limit: "5",
+      cursor: "abc",
+    });
   });
 
   it("get_agent dispatches its declared detail route", async () => {
@@ -90,14 +100,21 @@ describe("agent tools", () => {
     const handler = server.getHandler("get_agent")!;
     const result = await handler({ uid: "agent-1" });
 
-    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/agents/agent-1/");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/agents/agent-1/",
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.name).toBe("My Agent");
     expect(parsed.callbackUrl).toBe("https://example.com/hook");
   });
 
   it("create_agent calls avala.agents.create with all params and returns JSON", async () => {
-    const mockAgent = { uid: "agent-2", name: "New Agent", events: ["task.created"], callbackUrl: "https://example.com/cb" };
+    const mockAgent = {
+      uid: "agent-2",
+      name: "New Agent",
+      events: ["task.created"],
+      callbackUrl: "https://example.com/cb",
+    };
     avala.agents.create.mockResolvedValue(mockAgent);
 
     const handler = server.getHandler("create_agent")!;
@@ -136,8 +153,7 @@ describe("agent tools", () => {
   });
 
   it("registers all four agent tools", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(2);
-    expect(server.tool).toHaveBeenCalledTimes(2);
+    expect(server.registerTool).toHaveBeenCalledTimes(4);
     expect(server.getHandler("list_agents")).toBeDefined();
     expect(server.getHandler("get_agent")).toBeDefined();
     expect(server.getHandler("create_agent")).toBeDefined();

@@ -9,12 +9,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -54,7 +58,9 @@ describe("consensus tools", () => {
     const handler = server.getHandler("get_consensus_summary")!;
     const result = await handler({ projectUid: "proj-1" });
 
-    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/projects/proj-1/consensus/");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/projects/proj-1/consensus/",
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.meanScore).toBe(0.89);
     expect(parsed.medianScore).toBe(0.91);
@@ -79,8 +85,7 @@ describe("consensus tools", () => {
   });
 
   it("registers both get_consensus_summary and compute_consensus tools", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(1);
-    expect(server.tool).toHaveBeenCalledTimes(1);
+    expect(server.registerTool).toHaveBeenCalledTimes(2);
     expect(server.getHandler("get_consensus_summary")).toBeDefined();
     expect(server.getHandler("compute_consensus")).toBeDefined();
   });

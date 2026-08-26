@@ -1,14 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerStatsTools } from "../../src/tools/stats.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[] }>;
+type ToolHandler = (
+  args: Record<string, unknown>,
+) => Promise<{ content: { type: string; text: string }[] }>;
 
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -35,9 +39,18 @@ describe("stats tools", () => {
   });
 
   it("get_workspace_stats calls datasets.list, projects.list, and exports.list", async () => {
-    avala.datasets.list.mockResolvedValue({ items: [{ uid: "ds-1" }], hasMore: true });
-    avala.projects.list.mockResolvedValue({ items: [{ uid: "proj-1" }], hasMore: false });
-    avala.exports.list.mockResolvedValue({ items: [{ uid: "exp-1" }], hasMore: false });
+    avala.datasets.list.mockResolvedValue({
+      items: [{ uid: "ds-1" }],
+      hasMore: true,
+    });
+    avala.projects.list.mockResolvedValue({
+      items: [{ uid: "proj-1" }],
+      hasMore: false,
+    });
+    avala.exports.list.mockResolvedValue({
+      items: [{ uid: "exp-1" }],
+      hasMore: false,
+    });
 
     const handler = server.getHandler("get_workspace_stats")!;
     const result = await handler({});
@@ -53,10 +66,24 @@ describe("stats tools", () => {
     expect(parsed.exports.count).toBe(1);
   });
 
+  it("registers get_workspace_stats", () => {
+    expect(server.registerTool).toHaveBeenCalledTimes(1);
+    expect(server.getHandler("get_workspace_stats")).toBeDefined();
+  });
+
   it("returns aggregated stats structure", async () => {
-    avala.datasets.list.mockResolvedValue({ items: [{ uid: "ds-1" }], hasMore: true });
-    avala.projects.list.mockResolvedValue({ items: [{ uid: "proj-1" }], hasMore: true });
-    avala.exports.list.mockResolvedValue({ items: [{ uid: "exp-1" }], hasMore: true });
+    avala.datasets.list.mockResolvedValue({
+      items: [{ uid: "ds-1" }],
+      hasMore: true,
+    });
+    avala.projects.list.mockResolvedValue({
+      items: [{ uid: "proj-1" }],
+      hasMore: true,
+    });
+    avala.exports.list.mockResolvedValue({
+      items: [{ uid: "exp-1" }],
+      hasMore: true,
+    });
 
     const handler = server.getHandler("get_workspace_stats")!;
     const result = await handler({});

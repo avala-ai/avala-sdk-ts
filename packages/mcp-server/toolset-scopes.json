@@ -9,11 +9,17 @@
   "models": ["models.read", "models.write"],
   "organizations": ["organizations.read", "organizations.write"],
   "projects": ["projects.read", "projects.write"],
-  "quality": ["datasets.read", "qc.read", "qc.write"],
+  "quality": ["datasets.read", "projects.read", "qc.read", "qc.write"],
   "sequences": ["datasets.read", "datasets.write"],
   "slices": ["slices.read", "slices.write"],
   "storage": ["storage.read", "storage.write"],
   "tasks": ["tasks.read", "tasks.write"],
   "webhooks": ["webhooks.read", "webhooks.write"],
-  "workspace": ["search.read"]
+  "workspace": [
+    "datasets.read",
+    "exports.read",
+    "organizations.read",
+    "projects.read",
+    "search.read"
+  ]
 }

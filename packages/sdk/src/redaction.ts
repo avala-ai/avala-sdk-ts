@@ -18,6 +18,12 @@
 const REDACTED_TOKEN = "[redacted]";
 
 const REDACTION_PATTERNS: RegExp[] = [
+  // Authorization: Bearer <token>. Run this BEFORE the generic JWT rule:
+  // otherwise a JWT containing an RFC 6750-only character such as `~` after
+  // its signature can be partially replaced by the JWT rule, destroying the
+  // `Bearer <token>` context and leaving the suffix visible. Keep this
+  // character set aligned with ACCESS_TOKEN_PATTERN in http.ts.
+  /\bbearer\s+[A-Za-z0-9\-._~+/]+=*/gi,
   // Bearer / JWT-style triples (eyJ...).
   /eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+/g,
   // AWS access key IDs.
@@ -49,8 +55,6 @@ const REDACTION_PATTERNS: RegExp[] = [
   /\bsk-[A-Za-z0-9][A-Za-z0-9_-]{20,}/g,
   // Avala API key shape: 40 hex chars.
   /\b[a-f0-9]{40}\b/g,
-  // Authorization: Bearer <token>.
-  /\bbearer\s+[A-Za-z0-9_.\-+/=]+/gi,
   // X-Avala-Api-Key header echoed in error payloads.
   /X-Avala-Api-Key["']?\s*[:=]\s*["']?[A-Za-z0-9_\-]+/gi,
   // AWS ARNs.

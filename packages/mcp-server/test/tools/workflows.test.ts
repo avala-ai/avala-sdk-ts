@@ -9,12 +9,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -65,8 +69,7 @@ describe("workflow tools", () => {
     });
 
     it("registers all workflow tools including mutation tools", () => {
-      expect(server.registerTool).toHaveBeenCalledTimes(1);
-      expect(server.tool).toHaveBeenCalledTimes(3);
+      expect(server.registerTool).toHaveBeenCalledTimes(4);
       expect(server.getHandler("create_annotation_pipeline")).toBeDefined();
       expect(server.getHandler("get_fleet_health")).toBeDefined();
       expect(server.getHandler("get_project_quality_summary")).toBeDefined();
@@ -74,13 +77,26 @@ describe("workflow tools", () => {
     });
 
     it("create_annotation_pipeline creates dataset only when no projectUid", async () => {
-      const mockDataset = { uid: "ds-1", name: "Test", slug: "test", dataType: "lidar" };
+      const mockDataset = {
+        uid: "ds-1",
+        name: "Test",
+        slug: "test",
+        dataType: "lidar",
+      };
       avala.datasets.create.mockResolvedValue(mockDataset);
 
       const handler = server.getHandler("create_annotation_pipeline")!;
-      const result = await handler({ name: "Test", slug: "test", dataType: "lidar" });
+      const result = await handler({
+        name: "Test",
+        slug: "test",
+        dataType: "lidar",
+      });
 
-      expect(avala.datasets.create).toHaveBeenCalledWith({ name: "Test", slug: "test", dataType: "lidar" });
+      expect(avala.datasets.create).toHaveBeenCalledWith({
+        name: "Test",
+        slug: "test",
+        dataType: "lidar",
+      });
       expect(avala.exports.create).not.toHaveBeenCalled();
 
       const parsed = JSON.parse(result.content[0].text);
@@ -89,13 +105,23 @@ describe("workflow tools", () => {
     });
 
     it("create_annotation_pipeline creates dataset and export when projectUid provided", async () => {
-      const mockDataset = { uid: "ds-1", name: "Test", slug: "test", dataType: "image" };
+      const mockDataset = {
+        uid: "ds-1",
+        name: "Test",
+        slug: "test",
+        dataType: "image",
+      };
       const mockExport = { uid: "exp-1", status: "pending" };
       avala.datasets.create.mockResolvedValue(mockDataset);
       avala.exports.create.mockResolvedValue(mockExport);
 
       const handler = server.getHandler("create_annotation_pipeline")!;
-      const result = await handler({ name: "Test", slug: "test", dataType: "image", projectUid: "proj-1" });
+      const result = await handler({
+        name: "Test",
+        slug: "test",
+        dataType: "image",
+        projectUid: "proj-1",
+      });
 
       expect(avala.datasets.create).toHaveBeenCalled();
       expect(avala.exports.create).toHaveBeenCalledWith({ project: "proj-1" });
@@ -117,8 +143,7 @@ describe("workflow tools", () => {
     });
 
     it("registers read-only workflow tools", () => {
-      expect(server.registerTool).toHaveBeenCalledTimes(1);
-      expect(server.tool).toHaveBeenCalledTimes(2);
+      expect(server.registerTool).toHaveBeenCalledTimes(3);
       expect(server.getHandler("get_fleet_health")).toBeDefined();
       expect(server.getHandler("get_project_quality_summary")).toBeDefined();
       expect(server.getHandler("get_workspace_overview")).toBeDefined();
@@ -157,12 +182,24 @@ describe("workflow tools", () => {
       const handler = server.getHandler("get_fleet_health")!;
       const result = await handler({});
 
-      expect(avala.transport.requestPage).toHaveBeenNthCalledWith(1, "/fleet/devices/", { limit: "100" });
-      expect(avala.transport.requestPage).toHaveBeenNthCalledWith(2, "/fleet/alerts/", {
-        status: "open",
-        limit: "100",
-      });
-      expect(avala.transport.requestPage).toHaveBeenNthCalledWith(3, "/fleet/recordings/", { limit: "20" });
+      expect(avala.transport.requestPage).toHaveBeenNthCalledWith(
+        1,
+        "/fleet/devices/",
+        { limit: "100" },
+      );
+      expect(avala.transport.requestPage).toHaveBeenNthCalledWith(
+        2,
+        "/fleet/alerts/",
+        {
+          status: "open",
+          limit: "100",
+        },
+      );
+      expect(avala.transport.requestPage).toHaveBeenNthCalledWith(
+        3,
+        "/fleet/recordings/",
+        { limit: "20" },
+      );
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.devices.total).toBe(4);
       expect(parsed.devices.online).toBe(2);
@@ -181,16 +218,23 @@ describe("workflow tools", () => {
       const handler = server.getHandler("get_fleet_health")!;
       await handler({ deviceType: "robot" });
 
-      expect(avala.transport.requestPage).toHaveBeenNthCalledWith(1, "/fleet/devices/", {
-        type: "robot",
-        limit: "100",
-      });
+      expect(avala.transport.requestPage).toHaveBeenNthCalledWith(
+        1,
+        "/fleet/devices/",
+        {
+          type: "robot",
+          limit: "100",
+        },
+      );
     });
 
     it("keeps partial fleet results and exposes only safe error summaries", async () => {
-      const unsafeError = Object.assign(new Error("https://api.example.com/?token=FAKE-not-a-real-token"), {
-        statusCode: 503,
-      });
+      const unsafeError = Object.assign(
+        new Error("https://api.example.com/?token=FAKE-not-a-real-token"),
+        {
+          statusCode: 503,
+        },
+      );
       avala.transport.requestPage.mockImplementation(async (path: string) => {
         if (path === "/fleet/alerts/") throw unsafeError;
         return { items: [] };
@@ -214,11 +258,33 @@ describe("workflow tools", () => {
     });
 
     it("returns combined project, quality targets, and consensus data", async () => {
-      avala.projects.get.mockResolvedValue({ uid: "proj-1", name: "My Project", status: "active" });
+      avala.projects.get.mockResolvedValue({
+        uid: "proj-1",
+        name: "My Project",
+        status: "active",
+      });
       avala.qualityTargets.list.mockResolvedValue({
         items: [
-          { uid: "qt-1", name: "Accuracy", metric: "accuracy", threshold: 0.95, operator: "gte", isBreached: false, lastValue: 0.97, severity: "high" },
-          { uid: "qt-2", name: "Speed", metric: "latency", threshold: 100, operator: "lte", isBreached: true, lastValue: 150, severity: "critical" },
+          {
+            uid: "qt-1",
+            name: "Accuracy",
+            metric: "accuracy",
+            threshold: 0.95,
+            operator: "gte",
+            isBreached: false,
+            lastValue: 0.97,
+            severity: "high",
+          },
+          {
+            uid: "qt-2",
+            name: "Speed",
+            metric: "latency",
+            threshold: 100,
+            operator: "lte",
+            isBreached: true,
+            lastValue: 150,
+            severity: "critical",
+          },
         ],
         nextCursor: null,
         hasMore: false,
@@ -253,12 +319,23 @@ describe("workflow tools", () => {
 
     it("returns combined workspace data from all resources", async () => {
       avala.organizations.list.mockResolvedValue({
-        items: [{ uid: "org-1", name: "Acme", slug: "acme", memberCount: 5, datasetCount: 10, projectCount: 3 }],
+        items: [
+          {
+            uid: "org-1",
+            name: "Acme",
+            slug: "acme",
+            memberCount: 5,
+            datasetCount: 10,
+            projectCount: 3,
+          },
+        ],
         nextCursor: null,
         hasMore: false,
       });
       avala.datasets.list.mockResolvedValue({
-        items: [{ uid: "ds-1", name: "LiDAR Set", dataType: "lidar", itemCount: 500 }],
+        items: [
+          { uid: "ds-1", name: "LiDAR Set", dataType: "lidar", itemCount: 500 },
+        ],
         nextCursor: null,
         hasMore: false,
       });
@@ -268,7 +345,13 @@ describe("workflow tools", () => {
         hasMore: false,
       });
       avala.exports.list.mockResolvedValue({
-        items: [{ uid: "exp-1", status: "completed", createdAt: "2026-03-01T00:00:00Z" }],
+        items: [
+          {
+            uid: "exp-1",
+            status: "completed",
+            createdAt: "2026-03-01T00:00:00Z",
+          },
+        ],
         nextCursor: null,
         hasMore: false,
       });

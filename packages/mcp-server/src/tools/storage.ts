@@ -1,6 +1,10 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
-import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
+import {
+  definePageOutputSchema,
+  defineReadCatalogTool,
+  registerReadCatalogTool,
+} from "../catalog.js";
 import { z } from "zod";
 
 const storageConfigOutputSchema = z
@@ -29,8 +33,16 @@ const listStorageConfigsTool = defineReadCatalogTool({
   title: "List storage configurations",
   description: "List all storage configurations in your workspace.",
   inputSchema: z.object({
-    limit: z.number().int().positive().optional().describe("Maximum number of storage configs to return"),
-    cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of storage configs to return"),
+    cursor: z
+      .string()
+      .optional()
+      .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(storageConfigOutputSchema),
   route: {
@@ -46,22 +58,40 @@ const listStorageConfigsTool = defineReadCatalogTool({
 
 export const STORAGE_READ_CATALOG_TOOLS = [listStorageConfigsTool] as const;
 
-export function registerStorageTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
+export function registerStorageTools(
+  server: McpServer,
+  getClient: GetClient,
+  allowMutations = false,
+): void {
   registerReadCatalogTool(server, getClient, listStorageConfigsTool);
 
   if (allowMutations) {
-    server.tool(
+    server.registerTool(
       "create_storage_config",
-      "Create a new storage configuration (S3 or Google Cloud Storage) with non-sensitive settings only (bucket, region, prefix). Credentials must be provisioned separately through the Avala web console — this tool will NOT accept access keys or service-account JSON, because any value passed here is stored in the LLM's conversation context and logs.",
       {
-        name: z.string().describe("Name for the storage configuration"),
-        provider: z.string().describe("Storage provider type (e.g. 's3', 'gcs')"),
-        s3BucketName: z.string().optional().describe("S3 bucket name"),
-        s3BucketRegion: z.string().optional().describe("S3 bucket region"),
-        s3BucketPrefix: z.string().optional().describe("S3 key prefix"),
-        s3IsAccelerated: z.boolean().optional().describe("Enable S3 Transfer Acceleration"),
-        gcStorageBucketName: z.string().optional().describe("Google Cloud Storage bucket name"),
-        gcStoragePrefix: z.string().optional().describe("Google Cloud Storage prefix"),
+        description:
+          "Create a new storage configuration (S3 or Google Cloud Storage) with non-sensitive settings only (bucket, region, prefix). Credentials must be provisioned separately through the Avala web console — this tool will NOT accept access keys or service-account JSON, because any value passed here is stored in the LLM's conversation context and logs.",
+        inputSchema: z.object({
+          name: z.string().describe("Name for the storage configuration"),
+          provider: z
+            .string()
+            .describe("Storage provider type (e.g. 's3', 'gcs')"),
+          s3BucketName: z.string().optional().describe("S3 bucket name"),
+          s3BucketRegion: z.string().optional().describe("S3 bucket region"),
+          s3BucketPrefix: z.string().optional().describe("S3 key prefix"),
+          s3IsAccelerated: z
+            .boolean()
+            .optional()
+            .describe("Enable S3 Transfer Acceleration"),
+          gcStorageBucketName: z
+            .string()
+            .optional()
+            .describe("Google Cloud Storage bucket name"),
+          gcStoragePrefix: z
+            .string()
+            .optional()
+            .describe("Google Cloud Storage prefix"),
+        }),
       },
       async ({
         name,
@@ -95,7 +125,7 @@ export function registerStorageTools(server: McpServer, getClient: GetClient, al
             },
           ],
         };
-      }
+      },
     );
   }
 
@@ -104,11 +134,17 @@ export function registerStorageTools(server: McpServer, getClient: GetClient, al
   // gated behind allowMutations like every other write tool. Registering it
   // unconditionally exposed a mutation surface in read-only mode.
   if (allowMutations) {
-    server.tool(
+    server.registerTool(
       "test_storage_config",
-      "Test connectivity for a storage configuration.",
       {
-        uid: z.string().describe("The unique identifier (UUID) of the storage config to test"),
+        description: "Test connectivity for a storage configuration.",
+        inputSchema: z.object({
+          uid: z
+            .string()
+            .describe(
+              "The unique identifier (UUID) of the storage config to test",
+            ),
+        }),
       },
       async ({ uid }) => {
         const avala = getClient("test_storage_config");
@@ -121,16 +157,22 @@ export function registerStorageTools(server: McpServer, getClient: GetClient, al
             },
           ],
         };
-      }
+      },
     );
   }
 
   if (allowMutations) {
-    server.tool(
+    server.registerTool(
       "delete_storage_config",
-      "Delete a storage configuration by its UID.",
       {
-        uid: z.string().describe("The unique identifier (UUID) of the storage config to delete"),
+        description: "Delete a storage configuration by its UID.",
+        inputSchema: z.object({
+          uid: z
+            .string()
+            .describe(
+              "The unique identifier (UUID) of the storage config to delete",
+            ),
+        }),
       },
       async ({ uid }) => {
         const avala = getClient("delete_storage_config");
@@ -139,11 +181,14 @@ export function registerStorageTools(server: McpServer, getClient: GetClient, al
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify({ success: true, message: `Storage config ${uid} deleted.` }),
+              text: JSON.stringify({
+                success: true,
+                message: `Storage config ${uid} deleted.`,
+              }),
             },
           ],
         };
-      }
+      },
     );
   }
 }

@@ -9,13 +9,23 @@ import {
   AvalaError,
 } from "../src/errors.js";
 
-function makeTransport(overrides?: Partial<HttpConfig>): HttpTransport {
+type HttpOverrides = Partial<Omit<HttpConfig, "apiKey" | "accessToken">> & {
+  apiKey?: string;
+  accessToken?: string;
+};
+
+function makeTransport(overrides?: HttpOverrides): HttpTransport {
+  const credential = overrides?.accessToken !== undefined
+    ? { accessToken: overrides.accessToken }
+    : { apiKey: overrides?.apiKey ?? "test-api-key" };
   return new HttpTransport({
-    apiKey: overrides?.apiKey ?? "test-api-key",
+    ...credential,
     baseUrl: overrides?.baseUrl ?? "https://api.example.com",
     timeout: overrides?.timeout ?? 30000,
     clientName: overrides?.clientName,
     internalClientSecret: overrides?.internalClientSecret,
+    forwardedClientIp: overrides?.forwardedClientIp,
+    mcpSubjectTokenIssuedAt: overrides?.mcpSubjectTokenIssuedAt,
   });
 }
 
@@ -46,6 +56,17 @@ describe("HttpTransport", () => {
       const fetchCall = vi.mocked(fetch).mock.calls[0];
       const options = fetchCall[1] as RequestInit;
       expect((options.headers as Record<string, string>)["X-Avala-Api-Key"]).toBe("my-secret-key");
+      expect((options.headers as Record<string, string>)["Authorization"]).toBeUndefined();
+    });
+
+    it("sends an OAuth access token as Bearer without an API-key header", async () => {
+      mockFetch({ ok: true, status: 200, json: () => Promise.resolve({ result: "ok" }) });
+      const http = makeTransport({ accessToken: "header.payload.signature" });
+      await http.request("GET", "/test/");
+
+      const headers = (vi.mocked(fetch).mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+      expect(headers.Authorization).toBe("Bearer header.payload.signature");
+      expect(headers["X-Avala-Api-Key"]).toBeUndefined();
     });
 
     it("sends bounded client provenance headers when configured", async () => {
@@ -53,12 +74,28 @@ describe("HttpTransport", () => {
       const http = makeTransport({
         clientName: "list_datasets",
         internalClientSecret: "s".repeat(32),
+        forwardedClientIp: "203.0.113.42",
       });
       await http.request("GET", "/test/");
 
       const headers = (vi.mocked(fetch).mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
       expect(headers["X-Avala-Client"]).toBe("list_datasets");
       expect(headers["X-Avala-Internal-Client"]).toBe("s".repeat(32));
+      expect(headers["X-Avala-Forwarded-Client-IP"]).toBe("203.0.113.42");
+    });
+
+    it("forwards original subject issuance only for trusted hosted OAuth", async () => {
+      mockFetch({ ok: true, status: 200, json: () => Promise.resolve({ result: "ok" }) });
+      const http = makeTransport({
+        accessToken: "downstream.api.token",
+        internalClientSecret: "s".repeat(32),
+        forwardedClientIp: "203.0.113.42",
+        mcpSubjectTokenIssuedAt: 1_788_000_000,
+      });
+      await http.request("GET", "/test/");
+
+      const headers = (vi.mocked(fetch).mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+      expect(headers["X-Avala-OAuth-Subject-Iat"]).toBe("1788000000");
     });
 
     it("omits provenance headers when they are not configured", async () => {
@@ -68,6 +105,8 @@ describe("HttpTransport", () => {
       const headers = (vi.mocked(fetch).mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
       expect(headers["X-Avala-Client"]).toBeUndefined();
       expect(headers["X-Avala-Internal-Client"]).toBeUndefined();
+      expect(headers["X-Avala-Forwarded-Client-IP"]).toBeUndefined();
+      expect(headers["X-Avala-OAuth-Subject-Iat"]).toBeUndefined();
     });
 
     it("sends Accept: application/json header", async () => {
@@ -103,6 +142,31 @@ describe("HttpTransport", () => {
   });
 
   describe("provenance configuration", () => {
+    it("rejects missing or ambiguous caller credentials at runtime", () => {
+      const connection = { baseUrl: "https://api.example.com", timeout: 30_000 };
+      expect(() => new HttpTransport(connection as HttpConfig)).toThrowError("exactly one");
+      for (const accessToken of ["header.payload.signature", "", null]) {
+        expect(
+          () =>
+            new HttpTransport({
+              ...connection,
+              apiKey: "test-key",
+              accessToken,
+            } as unknown as HttpConfig),
+        ).toThrowError("exactly one");
+      }
+      expect(
+        () => new HttpTransport({ ...connection, accessToken: null } as unknown as HttpConfig),
+      ).toThrowError("accessToken");
+    });
+
+    it.each(["with space", "line\r\nbreak", "", "é", "x".repeat(16 * 1024 + 1)])(
+      "rejects a non-canonical OAuth access token",
+      (accessToken) => {
+        expect(() => makeTransport({ accessToken })).toThrowError(/accessToken|exactly one/);
+      },
+    );
+
     it.each(["List_Datasets", "mcp/list_datasets", "list-datasets", "a".repeat(65), "list_datasets\r\nInjected: true"])(
       "rejects an invalid clientName %j",
       (clientName) => {
@@ -118,10 +182,73 @@ describe("HttpTransport", () => {
       "s".repeat(513),
       "secret\r\nInjected: true".padEnd(32, "s"),
     ])("rejects a non-canonical internal service secret", (internalClientSecret) => {
-      expect(() => makeTransport({ internalClientSecret })).toThrowError(
+      expect(() => makeTransport({ internalClientSecret, forwardedClientIp: "203.0.113.42" })).toThrowError(
         "internalClientSecret must contain 32-512 URL-safe ASCII characters",
       );
     });
+
+    it.each([
+      "203.0.113",
+      "203.0.113.999",
+      "01.2.3.4",
+      "203.0.113.1, 198.51.100.1",
+      " 203.0.113.1",
+      "fe80::1%eth0",
+      "2001:db8:::1",
+      "not-an-ip",
+      "1".repeat(65),
+    ])("rejects an invalid forwardedClientIp %j", (forwardedClientIp) => {
+      expect(() => makeTransport({ internalClientSecret: "s".repeat(32), forwardedClientIp })).toThrowError(
+        "forwardedClientIp must contain one valid IPv4 or IPv6 address",
+      );
+    });
+
+    it.each(["203.0.113.42", "2001:db8::1", "::ffff:192.0.2.128"])(
+      "accepts one IPv4 or IPv6 forwardedClientIp %j",
+      (forwardedClientIp) => {
+        expect(() =>
+          makeTransport({ internalClientSecret: "s".repeat(32), forwardedClientIp }),
+        ).not.toThrow();
+      },
+    );
+
+    it("allows the legacy secret-only form during the sender-first rollout", () => {
+      expect(() => makeTransport({ internalClientSecret: "s".repeat(32) })).not.toThrow();
+    });
+
+    it("requires the internal service secret whenever a forwarded client IP is configured", () => {
+      expect(() => makeTransport({ forwardedClientIp: "203.0.113.42" })).toThrowError(
+        "forwardedClientIp requires internalClientSecret",
+      );
+    });
+
+    it("binds subject issuance to access-token mode and trusted MCP context", () => {
+      const trusted = {
+        internalClientSecret: "s".repeat(32),
+        forwardedClientIp: "203.0.113.42",
+        mcpSubjectTokenIssuedAt: 1_788_000_000,
+      };
+      expect(() => makeTransport({ apiKey: "api-key", ...trusted })).toThrowError(
+        "mcpSubjectTokenIssuedAt requires accessToken",
+      );
+      expect(() =>
+        makeTransport({ accessToken: "downstream.api.token", mcpSubjectTokenIssuedAt: 1_788_000_000 }),
+      ).toThrowError("mcpSubjectTokenIssuedAt requires accessToken");
+    });
+
+    it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, "1788000000", null])(
+      "rejects invalid subject issuance %j",
+      (mcpSubjectTokenIssuedAt) => {
+        expect(() =>
+          makeTransport({
+            accessToken: "downstream.api.token",
+            internalClientSecret: "s".repeat(32),
+            forwardedClientIp: "203.0.113.42",
+            mcpSubjectTokenIssuedAt: mcpSubjectTokenIssuedAt as number,
+          }),
+        ).toThrowError("mcpSubjectTokenIssuedAt");
+      },
+    );
   });
 
   describe("request method", () => {
@@ -459,10 +586,14 @@ describe("HttpTransport", () => {
       await expect(http.request("GET", "/datasets/http://evil.example.com/")).rejects.toThrow(/URL scheme/);
     });
 
-    it("rejects redirects to avoid leaking the API key", async () => {
+    it.each([
+      ["API key", { apiKey: "test-api-key" }],
+      ["OAuth token", { accessToken: "header.payload.signature" }],
+    ] as const)("refuses redirects in %s mode before credentials can be replayed", async (_mode, credential) => {
       mockFetch({ ok: false, status: 302, json: () => Promise.resolve({}), headers: new Headers() });
-      const http = makeTransport();
+      const http = makeTransport(credential);
       await expect(http.request("GET", "/test/")).rejects.toThrow(/redirect/i);
+      expect((vi.mocked(fetch).mock.calls[0]![1] as RequestInit).redirect).toBe("manual");
     });
   });
 });

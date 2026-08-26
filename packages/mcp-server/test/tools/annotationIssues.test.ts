@@ -11,12 +11,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResult>;
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -83,7 +87,9 @@ const METRICS = {
   meanSecondsCloseTimeCustomer: 4200,
   meanUnresolvedIssueAgeAll: 7200,
   meanUnresolvedIssueAgeCustomer: 8100,
-  objectCountByAnnotationIssueProblemUid: [{ annotationIssueProblemUid: "problem-001", count: 9 }],
+  objectCountByAnnotationIssueProblemUid: [
+    { annotationIssueProblemUid: "problem-001", count: 9 },
+  ],
 };
 
 describe("annotation issue tools", () => {
@@ -101,45 +107,65 @@ describe("annotation issue tools", () => {
   });
 
   it("registers four declarative reads and three mutation tools", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(4);
-    expect(server.tool).toHaveBeenCalledTimes(3);
-    expect(server.getHandler("list_annotation_issues_by_sequence")).toBeDefined();
+    expect(server.registerTool).toHaveBeenCalledTimes(7);
+    expect(
+      server.getHandler("list_annotation_issues_by_sequence"),
+    ).toBeDefined();
     expect(server.getHandler("create_annotation_issue")).toBeDefined();
     expect(server.getHandler("update_annotation_issue")).toBeDefined();
     expect(server.getHandler("delete_annotation_issue")).toBeDefined();
-    expect(server.getHandler("list_annotation_issues_by_dataset")).toBeDefined();
+    expect(
+      server.getHandler("list_annotation_issues_by_dataset"),
+    ).toBeDefined();
     expect(server.getHandler("get_annotation_issue_metrics")).toBeDefined();
     expect(server.getHandler("list_qc_tools")).toBeDefined();
   });
 
   it("dispatches sequence and dataset issue lists with exact filters", async () => {
-    const sequenceResult = await server.getHandler("list_annotation_issues_by_sequence")!({
+    const sequenceResult = await server.getHandler(
+      "list_annotation_issues_by_sequence",
+    )!({
       sequenceUid: "seq-001",
       datasetItemUid: "item-001",
       projectUid: "project-001",
     });
-    const datasetResult = await server.getHandler("list_annotation_issues_by_dataset")!({
+    const datasetResult = await server.getHandler(
+      "list_annotation_issues_by_dataset",
+    )!({
       owner: "acme",
       datasetSlug: "warehouse",
       sequenceUid: "seq-001",
     });
 
-    expect(avala.transport.requestList).toHaveBeenNthCalledWith(1, "/sequences/seq-001/annotation-issues/", {
-      dataset_item_uid: "item-001",
-      project_uid: "project-001",
-    });
-    expect(avala.transport.requestList).toHaveBeenNthCalledWith(2, "/datasets/acme/warehouse/annotation-issues/", {
-      sequence_uid: "seq-001",
-    });
+    expect(avala.transport.requestList).toHaveBeenNthCalledWith(
+      1,
+      "/sequences/seq-001/annotation-issues/",
+      {
+        dataset_item_uid: "item-001",
+        project_uid: "project-001",
+      },
+    );
+    expect(avala.transport.requestList).toHaveBeenNthCalledWith(
+      2,
+      "/datasets/acme/warehouse/annotation-issues/",
+      {
+        sequence_uid: "seq-001",
+      },
+    );
     expect(sequenceResult.structuredContent).toEqual({ items: [ISSUE] });
     expect(datasetResult.structuredContent).toEqual({ items: [ISSUE] });
     expect(JSON.parse(sequenceResult.content[0]!.text)).toEqual([ISSUE]);
   });
 
   it("dispatches the QC tool list with its dataset type", async () => {
-    const result = await server.getHandler("list_qc_tools")!({ datasetType: "lidar" });
+    const result = await server.getHandler("list_qc_tools")!({
+      datasetType: "lidar",
+    });
 
-    expect(avala.transport.requestList).toHaveBeenCalledWith("/qc-available-tools/", { dataset_type: "lidar" });
+    expect(avala.transport.requestList).toHaveBeenCalledWith(
+      "/qc-available-tools/",
+      { dataset_type: "lidar" },
+    );
     expect(result.structuredContent).toEqual({ items: [QC_TOOL] });
     expect(JSON.parse(result.content[0]!.text)).toEqual([QC_TOOL]);
   });
@@ -156,11 +182,18 @@ describe("annotation issue tools", () => {
       },
     ]);
 
-    const result = await server.getHandler("list_annotation_issues_by_sequence")!({ sequenceUid: "seq-001" });
-    const item = (result.structuredContent as { items: Record<string, unknown>[] }).items[0]!;
+    const result = await server.getHandler(
+      "list_annotation_issues_by_sequence",
+    )!({ sequenceUid: "seq-001" });
+    const item = (
+      result.structuredContent as { items: Record<string, unknown>[] }
+    ).items[0]!;
 
     expect(item).not.toHaveProperty("unexpected");
-    expect(item.queryParams).toEqual({ api_key: "[redacted]", camera: "front" });
+    expect(item.queryParams).toEqual({
+      api_key: "[redacted]",
+      camera: "front",
+    });
     expect(result.content[0]!.text).not.toContain("FAKE-not-a-real-api-key");
   });
 
@@ -197,7 +230,8 @@ describe("annotation issue tools", () => {
       owner: "acme",
       datasetSlug: "warehouse",
     });
-    const records = (result.structuredContent as typeof METRICS).objectCountByAnnotationIssueProblemUid;
+    const records = (result.structuredContent as typeof METRICS)
+      .objectCountByAnnotationIssueProblemUid;
 
     expect(records[0]).toEqual({
       annotationIssueProblemUid: "problem-001",
@@ -208,8 +242,14 @@ describe("annotation issue tools", () => {
   });
 
   it("keeps annotation issue mutations on their existing SDK methods", async () => {
-    avala.annotationIssues.create.mockResolvedValue({ uid: "issue-001", status: "open" });
-    avala.annotationIssues.update.mockResolvedValue({ uid: "issue-001", status: "completed" });
+    avala.annotationIssues.create.mockResolvedValue({
+      uid: "issue-001",
+      status: "open",
+    });
+    avala.annotationIssues.update.mockResolvedValue({
+      uid: "issue-001",
+      status: "completed",
+    });
     avala.annotationIssues.delete.mockResolvedValue(undefined);
 
     await server.getHandler("create_annotation_issue")!({
@@ -233,22 +273,40 @@ describe("annotation issue tools", () => {
       problemUid: "problem-001",
       priority: "high",
     });
-    expect(avala.annotationIssues.update).toHaveBeenCalledWith("seq-001", "issue-001", {
-      status: "completed",
-    });
-    expect(avala.annotationIssues.delete).toHaveBeenCalledWith("seq-001", "issue-001");
+    expect(avala.annotationIssues.update).toHaveBeenCalledWith(
+      "seq-001",
+      "issue-001",
+      {
+        status: "completed",
+      },
+    );
+    expect(avala.annotationIssues.delete).toHaveBeenCalledWith(
+      "seq-001",
+      "issue-001",
+    );
     expect(JSON.parse(deleted.content[0]!.text)).toEqual({ success: true });
   });
 
   it("does not register annotation issue mutations in read-only mode", () => {
     const readOnlyServer = createMockServer();
-    registerAnnotationIssueTools(readOnlyServer as never, (() => avala) as never, false);
+    registerAnnotationIssueTools(
+      readOnlyServer as never,
+      (() => avala) as never,
+      false,
+    );
 
     expect(readOnlyServer.registerTool).toHaveBeenCalledTimes(4);
-    expect(readOnlyServer.tool).not.toHaveBeenCalled();
-    expect(readOnlyServer.getHandler("create_annotation_issue")).toBeUndefined();
-    expect(readOnlyServer.getHandler("update_annotation_issue")).toBeUndefined();
-    expect(readOnlyServer.getHandler("delete_annotation_issue")).toBeUndefined();
-    expect(readOnlyServer.getHandler("get_annotation_issue_metrics")).toBeDefined();
+    expect(
+      readOnlyServer.getHandler("create_annotation_issue"),
+    ).toBeUndefined();
+    expect(
+      readOnlyServer.getHandler("update_annotation_issue"),
+    ).toBeUndefined();
+    expect(
+      readOnlyServer.getHandler("delete_annotation_issue"),
+    ).toBeUndefined();
+    expect(
+      readOnlyServer.getHandler("get_annotation_issue_metrics"),
+    ).toBeDefined();
   });
 });

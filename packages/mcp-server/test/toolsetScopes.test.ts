@@ -5,9 +5,14 @@ import toolsetScopes from "../toolset-scopes.json";
 import { registerTools } from "../src/server.js";
 
 const serverToolsetScopesPath = fileURLToPath(
-  new URL("../../../../../server/server/apps/account/mcp_toolset_scopes.json", import.meta.url),
+  new URL(
+    "../../../../../server/server/apps/account/mcp_toolset_scopes.json",
+    import.meta.url,
+  ),
 );
-const monorepoAvailable = existsSync(fileURLToPath(new URL("../../../../../DOCTRINE.md", import.meta.url)));
+const monorepoAvailable = existsSync(
+  fileURLToPath(new URL("../../../../../DOCTRINE.md", import.meta.url)),
+);
 const serverToolsetScopesAvailable = existsSync(serverToolsetScopesPath);
 if (monorepoAvailable && !serverToolsetScopesAvailable) {
   throw new Error("Monorepo MCP toolset scope manifest is missing.");
@@ -21,7 +26,8 @@ type ToolConfig = {
 };
 
 function stringArray(value: unknown): string[] | null {
-  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) return null;
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string"))
+    return null;
   return value;
 }
 
@@ -65,14 +71,22 @@ describe("credential toolset scope contract", () => {
         stringArray(meta?.["avala.ai/toolsets"]) ??
         (typeof singleToolset === "string" ? [singleToolset] : null);
 
-      expect(scopes, `${name} must declare required scope metadata`).not.toBeNull();
+      expect(
+        scopes,
+        `${name} must declare required scope metadata`,
+      ).not.toBeNull();
       expect(toolsets, `${name} must declare toolset metadata`).not.toBeNull();
       expect(scopes).not.toHaveLength(0);
       expect(toolsets).not.toHaveLength(0);
 
       for (const toolset of toolsets!) {
-        const discoverableScopes = (toolsetScopes as Record<string, string[]>)[toolset];
-        expect(discoverableScopes, `${name} uses unknown toolset '${toolset}'`).toBeDefined();
+        const discoverableScopes = (toolsetScopes as Record<string, string[]>)[
+          toolset
+        ];
+        expect(
+          discoverableScopes,
+          `${name} uses unknown toolset '${toolset}'`,
+        ).toBeDefined();
         for (const scope of scopes!) {
           expect(
             discoverableScopes,

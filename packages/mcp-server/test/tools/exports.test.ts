@@ -9,12 +9,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -69,7 +73,10 @@ describe("export tools", () => {
     const handler = server.getHandler("create_export")!;
     const result = await handler({ project: "proj-1" });
 
-    expect(avala.exports.create).toHaveBeenCalledWith({ project: "proj-1", dataset: undefined });
+    expect(avala.exports.create).toHaveBeenCalledWith({
+      project: "proj-1",
+      dataset: undefined,
+    });
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.status).toBe("pending");
   });
@@ -81,7 +88,10 @@ describe("export tools", () => {
     const handler = server.getHandler("create_export")!;
     const result = await handler({ dataset: "ds-1" });
 
-    expect(avala.exports.create).toHaveBeenCalledWith({ project: undefined, dataset: "ds-1" });
+    expect(avala.exports.create).toHaveBeenCalledWith({
+      project: undefined,
+      dataset: "ds-1",
+    });
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.uid).toBe("exp-2");
   });
@@ -100,14 +110,18 @@ describe("export tools", () => {
       previousCursor: null,
       hasMore: false,
     });
-    expect(JSON.parse(result.content[0]!.text)).toEqual(result.structuredContent);
+    expect(JSON.parse(result.content[0]!.text)).toEqual(
+      result.structuredContent,
+    );
   });
 
   it("get_export_status dispatches its exact route and returns structured output", async () => {
     const handler = server.getHandler("get_export_status")!;
     const result = await handler({ uid: "exp-1" });
 
-    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/exports/exp-1/");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/exports/exp-1/",
+    );
     expect(result.structuredContent).toEqual(EXPORT);
     expect(JSON.parse(result.content[0]!.text)).toEqual(EXPORT);
   });
@@ -122,10 +136,15 @@ describe("export tools", () => {
       unexpected: "must be stripped",
     });
 
-    const result = await server.getHandler("get_export_status")!({ uid: "exp-1" });
+    const result = await server.getHandler("get_export_status")!({
+      uid: "exp-1",
+    });
 
     expect(result.structuredContent).not.toHaveProperty("unexpected");
-    expect(result.structuredContent?.organization).toEqual({ uid: "org-1", apiKey: "[redacted]" });
+    expect(result.structuredContent?.organization).toEqual({
+      uid: "org-1",
+      apiKey: "[redacted]",
+    });
     expect(result.content[0]!.text).not.toContain("FAKE-status-api-key");
   });
 
@@ -148,16 +167,21 @@ describe("export tools", () => {
     });
 
     const result = await server.getHandler("list_exports")!({});
-    const item = (result.structuredContent as { items: Record<string, unknown>[] }).items[0]!;
+    const item = (
+      result.structuredContent as { items: Record<string, unknown>[] }
+    ).items[0]!;
 
     expect(item).not.toHaveProperty("unexpected");
-    expect(item.organization).toEqual({ uid: "org-1", name: "Robotics", apiKey: "[redacted]" });
+    expect(item.organization).toEqual({
+      uid: "org-1",
+      name: "Robotics",
+      apiKey: "[redacted]",
+    });
     expect(result.content[0]!.text).not.toContain("FAKE-not-a-real-api-key");
   });
 
   it("registers create_export, list_exports, and get_export_status tools", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(2);
-    expect(server.tool).toHaveBeenCalledTimes(1);
+    expect(server.registerTool).toHaveBeenCalledTimes(3);
     expect(server.getHandler("create_export")).toBeDefined();
     expect(server.getHandler("list_exports")).toBeDefined();
     expect(server.getHandler("get_export_status")).toBeDefined();
@@ -168,7 +192,6 @@ describe("export tools", () => {
     registerExportTools(readOnlyServer as never, (() => avala) as never, false);
 
     expect(readOnlyServer.registerTool).toHaveBeenCalledTimes(2);
-    expect(readOnlyServer.tool).not.toHaveBeenCalled();
     expect(readOnlyServer.getHandler("create_export")).toBeUndefined();
     expect(readOnlyServer.getHandler("list_exports")).toBeDefined();
     expect(readOnlyServer.getHandler("get_export_status")).toBeDefined();

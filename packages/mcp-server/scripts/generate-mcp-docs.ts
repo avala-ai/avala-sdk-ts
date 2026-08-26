@@ -88,7 +88,11 @@ function inputShape(inputSchema: unknown): Record<string, ZodLike> {
 
 function parameterType(schema: ZodLike): string {
   let current = schema;
-  while (["ZodOptional", "ZodNullable", "ZodDefault"].includes(current._def?.typeName ?? "")) {
+  while (
+    ["ZodOptional", "ZodNullable", "ZodDefault"].includes(
+      current._def?.typeName ?? "",
+    )
+  ) {
     if (!current._def?.innerType) break;
     current = current._def.innerType;
   }
@@ -114,7 +118,8 @@ function parameterType(schema: ZodLike): string {
 
 function extractParams(inputSchema: unknown): ToolParam[] {
   return Object.entries(inputShape(inputSchema)).map(([name, schema]) => {
-    const required = typeof schema.isOptional === "function" ? !schema.isOptional() : true;
+    const required =
+      typeof schema.isOptional === "function" ? !schema.isOptional() : true;
     return {
       name,
       type: parameterType(schema),
@@ -124,13 +129,25 @@ function extractParams(inputSchema: unknown): ToolParam[] {
   });
 }
 
-function collectRegisteredTools(allowMutations: boolean): Map<string, RegisteredTool> {
+function collectRegisteredTools(
+  allowMutations: boolean,
+): Map<string, RegisteredTool> {
   const registrations = new Map<string, RegisteredTool>();
 
   for (const registrar of TOOL_REGISTRARS) {
-    const capture = (name: string, description: string, inputSchema: unknown): void => {
-      if (registrations.has(name)) throw new Error(`Duplicate MCP tool registration: ${name}`);
-      registrations.set(name, { category: registrar.category, description, inputSchema, name });
+    const capture = (
+      name: string,
+      description: string,
+      inputSchema: unknown,
+    ): void => {
+      if (registrations.has(name))
+        throw new Error(`Duplicate MCP tool registration: ${name}`);
+      registrations.set(name, {
+        category: registrar.category,
+        description,
+        inputSchema,
+        name,
+      });
     };
     const server = {
       tool: (name: string, description: string, inputSchema: unknown): void =>
@@ -141,7 +158,9 @@ function collectRegisteredTools(allowMutations: boolean): Map<string, Registered
       ): void => capture(name, config.description ?? "", config.inputSchema),
     };
     const getClient = (): never => {
-      throw new Error("Tool registrars must not resolve an API client during registration.");
+      throw new Error(
+        "Tool registrars must not resolve an API client during registration.",
+      );
     };
     registrar.register(server as never, getClient as never, { allowMutations });
   }
@@ -208,7 +227,9 @@ function generateToolDefinitions(tools: Tool[]): string {
       lines.push("**Parameters:**");
       for (const param of tool.params) {
         const req = param.required ? "required" : "optional";
-        lines.push(`- \`${param.name}\` (${param.type}, ${req}) — ${param.description}`);
+        lines.push(
+          `- \`${param.name}\` (${param.type}, ${req}) — ${param.description}`,
+        );
       }
     }
     lines.push("");
@@ -227,7 +248,9 @@ function main(): void {
   if (mode === "--list") {
     for (const tool of allTools) {
       const flag = tool.isMutation ? " [mutation]" : "";
-      console.log(`${tool.name}${flag} (${CATEGORY_ORDER[tool.category] || tool.category})`);
+      console.log(
+        `${tool.name}${flag} (${CATEGORY_ORDER[tool.category] || tool.category})`,
+      );
     }
     console.log(`\nTotal: ${allTools.length} tools`);
     return;
@@ -235,7 +258,17 @@ function main(): void {
 
   if (mode === "--check") {
     // Compare tool names against what's documented
-    const docsPath = join(__dirname, "..", "..", "..", "..", "..", "docs", "integrations", "mcp-setup.mdx");
+    const docsPath = join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "..",
+      "..",
+      "docs",
+      "integrations",
+      "mcp-setup.mdx",
+    );
     let docsContent: string = "";
     try {
       docsContent = readFileSync(docsPath, "utf-8");
@@ -244,9 +277,13 @@ function main(): void {
       process.exit(1);
     }
 
-    const availableToolsSection = docsContent.match(/## Available MCP Tools([\s\S]*?)## Tool Definitions/)?.[1];
+    const availableToolsSection = docsContent.match(
+      /## Available MCP Tools([\s\S]*?)## Tool Definitions/,
+    )?.[1];
     if (!availableToolsSection) {
-      console.error("Cannot find the Available MCP Tools section in the MCP setup docs.");
+      console.error(
+        "Cannot find the Available MCP Tools section in the MCP setup docs.",
+      );
       process.exit(1);
     }
 
@@ -258,11 +295,17 @@ function main(): void {
     }
 
     const implementedNames = new Set(allTools.map((t) => t.name));
-    const undocumented = [...implementedNames].filter((n) => !documentedTools.has(n));
-    const orphaned = [...documentedTools].filter((n) => !implementedNames.has(n));
+    const undocumented = [...implementedNames].filter(
+      (n) => !documentedTools.has(n),
+    );
+    const orphaned = [...documentedTools].filter(
+      (n) => !implementedNames.has(n),
+    );
 
     if (undocumented.length === 0 && orphaned.length === 0) {
-      console.log(`All ${implementedNames.size} tools are documented. No drift detected.`);
+      console.log(
+        `All ${implementedNames.size} tools are documented. No drift detected.`,
+      );
       process.exit(0);
     }
 
@@ -271,7 +314,9 @@ function main(): void {
       for (const name of undocumented) console.error(`  - ${name}`);
     }
     if (orphaned.length > 0) {
-      console.error(`\nOrphaned docs (tool removed but still documented) (${orphaned.length}):`);
+      console.error(
+        `\nOrphaned docs (tool removed but still documented) (${orphaned.length}):`,
+      );
       for (const name of orphaned) console.error(`  - ${name}`);
     }
 

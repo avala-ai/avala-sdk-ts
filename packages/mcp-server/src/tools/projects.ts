@@ -1,14 +1,30 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
 import { z } from "zod";
 
-export function registerProjectTools(server: McpServer, getClient: GetClient): void {
-  server.tool(
+export function registerProjectTools(
+  server: McpServer,
+  getClient: GetClient,
+): void {
+  server.registerTool(
     "list_projects",
-    "List all annotation projects with their status and progress.",
     {
-      limit: z.number().optional().describe("Maximum number of projects to return"),
-      cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+      description:
+        "List all annotation projects with their status and progress.",
+      inputSchema: z.object({
+        limit: z
+          .number()
+          .optional()
+          .describe("Maximum number of projects to return"),
+        cursor: z
+          .string()
+          .optional()
+          .describe("Pagination cursor from a previous request"),
+      }),
+      _meta: {
+        "avala.ai/required-scope": "projects.read",
+        "avala.ai/toolset": "projects",
+      },
     },
     async ({ limit, cursor }) => {
       const avala = getClient("list_projects");
@@ -21,14 +37,21 @@ export function registerProjectTools(server: McpServer, getClient: GetClient): v
           },
         ],
       };
-    }
+    },
   );
 
-  server.tool(
+  server.registerTool(
     "get_project",
-    "Get full project details including configuration and current status.",
     {
-      uid: z.string().describe("The unique identifier (UUID) of the project"),
+      description:
+        "Get full project details including configuration and current status.",
+      inputSchema: z.object({
+        uid: z.string().describe("The unique identifier (UUID) of the project"),
+      }),
+      _meta: {
+        "avala.ai/required-scope": "projects.read",
+        "avala.ai/toolset": "projects",
+      },
     },
     async ({ uid }) => {
       const avala = getClient("get_project");
@@ -41,6 +64,6 @@ export function registerProjectTools(server: McpServer, getClient: GetClient): v
           },
         ],
       };
-    }
+    },
   );
 }

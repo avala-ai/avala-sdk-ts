@@ -1,13 +1,17 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
-import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
+import {
+  definePageOutputSchema,
+  defineReadCatalogTool,
+  registerReadCatalogTool,
+} from "../catalog.js";
 import { z } from "zod";
 
-import { safeStringify, sanitizeForOutput } from "../redact.js";
+import { safeStringify } from "../redact.js";
 
-const sanitizedRecordSchema = z.record(z.unknown()).transform(
-  (value): Record<string, unknown> => sanitizeForOutput(value) as Record<string, unknown>,
-);
+// Catalog execution sanitizes every validated result before it reaches MCP.
+// Keep schemas transform-free so SDK v2 can emit standards-compliant JSON Schema.
+const sanitizedRecordSchema = z.record(z.string(), z.unknown());
 
 const fleetDeviceOutputSchema = z
   .object({
@@ -128,10 +132,21 @@ const fleetListDevicesTool = defineReadCatalogTool({
   title: "List fleet devices",
   description: "List fleet devices with optional filters.",
   inputSchema: z.object({
-    status: z.string().optional().describe("Filter by device status (online, offline, maintenance)"),
+    status: z
+      .string()
+      .optional()
+      .describe("Filter by device status (online, offline, maintenance)"),
     type: z.string().optional().describe("Filter by device type"),
-    limit: z.number().int().positive().optional().describe("Maximum number of devices to return"),
-    cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of devices to return"),
+    cursor: z
+      .string()
+      .optional()
+      .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(fleetDeviceOutputSchema),
   route: {
@@ -144,7 +159,9 @@ const fleetGetDeviceTool = defineReadCatalogTool({
   name: "fleet_get_device",
   title: "Get fleet device",
   description: "Get detailed information about a specific fleet device.",
-  inputSchema: z.object({ uid: z.string().describe("The unique identifier of the device") }),
+  inputSchema: z.object({
+    uid: z.string().describe("The unique identifier of the device"),
+  }),
   outputSchema: fleetDeviceOutputSchema,
   route: {
     name: "fleet-device-detail",
@@ -163,13 +180,23 @@ const fleetListRecordingsTool = defineReadCatalogTool({
   inputSchema: z.object({
     device: z.string().optional().describe("Filter by device UID"),
     status: z.string().optional().describe("Filter by recording status"),
-    limit: z.number().int().positive().optional().describe("Maximum number of recordings to return"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of recordings to return"),
     cursor: z.string().optional().describe("Pagination cursor"),
   }),
   outputSchema: definePageOutputSchema(fleetRecordingOutputSchema),
   route: {
     ...FLEET_RECORDING_LIST_ROUTE,
-    query: { device: "device", status: "status", limit: "limit", cursor: "cursor" },
+    query: {
+      device: "device",
+      status: "status",
+      limit: "limit",
+      cursor: "cursor",
+    },
   },
 });
 
@@ -177,7 +204,9 @@ const fleetGetRecordingTool = defineReadCatalogTool({
   name: "fleet_get_recording",
   title: "Get fleet recording",
   description: "Get detailed information about a specific recording.",
-  inputSchema: z.object({ uid: z.string().describe("The unique identifier of the recording") }),
+  inputSchema: z.object({
+    uid: z.string().describe("The unique identifier of the recording"),
+  }),
   outputSchema: fleetRecordingOutputSchema,
   route: {
     name: "fleet-recording-detail",
@@ -198,7 +227,12 @@ const fleetListEventsTool = defineReadCatalogTool({
     device: z.string().optional().describe("Filter by device UID"),
     type: z.string().optional().describe("Filter by event type"),
     severity: z.string().optional().describe("Filter by severity"),
-    limit: z.number().int().positive().optional().describe("Maximum number of events to return"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of events to return"),
     cursor: z.string().optional().describe("Pagination cursor"),
   }),
   outputSchema: definePageOutputSchema(fleetEventOutputSchema),
@@ -225,11 +259,22 @@ const fleetListAlertsTool = defineReadCatalogTool({
   title: "List fleet alerts",
   description: "List fleet alerts with optional filters.",
   inputSchema: z.object({
-    status: z.string().optional().describe("Filter by alert status (open, acknowledged, resolved)"),
-    severity: z.string().optional().describe("Filter by severity (info, warning, error, critical)"),
+    status: z
+      .string()
+      .optional()
+      .describe("Filter by alert status (open, acknowledged, resolved)"),
+    severity: z
+      .string()
+      .optional()
+      .describe("Filter by severity (info, warning, error, critical)"),
     device: z.string().optional().describe("Filter by device UID"),
     rule: z.string().optional().describe("Filter by rule UID"),
-    limit: z.number().int().positive().optional().describe("Maximum number of alerts to return"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of alerts to return"),
     cursor: z.string().optional().describe("Pagination cursor"),
   }),
   outputSchema: definePageOutputSchema(fleetAlertOutputSchema),
@@ -252,7 +297,12 @@ const fleetListRulesTool = defineReadCatalogTool({
   description: "List fleet rules with optional filters.",
   inputSchema: z.object({
     enabled: z.boolean().optional().describe("Filter by enabled status"),
-    limit: z.number().int().positive().optional().describe("Maximum number of rules to return"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of rules to return"),
     cursor: z.string().optional().describe("Pagination cursor"),
   }),
   outputSchema: definePageOutputSchema(fleetRuleOutputSchema),
@@ -277,7 +327,11 @@ export const FLEET_READ_CATALOG_TOOLS = [
   fleetListRulesTool,
 ] as const;
 
-export function registerFleetTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
+export function registerFleetTools(
+  server: McpServer,
+  getClient: GetClient,
+  allowMutations = false,
+): void {
   registerReadCatalogTool(server, getClient, fleetListDevicesTool);
   registerReadCatalogTool(server, getClient, fleetGetDeviceTool);
   registerReadCatalogTool(server, getClient, fleetListRecordingsTool);
@@ -287,33 +341,46 @@ export function registerFleetTools(server: McpServer, getClient: GetClient, allo
   registerReadCatalogTool(server, getClient, fleetListRulesTool);
 
   if (allowMutations) {
-    server.tool(
+    server.registerTool(
       "fleet_register_device",
-      "Register a new fleet device.",
       {
-        name: z.string().describe("Name of the device"),
-        type: z.string().describe("Type of the device"),
-        firmwareVersion: z.string().optional().describe("Firmware version"),
-        tags: z.array(z.string()).optional().describe("Tags for the device"),
+        description: "Register a new fleet device.",
+        inputSchema: z.object({
+          name: z.string().describe("Name of the device"),
+          type: z.string().describe("Type of the device"),
+          firmwareVersion: z.string().optional().describe("Firmware version"),
+          tags: z.array(z.string()).optional().describe("Tags for the device"),
+        }),
       },
       async ({ name, type, firmwareVersion, tags }) => {
         const avala = getClient("fleet_register_device");
-        const device = await avala.fleet.devices.register({ name, type, firmwareVersion, tags });
+        const device = await avala.fleet.devices.register({
+          name,
+          type,
+          firmwareVersion,
+          tags,
+        });
         // The create response is the ONLY place the caller receives the new
         // device's deviceToken (get/list omit it). Return it raw — redacting it
         // here would create a device the user cannot configure. This is a
         // user-invoked mutation, so the token is the intended result.
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(device, null, 2) }],
+          content: [
+            { type: "text" as const, text: JSON.stringify(device, null, 2) },
+          ],
         };
-      }
+      },
     );
 
-    server.tool(
+    server.registerTool(
       "fleet_acknowledge_alert",
-      "Acknowledge a fleet alert.",
       {
-        uid: z.string().describe("The unique identifier of the alert to acknowledge"),
+        description: "Acknowledge a fleet alert.",
+        inputSchema: z.object({
+          uid: z
+            .string()
+            .describe("The unique identifier of the alert to acknowledge"),
+        }),
       },
       async ({ uid }) => {
         const avala = getClient("fleet_acknowledge_alert");
@@ -321,7 +388,7 @@ export function registerFleetTools(server: McpServer, getClient: GetClient, allo
         return {
           content: [{ type: "text" as const, text: safeStringify(alert) }],
         };
-      }
+      },
     );
   }
 }

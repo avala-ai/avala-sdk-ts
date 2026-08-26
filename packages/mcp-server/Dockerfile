@@ -9,11 +9,12 @@
 #
 # Confirmed deployment contract (2026-08-23, from the transport
 # implementer): endpoint POST /mcp, health GET/HEAD /healthz -> 200
-# unauthenticated, PORT env (default 8080), Node >=18 (tested 22). STATELESS
-# — single JSON responses (enableJsonResponse), no long-lived SSE today, no
-# sticky sessions; SSE is a later, stateful milestone. SIGTERM handled with
-# a 10s force-exit — infra/mcp_server.tf sets ECS stopTimeout=15 to cover
-# it. 4MB request body cap in-app; no CORS served by the app.
+# unauthenticated, PORT env (default 8080), Node >=20 (tested 20/22). STATELESS
+# 2026-07-28 requests are plain JSON; the 2025 compatibility path may encode a
+# single response as SSE. Neither path uses sticky sessions or persistent
+# state. SIGTERM has a 10s force-exit — infra/mcp_server.tf sets ECS
+# stopTimeout=15 to cover it. The app enforces a 4MB body cap and an explicit
+# browser Origin allowlist.
 #
 # ⚠️ BUILD CONTEXT: build with `sdks/typescript/` (the bun workspace root —
 # package.json + bun.lock + tsconfig.base.json + packages/*) as the Docker
@@ -70,7 +71,7 @@ RUN bun run --filter '@avala-ai/mcp-server' build
 # done, so the runtime image doesn't carry them. Bun 1.4 defaults new
 # workspaces to its isolated linker, whose dependencies live only under the
 # .bun virtual store. That layout works when Bun launches the program but Node
-# cannot resolve @modelcontextprotocol/sdk, @avala-ai/sdk, or zod from the MCP
+# cannot resolve @modelcontextprotocol/server, @avala-ai/sdk, or zod from the MCP
 # package. The runtime deliberately uses Node, so materialize the supported
 # hoisted layout here. Do not remove --linker hoisted without running the
 # Dockerfile's Node/health smoke test.
@@ -78,7 +79,7 @@ RUN rm -rf node_modules && bun install --frozen-lockfile --production --linker h
 
 # -----------------------------------------------------------------------------
 # Runtime: plain Node, not bun. The published package only requires
-# Node >=18 (packages/mcp-server/package.json "engines"), and running the
+# Node >=20 (packages/mcp-server/package.json "engines"), and running the
 # hosted service on the same runtime as everyone's local
 # `npx @avala-ai/mcp-server` keeps one supported code path instead of two.
 # -----------------------------------------------------------------------------

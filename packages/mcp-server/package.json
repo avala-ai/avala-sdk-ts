@@ -25,8 +25,10 @@
   },
   "dependencies": {
     "@avala-ai/sdk": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.25.0",
-    "zod": "^3.23.0"
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "jose": "^6.2.1",
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@types/node": "^25.3.0",
@@ -35,7 +37,7 @@
     "vitest": "^2.0.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "license": "MIT"
 }

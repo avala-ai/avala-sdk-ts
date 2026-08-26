@@ -1,6 +1,10 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
-import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
+import {
+  definePageOutputSchema,
+  defineReadCatalogTool,
+  registerReadCatalogTool,
+} from "../catalog.js";
 import { z } from "zod";
 
 const qualityTargetOutputSchema = z
@@ -42,7 +46,7 @@ const agreementOutputSchema = z
     agreementRate: z.number().nullable(),
     machineAbstained: z.number(),
     notReviewed: z.number(),
-    confusion: z.record(z.record(z.number())),
+    confusion: z.record(z.string(), z.record(z.string(), z.number())),
     machineRejectedHumanAccepted: z.number(),
     machineAcceptedHumanRejected: z.number(),
   })
@@ -51,7 +55,7 @@ const agreementOutputSchema = z
 const acceptanceSummaryOutputSchema = z
   .object({
     total: z.number(),
-    byMachineVerdict: z.record(z.number()),
+    byMachineVerdict: z.record(z.string(), z.number()),
     machineAcceptanceRate: z.number().nullable(),
     reviewed: z.number(),
     actualAcceptanceRate: z.number().nullable(),
@@ -95,7 +99,7 @@ const acceptanceCriterionOutputSchema = z
     version: z.number(),
     status: z.string(),
     reason: z.string().nullable(),
-    detail: z.record(z.unknown()),
+    detail: z.record(z.string(), z.unknown()),
   })
   .passthrough();
 
@@ -120,7 +124,7 @@ const episodeSignalsOutputSchema = z
     deviceTier: z.string(),
     dedupSearched: z.boolean(),
     duplicateOf: z.string(),
-    axisValues: z.record(z.unknown()),
+    axisValues: z.record(z.string(), z.unknown()),
     narrationScores: z.unknown().nullable(),
   })
   .partial()
@@ -146,9 +150,19 @@ const listQualityTargetsTool = defineReadCatalogTool({
   title: "List quality targets",
   description: "List quality targets configured for a specific project.",
   inputSchema: z.object({
-    projectUid: z.string().describe("The unique identifier (UUID) of the project"),
-    limit: z.number().int().positive().optional().describe("Maximum number of quality targets to return"),
-    cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+    projectUid: z
+      .string()
+      .describe("The unique identifier (UUID) of the project"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of quality targets to return"),
+    cursor: z
+      .string()
+      .optional()
+      .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(qualityTargetOutputSchema),
   route: {
@@ -168,7 +182,9 @@ const getCampaignAcceptanceSummaryTool = defineReadCatalogTool({
   description:
     "Get a capture campaign's machine and reviewer acceptance rates, agreement, device-tier and operator breakdowns, and top rejection reasons.",
   inputSchema: z.object({
-    projectUid: z.string().describe("The unique identifier (UUID) of the campaign project"),
+    projectUid: z
+      .string()
+      .describe("The unique identifier (UUID) of the campaign project"),
   }),
   outputSchema: acceptanceSummaryOutputSchema,
   route: {
@@ -187,7 +203,9 @@ const getResultAcceptanceTool = defineReadCatalogTool({
   description:
     "Get the machine acceptance verdict for one capture submission, including criterion outcomes, blocking reasons, unmeasured checks, and the measured signals behind the decision.",
   inputSchema: z.object({
-    resultUid: z.string().describe("The unique identifier (UUID) of the capture result"),
+    resultUid: z
+      .string()
+      .describe("The unique identifier (UUID) of the capture result"),
   }),
   outputSchema: resultAcceptanceOutputSchema,
   route: {
@@ -206,11 +224,15 @@ const getCampaignAcceptanceCoverageTool = defineReadCatalogTool({
   description:
     "Get under-covered values and unfilled counts for each axis across reviewer-accepted captures in a campaign.",
   inputSchema: z.object({
-    projectUid: z.string().describe("The unique identifier (UUID) of the campaign project"),
+    projectUid: z
+      .string()
+      .describe("The unique identifier (UUID) of the campaign project"),
     axes: z
       .string()
       .optional()
-      .describe("Optional comma-separated coverage axes, for example 'subject,environment,device_tier'"),
+      .describe(
+        "Optional comma-separated coverage axes, for example 'subject,environment,device_tier'",
+      ),
   }),
   outputSchema: acceptanceCoverageOutputSchema,
   route: {
@@ -231,18 +253,29 @@ export const QUALITY_READ_CATALOG_TOOLS = [
   getCampaignAcceptanceCoverageTool,
 ] as const;
 
-export function registerQualityTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
+export function registerQualityTools(
+  server: McpServer,
+  getClient: GetClient,
+  allowMutations = false,
+): void {
   registerReadCatalogTool(server, getClient, listQualityTargetsTool);
   registerReadCatalogTool(server, getClient, getResultAcceptanceTool);
   registerReadCatalogTool(server, getClient, getCampaignAcceptanceSummaryTool);
   registerReadCatalogTool(server, getClient, getCampaignAcceptanceCoverageTool);
 
   if (allowMutations) {
-    server.tool(
+    server.registerTool(
       "evaluate_quality",
-      "Evaluate all quality targets for a project and return their current status.",
       {
-        projectUid: z.string().describe("The unique identifier (UUID) of the project to evaluate"),
+        description:
+          "Evaluate all quality targets for a project and return their current status.",
+        inputSchema: z.object({
+          projectUid: z
+            .string()
+            .describe(
+              "The unique identifier (UUID) of the project to evaluate",
+            ),
+        }),
       },
       async ({ projectUid }) => {
         const avala = getClient("evaluate_quality");
@@ -255,7 +288,7 @@ export function registerQualityTools(server: McpServer, getClient: GetClient, al
             },
           ],
         };
-      }
+      },
     );
   }
 }

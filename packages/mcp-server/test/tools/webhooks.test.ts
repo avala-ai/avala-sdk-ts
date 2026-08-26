@@ -9,12 +9,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -59,7 +63,10 @@ describe("webhook tools", () => {
     const handler = server.getHandler("list_webhooks")!;
     const result = await handler({});
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/webhooks/", undefined);
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/webhooks/",
+      undefined,
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].targetUrl).toBe("https://example.com/hook");
     expect(result.structuredContent).toEqual(mockPage);
@@ -76,17 +83,30 @@ describe("webhook tools", () => {
     const handler = server.getHandler("list_webhooks")!;
     await handler({ limit: 5, cursor: "abc" });
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/webhooks/", { limit: "5", cursor: "abc" });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/webhooks/", {
+      limit: "5",
+      cursor: "abc",
+    });
   });
 
   it("create_webhook calls avala.webhooks.create with targetUrl and events", async () => {
-    const mockWebhook = { uid: "wh-2", targetUrl: "https://example.com/new", events: ["task.created", "task.completed"] };
+    const mockWebhook = {
+      uid: "wh-2",
+      targetUrl: "https://example.com/new",
+      events: ["task.created", "task.completed"],
+    };
     avala.webhooks.create.mockResolvedValue(mockWebhook);
 
     const handler = server.getHandler("create_webhook")!;
-    const result = await handler({ targetUrl: "https://example.com/new", events: ["task.created", "task.completed"] });
+    const result = await handler({
+      targetUrl: "https://example.com/new",
+      events: ["task.created", "task.completed"],
+    });
 
-    expect(avala.webhooks.create).toHaveBeenCalledWith({ targetUrl: "https://example.com/new", events: ["task.created", "task.completed"] });
+    expect(avala.webhooks.create).toHaveBeenCalledWith({
+      targetUrl: "https://example.com/new",
+      events: ["task.created", "task.completed"],
+    });
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.uid).toBe("wh-2");
     expect(parsed.events).toEqual(["task.created", "task.completed"]);
@@ -105,8 +125,7 @@ describe("webhook tools", () => {
   });
 
   it("registers all three webhook tools", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(1);
-    expect(server.tool).toHaveBeenCalledTimes(2);
+    expect(server.registerTool).toHaveBeenCalledTimes(3);
     expect(server.getHandler("list_webhooks")).toBeDefined();
     expect(server.getHandler("create_webhook")).toBeDefined();
     expect(server.getHandler("delete_webhook")).toBeDefined();

@@ -4,7 +4,11 @@ import { safeStringify, sanitizeForOutput } from "../src/redact.js";
 
 describe("sanitizeForOutput (AVL-MCP-02)", () => {
   it("redacts deviceToken (camelCase) on a single device", () => {
-    const device = { uid: "dev_1", name: "cam-1", deviceToken: "device_token_live_abcdefghijklmnop" };
+    const device = {
+      uid: "dev_1",
+      name: "cam-1",
+      deviceToken: "device_token_live_abcdefghijklmnop",
+    };
     const out = sanitizeForOutput(device) as Record<string, unknown>;
     expect(out.deviceToken).toBe("[redacted]");
     expect(out.uid).toBe("dev_1");
@@ -12,7 +16,9 @@ describe("sanitizeForOutput (AVL-MCP-02)", () => {
   });
 
   it("redacts device_token (snake_case) too", () => {
-    const out = sanitizeForOutput({ device_token: "device_token_live_abcdefghijklmnop" }) as Record<string, unknown>;
+    const out = sanitizeForOutput({
+      device_token: "device_token_live_abcdefghijklmnop",
+    }) as Record<string, unknown>;
     expect(out.device_token).toBe("[redacted]");
   });
 
@@ -34,7 +40,11 @@ describe("sanitizeForOutput (AVL-MCP-02)", () => {
   });
 
   it("preserves null/undefined and non-sensitive scalars", () => {
-    const out = sanitizeForOutput({ deviceToken: null, status: "online", count: 3 }) as Record<string, unknown>;
+    const out = sanitizeForOutput({
+      deviceToken: null,
+      status: "online",
+      count: 3,
+    }) as Record<string, unknown>;
     expect(out.deviceToken).toBe(null);
     expect(out.status).toBe("online");
     expect(out.count).toBe(3);

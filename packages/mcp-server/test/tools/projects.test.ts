@@ -1,14 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerProjectTools } from "../../src/tools/projects.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[] }>;
+type ToolHandler = (
+  args: Record<string, unknown>,
+) => Promise<{ content: { type: string; text: string }[] }>;
 
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -55,16 +59,29 @@ describe("project tools", () => {
   });
 
   it("list_projects passes limit and cursor", async () => {
-    avala.projects.list.mockResolvedValue({ items: [], nextCursor: null, previousCursor: null, hasMore: false });
+    avala.projects.list.mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      previousCursor: null,
+      hasMore: false,
+    });
 
     const handler = server.getHandler("list_projects")!;
     await handler({ limit: 10, cursor: "xyz" });
 
-    expect(avala.projects.list).toHaveBeenCalledWith({ limit: 10, cursor: "xyz" });
+    expect(avala.projects.list).toHaveBeenCalledWith({
+      limit: 10,
+      cursor: "xyz",
+    });
   });
 
   it("get_project calls avala.projects.get and returns JSON", async () => {
-    const mockProject = { uid: "proj-1", name: "Project 1", status: "active", createdAt: "2025-01-01" };
+    const mockProject = {
+      uid: "proj-1",
+      name: "Project 1",
+      status: "active",
+      createdAt: "2025-01-01",
+    };
     avala.projects.get.mockResolvedValue(mockProject);
 
     const handler = server.getHandler("get_project")!;
@@ -76,7 +93,7 @@ describe("project tools", () => {
   });
 
   it("registers both list_projects and get_project tools", () => {
-    expect(server.tool).toHaveBeenCalledTimes(2);
+    expect(server.registerTool).toHaveBeenCalledTimes(2);
     expect(server.getHandler("list_projects")).toBeDefined();
     expect(server.getHandler("get_project")).toBeDefined();
   });

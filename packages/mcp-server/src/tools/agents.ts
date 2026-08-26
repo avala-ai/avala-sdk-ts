@@ -1,6 +1,10 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
-import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
+import {
+  definePageOutputSchema,
+  defineReadCatalogTool,
+  registerReadCatalogTool,
+} from "../catalog.js";
 import { z } from "zod";
 
 const agentOutputFields = {
@@ -20,7 +24,7 @@ const agentListOutputSchema = z.object(agentOutputFields).passthrough();
 const agentDetailOutputSchema = z
   .object({
     ...agentOutputFields,
-    executionStats: z.record(z.number()),
+    executionStats: z.record(z.string(), z.number()),
   })
   .passthrough();
 
@@ -29,8 +33,16 @@ const listAgentsTool = defineReadCatalogTool({
   title: "List agents",
   description: "List all automation agents configured in your workspace.",
   inputSchema: z.object({
-    limit: z.number().int().positive().optional().describe("Maximum number of agents to return"),
-    cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of agents to return"),
+    cursor: z
+      .string()
+      .optional()
+      .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(agentListOutputSchema),
   route: {
@@ -64,23 +76,51 @@ const getAgentTool = defineReadCatalogTool({
 
 export const AGENT_READ_CATALOG_TOOLS = [listAgentsTool, getAgentTool] as const;
 
-export function registerAgentTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
+export function registerAgentTools(
+  server: McpServer,
+  getClient: GetClient,
+  allowMutations = false,
+): void {
   registerReadCatalogTool(server, getClient, listAgentsTool);
   registerReadCatalogTool(server, getClient, getAgentTool);
 
   if (allowMutations) {
-    server.tool(
+    server.registerTool(
       "create_agent",
-      "Create a new automation agent with event subscriptions and a callback URL.",
       {
-        name: z.string().describe("Name of the agent"),
-        events: z.array(z.string()).describe("List of event types the agent subscribes to"),
-        callbackUrl: z.string().optional().describe("URL to receive event callbacks"),
-        description: z.string().optional().describe("Description of the agent"),
-        project: z.string().optional().describe("Project UID to scope the agent to"),
-        taskTypes: z.array(z.string()).optional().describe("Task types the agent handles"),
+        description:
+          "Create a new automation agent with event subscriptions and a callback URL.",
+        inputSchema: z.object({
+          name: z.string().describe("Name of the agent"),
+          events: z
+            .array(z.string())
+            .describe("List of event types the agent subscribes to"),
+          callbackUrl: z
+            .string()
+            .optional()
+            .describe("URL to receive event callbacks"),
+          description: z
+            .string()
+            .optional()
+            .describe("Description of the agent"),
+          project: z
+            .string()
+            .optional()
+            .describe("Project UID to scope the agent to"),
+          taskTypes: z
+            .array(z.string())
+            .optional()
+            .describe("Task types the agent handles"),
+        }),
       },
-      async ({ name, events, callbackUrl, description, project, taskTypes }) => {
+      async ({
+        name,
+        events,
+        callbackUrl,
+        description,
+        project,
+        taskTypes,
+      }) => {
         const avala = getClient("create_agent");
         const agent = await avala.agents.create({
           name,
@@ -98,14 +138,18 @@ export function registerAgentTools(server: McpServer, getClient: GetClient, allo
             },
           ],
         };
-      }
+      },
     );
 
-    server.tool(
+    server.registerTool(
       "delete_agent",
-      "Delete an automation agent by its UID.",
       {
-        uid: z.string().describe("The unique identifier (UUID) of the agent to delete"),
+        description: "Delete an automation agent by its UID.",
+        inputSchema: z.object({
+          uid: z
+            .string()
+            .describe("The unique identifier (UUID) of the agent to delete"),
+        }),
       },
       async ({ uid }) => {
         const avala = getClient("delete_agent");
@@ -114,11 +158,14 @@ export function registerAgentTools(server: McpServer, getClient: GetClient, allo
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify({ success: true, message: `Agent ${uid} deleted.` }),
+              text: JSON.stringify({
+                success: true,
+                message: `Agent ${uid} deleted.`,
+              }),
             },
           ],
         };
-      }
+      },
     );
   }
 }

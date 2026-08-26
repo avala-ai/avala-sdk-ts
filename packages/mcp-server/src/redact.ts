@@ -87,7 +87,10 @@ function hasSensitiveKeyName(key: string): boolean {
   const words = keyWords(key);
   return SENSITIVE_KEY_SUFFIXES.some(
     (suffix) =>
-      suffix.length <= words.length && suffix.every((word, index) => words[words.length - suffix.length + index] === word),
+      suffix.length <= words.length &&
+      suffix.every(
+        (word, index) => words[words.length - suffix.length + index] === word,
+      ),
   );
 }
 

@@ -9,12 +9,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -69,7 +73,10 @@ describe("storage tools", () => {
     const handler = server.getHandler("list_storage_configs")!;
     const result = await handler({});
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/storage-configs/", undefined);
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/storage-configs/",
+      undefined,
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].name).toBe("Production S3");
     expect(result.structuredContent).toEqual(mockPage);
@@ -86,11 +93,19 @@ describe("storage tools", () => {
     const handler = server.getHandler("list_storage_configs")!;
     await handler({ limit: 5, cursor: "abc" });
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/storage-configs/", { limit: "5", cursor: "abc" });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/storage-configs/",
+      { limit: "5", cursor: "abc" },
+    );
   });
 
   it("create_storage_config calls avala.storageConfigs.create with all params and returns JSON", async () => {
-    const mockConfig = { uid: "sc-2", name: "New S3 Config", provider: "s3", s3BucketName: "my-bucket" };
+    const mockConfig = {
+      uid: "sc-2",
+      name: "New S3 Config",
+      provider: "s3",
+      s3BucketName: "my-bucket",
+    };
     avala.storageConfigs.create.mockResolvedValue(mockConfig);
 
     const handler = server.getHandler("create_storage_config")!;
@@ -117,11 +132,18 @@ describe("storage tools", () => {
     const parsed = JSON.parse(jsonPart);
     expect(parsed.uid).toBe("sc-2");
     expect(parsed.provider).toBe("s3");
-    expect(result.content[0].text).toContain("Add credentials via the Avala web console");
+    expect(result.content[0].text).toContain(
+      "Add credentials via the Avala web console",
+    );
   });
 
   it("create_storage_config works with GCS params", async () => {
-    const mockConfig = { uid: "sc-3", name: "GCS Config", provider: "gcs", gcStorageBucketName: "my-gcs-bucket" };
+    const mockConfig = {
+      uid: "sc-3",
+      name: "GCS Config",
+      provider: "gcs",
+      gcStorageBucketName: "my-gcs-bucket",
+    };
     avala.storageConfigs.create.mockResolvedValue(mockConfig);
 
     const handler = server.getHandler("create_storage_config")!;
@@ -148,7 +170,11 @@ describe("storage tools", () => {
   });
 
   it("test_storage_config calls avala.storageConfigs.test and returns JSON", async () => {
-    const mockResult = { success: true, latencyMs: 120, message: "Connection successful" };
+    const mockResult = {
+      success: true,
+      latencyMs: 120,
+      message: "Connection successful",
+    };
     avala.storageConfigs.test.mockResolvedValue(mockResult);
 
     const handler = server.getHandler("test_storage_config")!;
@@ -173,8 +199,7 @@ describe("storage tools", () => {
   });
 
   it("registers all four storage tools", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(1);
-    expect(server.tool).toHaveBeenCalledTimes(3);
+    expect(server.registerTool).toHaveBeenCalledTimes(4);
     expect(server.getHandler("list_storage_configs")).toBeDefined();
     expect(server.getHandler("create_storage_config")).toBeDefined();
     expect(server.getHandler("test_storage_config")).toBeDefined();
@@ -194,7 +219,6 @@ describe("storage tools — read-only mode (allowMutations=false)", () => {
 
   it("registers only the read-only list tool", () => {
     expect(server.registerTool).toHaveBeenCalledTimes(1);
-    expect(server.tool).not.toHaveBeenCalled();
     expect(server.getHandler("list_storage_configs")).toBeDefined();
   });
 

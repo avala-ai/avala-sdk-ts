@@ -10,12 +10,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -108,7 +112,12 @@ const RULE = {
 };
 
 function page(item: Record<string, unknown>) {
-  return { items: [item], nextCursor: null, previousCursor: null, hasMore: false };
+  return {
+    items: [item],
+    nextCursor: null,
+    previousCursor: null,
+    hasMore: false,
+  };
 }
 
 describe("fleet tools", () => {
@@ -132,8 +141,7 @@ describe("fleet tools", () => {
   });
 
   it("registers seven declarative reads and two mutation-gated tools", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(7);
-    expect(server.tool).toHaveBeenCalledTimes(2);
+    expect(server.registerTool).toHaveBeenCalledTimes(9);
     expect(server.getHandler("fleet_list_devices")).toBeDefined();
     expect(server.getHandler("fleet_get_device")).toBeDefined();
     expect(server.getHandler("fleet_list_recordings")).toBeDefined();
@@ -146,8 +154,17 @@ describe("fleet tools", () => {
   });
 
   it("dispatches every filtered list route through the declared transport", async () => {
-    await server.getHandler("fleet_list_devices")!({ status: "online", type: "camera", limit: 10, cursor: "a" });
-    await server.getHandler("fleet_list_recordings")!({ device: "device-1", status: "ready", limit: 20 });
+    await server.getHandler("fleet_list_devices")!({
+      status: "online",
+      type: "camera",
+      limit: 10,
+      cursor: "a",
+    });
+    await server.getHandler("fleet_list_recordings")!({
+      device: "device-1",
+      status: "ready",
+      limit: 20,
+    });
     await server.getHandler("fleet_list_events")!({
       recording: "recording-1",
       device: "device-1",
@@ -164,43 +181,73 @@ describe("fleet tools", () => {
     });
     await server.getHandler("fleet_list_rules")!({ enabled: false, limit: 50 });
 
-    expect(avala.transport.requestPage).toHaveBeenNthCalledWith(1, "/fleet/devices/", {
-      status: "online",
-      type: "camera",
-      limit: "10",
-      cursor: "a",
-    });
-    expect(avala.transport.requestPage).toHaveBeenNthCalledWith(2, "/fleet/recordings/", {
-      device: "device-1",
-      status: "ready",
-      limit: "20",
-    });
-    expect(avala.transport.requestPage).toHaveBeenNthCalledWith(3, "/fleet/events/", {
-      recording: "recording-1",
-      device: "device-1",
-      type: "hard_brake",
-      severity: "warning",
-      limit: "30",
-    });
-    expect(avala.transport.requestPage).toHaveBeenNthCalledWith(4, "/fleet/alerts/", {
-      status: "open",
-      severity: "warning",
-      device: "device-1",
-      rule: "rule-1",
-      limit: "40",
-    });
-    expect(avala.transport.requestPage).toHaveBeenNthCalledWith(5, "/fleet/rules/", {
-      enabled: "false",
-      limit: "50",
-    });
+    expect(avala.transport.requestPage).toHaveBeenNthCalledWith(
+      1,
+      "/fleet/devices/",
+      {
+        status: "online",
+        type: "camera",
+        limit: "10",
+        cursor: "a",
+      },
+    );
+    expect(avala.transport.requestPage).toHaveBeenNthCalledWith(
+      2,
+      "/fleet/recordings/",
+      {
+        device: "device-1",
+        status: "ready",
+        limit: "20",
+      },
+    );
+    expect(avala.transport.requestPage).toHaveBeenNthCalledWith(
+      3,
+      "/fleet/events/",
+      {
+        recording: "recording-1",
+        device: "device-1",
+        type: "hard_brake",
+        severity: "warning",
+        limit: "30",
+      },
+    );
+    expect(avala.transport.requestPage).toHaveBeenNthCalledWith(
+      4,
+      "/fleet/alerts/",
+      {
+        status: "open",
+        severity: "warning",
+        device: "device-1",
+        rule: "rule-1",
+        limit: "40",
+      },
+    );
+    expect(avala.transport.requestPage).toHaveBeenNthCalledWith(
+      5,
+      "/fleet/rules/",
+      {
+        enabled: "false",
+        limit: "50",
+      },
+    );
   });
 
   it("dispatches device and recording detail routes", async () => {
-    const device = await server.getHandler("fleet_get_device")!({ uid: "device-1" });
-    const recording = await server.getHandler("fleet_get_recording")!({ uid: "recording-1" });
+    const device = await server.getHandler("fleet_get_device")!({
+      uid: "device-1",
+    });
+    const recording = await server.getHandler("fleet_get_recording")!({
+      uid: "recording-1",
+    });
 
-    expect(avala.transport.requestSingle).toHaveBeenNthCalledWith(1, "/fleet/devices/device-1/");
-    expect(avala.transport.requestSingle).toHaveBeenNthCalledWith(2, "/fleet/recordings/recording-1/");
+    expect(avala.transport.requestSingle).toHaveBeenNthCalledWith(
+      1,
+      "/fleet/devices/device-1/",
+    );
+    expect(avala.transport.requestSingle).toHaveBeenNthCalledWith(
+      2,
+      "/fleet/recordings/recording-1/",
+    );
     expect(device.structuredContent).toEqual(DEVICE);
     expect(recording.structuredContent).toEqual(RECORDING);
   });
@@ -216,7 +263,9 @@ describe("fleet tools", () => {
       },
     });
 
-    const result = await server.getHandler("fleet_get_device")!({ uid: "device-1" });
+    const result = await server.getHandler("fleet_get_device")!({
+      uid: "device-1",
+    });
     const output = result.structuredContent as Record<string, unknown>;
     expect(output).not.toHaveProperty("deviceToken");
     expect(output.metadata).toEqual({
@@ -232,8 +281,9 @@ describe("fleet tools", () => {
     registerFleetTools(readOnlyServer as never, (() => avala) as never, false);
 
     expect(readOnlyServer.registerTool).toHaveBeenCalledTimes(7);
-    expect(readOnlyServer.tool).not.toHaveBeenCalled();
     expect(readOnlyServer.getHandler("fleet_register_device")).toBeUndefined();
-    expect(readOnlyServer.getHandler("fleet_acknowledge_alert")).toBeUndefined();
+    expect(
+      readOnlyServer.getHandler("fleet_acknowledge_alert"),
+    ).toBeUndefined();
   });
 });

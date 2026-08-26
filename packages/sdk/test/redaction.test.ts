@@ -50,10 +50,26 @@ describe("redactString", () => {
     expect(out).not.toContain("0123456789abcdef0123456789abcdef01234567");
   });
 
-  it("redacts Bearer headers (case-insensitive)", () => {
-    const leaky = "Server got Authorization: Bearer abc123tokendata";
-    const out = redactString(leaky);
-    expect(out).not.toContain("abc123tokendata");
+  it.each([
+    "abc123tokendata",
+    "abc-def",
+    "abc.def",
+    "abc_def",
+    "abc~def",
+    "abc+def",
+    "abc/def",
+    "abc=",
+  ])("fully redacts accepted Bearer token punctuation in %s", (token) => {
+    const out = redactString(`Server got Authorization: bEaReR ${token}`);
+    expect(out).not.toContain(token);
+    expect(out).toContain("Authorization: [redacted]");
+  });
+
+  it("fully redacts a JWT-shaped Bearer token with an RFC 6750 suffix", () => {
+    const token = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.signature~suffix";
+    const out = redactString(`Server got Authorization: Bearer ${token}`);
+    expect(out).toBe("Server got Authorization: [redacted]");
+    expect(out).not.toContain("suffix");
   });
 
   it("redacts X-Avala-Api-Key echoes", () => {

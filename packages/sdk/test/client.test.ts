@@ -28,6 +28,45 @@ describe("Avala client", () => {
     expect(avala.tasks).toBeDefined();
   });
 
+  it("creates a client with an explicit OAuth access token", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ results: [], next: null, previous: null }),
+        headers: new Headers(),
+      }),
+    );
+    process.env.AVALA_API_KEY = "ambient-api-key";
+    const avala = new Avala({ accessToken: "header.payload.signature" });
+    await avala.datasets.list();
+
+    const headers = (vi.mocked(fetch).mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer header.payload.signature");
+    expect(headers["X-Avala-Api-Key"]).toBeUndefined();
+  });
+
+  it("rejects API key and OAuth access token together at runtime", () => {
+    for (const accessToken of ["header.payload.signature", "", null]) {
+      expect(
+        () =>
+          new Avala({
+            apiKey: "test-key",
+            accessToken,
+          } as unknown as ConstructorParameters<typeof Avala>[0]),
+      ).toThrowError("exactly one");
+    }
+  });
+
+  it("rejects an explicit invalid OAuth token instead of using an ambient API key", () => {
+    process.env.AVALA_API_KEY = "ambient-api-key";
+    expect(() => new Avala({ accessToken: "" })).toThrowError("accessToken");
+    expect(
+      () => new Avala({ accessToken: null } as unknown as ConstructorParameters<typeof Avala>[0]),
+    ).toThrowError("accessToken");
+  });
+
   it("exposes the same hardened transport used by typed resources", async () => {
     const avala = new Avala({ apiKey: "test-key" });
     const requestPage = vi.spyOn(avala.transport, "requestPage").mockResolvedValue({

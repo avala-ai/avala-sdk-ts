@@ -1,12 +1,15 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
-import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
-import { sanitizeForOutput } from "../redact.js";
+import {
+  definePageOutputSchema,
+  defineReadCatalogTool,
+  registerReadCatalogTool,
+} from "../catalog.js";
 import { z } from "zod";
 
-const sanitizedRecordSchema = z.record(z.unknown()).transform(
-  (value): Record<string, unknown> => sanitizeForOutput(value) as Record<string, unknown>,
-);
+// Catalog execution sanitizes every validated result before it reaches MCP.
+// Keep schemas transform-free so SDK v2 can emit standards-compliant JSON Schema.
+const sanitizedRecordSchema = z.record(z.string(), z.unknown());
 
 const exportOutputSchema = z
   .object({
@@ -29,10 +32,19 @@ const exportOutputSchema = z
 const listExportsTool = defineReadCatalogTool({
   name: "list_exports",
   title: "List exports",
-  description: "List all exports with their formats, creation dates, and download URLs.",
+  description:
+    "List all exports with their formats, creation dates, and download URLs.",
   inputSchema: z.object({
-    limit: z.number().int().positive().optional().describe("Maximum number of exports to return"),
-    cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of exports to return"),
+    cursor: z
+      .string()
+      .optional()
+      .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(exportOutputSchema),
   route: {
@@ -49,7 +61,8 @@ const listExportsTool = defineReadCatalogTool({
 const getExportStatusTool = defineReadCatalogTool({
   name: "get_export_status",
   title: "Get export status",
-  description: "Check whether an export is still processing, completed, or failed.",
+  description:
+    "Check whether an export is still processing, completed, or failed.",
   inputSchema: z.object({
     uid: z.string().describe("The unique identifier (UUID) of the export"),
   }),
@@ -64,16 +77,25 @@ const getExportStatusTool = defineReadCatalogTool({
   },
 });
 
-export const EXPORT_READ_CATALOG_TOOLS = [listExportsTool, getExportStatusTool] as const;
+export const EXPORT_READ_CATALOG_TOOLS = [
+  listExportsTool,
+  getExportStatusTool,
+] as const;
 
-export function registerExportTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
+export function registerExportTools(
+  server: McpServer,
+  getClient: GetClient,
+  allowMutations = false,
+): void {
   if (allowMutations) {
-    server.tool(
+    server.registerTool(
       "create_export",
-      "Trigger a new export for a dataset or project.",
       {
-        project: z.string().optional().describe("Project UID to export"),
-        dataset: z.string().optional().describe("Dataset UID to export"),
+        description: "Trigger a new export for a dataset or project.",
+        inputSchema: z.object({
+          project: z.string().optional().describe("Project UID to export"),
+          dataset: z.string().optional().describe("Dataset UID to export"),
+        }),
       },
       async ({ project, dataset }) => {
         const avala = getClient("create_export");
@@ -86,7 +108,7 @@ export function registerExportTools(server: McpServer, getClient: GetClient, all
             },
           ],
         };
-      }
+      },
     );
   }
 

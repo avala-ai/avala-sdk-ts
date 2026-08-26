@@ -1,6 +1,10 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
-import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
+import {
+  definePageOutputSchema,
+  defineReadCatalogTool,
+  registerReadCatalogTool,
+} from "../catalog.js";
 import { z } from "zod";
 
 const datasetOutputSchema = z
@@ -29,20 +33,32 @@ const sequenceDetailOutputSchema = z
     uid: z.string(),
     key: z.string().nullable(),
     status: z.string().nullable(),
-    predefinedLabels: z.array(z.record(z.unknown())).nullable(),
-    frames: z.array(z.record(z.unknown())).nullable(),
-    metrics: z.record(z.unknown()).nullable(),
+    predefinedLabels: z.array(z.record(z.string(), z.unknown())).nullable(),
+    frames: z.array(z.record(z.string(), z.unknown())).nullable(),
+    metrics: z.record(z.string(), z.unknown()).nullable(),
     datasetUid: z.string().nullable(),
     deviceId: z.string().nullable().optional(),
     allowLidarCalibration: z.boolean().nullable(),
     lidarCalibrationEnabled: z.boolean().nullable(),
     cameraCalibrationEnabled: z.boolean().nullable(),
-    cameraCalibration: z.array(z.record(z.unknown())).nullable().optional(),
-    cropData: z.record(z.unknown()).nullable(),
-    cocTimeline: z.array(z.record(z.unknown())).nullable().optional(),
+    cameraCalibration: z
+      .array(z.record(z.string(), z.unknown()))
+      .nullable()
+      .optional(),
+    cropData: z.record(z.string(), z.unknown()).nullable(),
+    cocTimeline: z
+      .array(z.record(z.string(), z.unknown()))
+      .nullable()
+      .optional(),
     isWorkflowTerminal: z.boolean().nullable().optional(),
-    sequenceStatusWorkflow: z.record(z.unknown()).nullable().optional(),
-    sequenceDeliverableWorkflow: z.record(z.unknown()).nullable().optional(),
+    sequenceStatusWorkflow: z
+      .record(z.string(), z.unknown())
+      .nullable()
+      .optional(),
+    sequenceDeliverableWorkflow: z
+      .record(z.string(), z.unknown())
+      .nullable()
+      .optional(),
   })
   .passthrough();
 
@@ -93,9 +109,9 @@ const captureConfigOutputSchema = z
     handGuardrail: z.boolean(),
     handGuardrailMinHands: z.number().int().nullable(),
     subject: z.string(),
-    subjectByLocale: z.record(z.string()),
+    subjectByLocale: z.record(z.string(), z.string()),
     instructions: z.string(),
-    instructionsByLocale: z.record(z.string()),
+    instructionsByLocale: z.record(z.string(), z.string()),
   })
   .passthrough();
 
@@ -185,19 +201,45 @@ const captureSubmissionOutputSchema = z
   .strip();
 
 const datasetPageOutputSchema = definePageOutputSchema(datasetOutputSchema);
-const sequencePageOutputSchema = definePageOutputSchema(sequenceListOutputSchema);
-const captureSubmissionPageOutputSchema = definePageOutputSchema(captureSubmissionOutputSchema);
+const sequencePageOutputSchema = definePageOutputSchema(
+  sequenceListOutputSchema,
+);
+const captureSubmissionPageOutputSchema = definePageOutputSchema(
+  captureSubmissionOutputSchema,
+);
 
 const paginationInputSchema = {
-  limit: z.number().int().positive().optional().describe("Maximum number of results to return"),
-  cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Maximum number of results to return"),
+  cursor: z
+    .string()
+    .optional()
+    .describe("Pagination cursor from a previous request"),
 };
 
 const datasetListFiltersSchema = {
-  dataType: z.string().optional().describe("Filter by data type: 'image', 'video', 'lidar', 'mcap', or 'splat'"),
-  name: z.string().optional().describe("Filter by name (case-insensitive substring match)"),
-  status: z.string().optional().describe("Filter by status: 'creating' or 'created'"),
-  visibility: z.string().optional().describe("Filter by visibility: 'private' or 'public'"),
+  dataType: z
+    .string()
+    .optional()
+    .describe(
+      "Filter by data type: 'image', 'video', 'lidar', 'mcap', or 'splat'",
+    ),
+  name: z
+    .string()
+    .optional()
+    .describe("Filter by name (case-insensitive substring match)"),
+  status: z
+    .string()
+    .optional()
+    .describe("Filter by status: 'creating' or 'created'"),
+  visibility: z
+    .string()
+    .optional()
+    .describe("Filter by visibility: 'private' or 'public'"),
 };
 
 const listDatasetsInputSchema = z.object({
@@ -206,7 +248,9 @@ const listDatasetsInputSchema = z.object({
 });
 
 const datasetLocatorSchema = {
-  owner: z.string().describe("Dataset owner username, handle, or organization slug"),
+  owner: z
+    .string()
+    .describe("Dataset owner username, handle, or organization slug"),
   slug: z.string().describe("Dataset slug"),
 };
 
@@ -229,7 +273,9 @@ const listCaptureSubmissionsInputSchema = z.object({
   status: z
     .enum(["pending", "accepted", "rejected", "overlooked"])
     .optional()
-    .describe("Filter by result status: 'pending', 'accepted', 'rejected', or 'overlooked'"),
+    .describe(
+      "Filter by result status: 'pending', 'accepted', 'rejected', or 'overlooked'",
+    ),
   ...paginationInputSchema,
 });
 
@@ -272,7 +318,8 @@ const listDatasetsTool = defineReadCatalogTool({
 const getDatasetTool = defineReadCatalogTool({
   name: "get_dataset",
   title: "Get dataset",
-  description: "Get detailed information about a specific dataset including its data type and item count.",
+  description:
+    "Get detailed information about a specific dataset including its data type and item count.",
   inputSchema: getDatasetInputSchema,
   outputSchema: datasetOutputSchema,
   route: {
@@ -288,7 +335,8 @@ const getDatasetTool = defineReadCatalogTool({
 const listSequencesTool = defineReadCatalogTool({
   name: "list_sequences",
   title: "List dataset sequences",
-  description: "List sequences for a dataset (paginated). Each sequence includes uid, key, status, and frame count.",
+  description:
+    "List sequences for a dataset (paginated). Each sequence includes uid, key, status, and frame count.",
   inputSchema: listSequencesInputSchema,
   outputSchema: sequencePageOutputSchema,
   route: {
@@ -305,7 +353,8 @@ const listSequencesTool = defineReadCatalogTool({
 const getSequenceTool = defineReadCatalogTool({
   name: "get_sequence",
   title: "Get dataset sequence",
-  description: "Get a dataset sequence including its frames array (LiDAR JSON metadata for every frame).",
+  description:
+    "Get a dataset sequence including its frames array (LiDAR JSON metadata for every frame).",
   inputSchema: getSequenceInputSchema,
   outputSchema: sequenceDetailOutputSchema,
   route: {
@@ -398,24 +447,46 @@ export const DATASET_READ_CATALOG_TOOLS = [
   listCaptureCampaignsTool,
 ] as const;
 
-export function registerDatasetTools(server: McpServer, getClient: GetClient, allowMutations = false): void {
+export function registerDatasetTools(
+  server: McpServer,
+  getClient: GetClient,
+  allowMutations = false,
+): void {
   registerReadCatalogTool(server, getClient, listDatasetsTool);
   registerReadCatalogTool(server, getClient, getDatasetTool);
   registerReadCatalogTool(server, getClient, listSequencesTool);
   registerReadCatalogTool(server, getClient, getSequenceTool);
 
-  server.tool(
+  server.registerTool(
     "get_frame",
-    "Get a single frame's LiDAR JSON metadata (camera model, intrinsics, device pose, per-camera rig). Intended for post-ingest validation — diff what you uploaded against what the server sees.",
     {
-      owner: z.string().describe("Dataset owner username, handle, or organization slug"),
-      slug: z.string().describe("Dataset slug"),
-      sequenceUid: z.string().describe("Sequence UUID"),
-      frameIdx: z.number().int().min(0).describe("Zero-based frame index within the sequence"),
+      description:
+        "Get a single frame's LiDAR JSON metadata (camera model, intrinsics, device pose, per-camera rig). Intended for post-ingest validation — diff what you uploaded against what the server sees.",
+      inputSchema: z.object({
+        owner: z
+          .string()
+          .describe("Dataset owner username, handle, or organization slug"),
+        slug: z.string().describe("Dataset slug"),
+        sequenceUid: z.string().describe("Sequence UUID"),
+        frameIdx: z
+          .number()
+          .int()
+          .min(0)
+          .describe("Zero-based frame index within the sequence"),
+      }),
+      _meta: {
+        "avala.ai/required-scope": "datasets.read",
+        "avala.ai/toolset": "sequences",
+      },
     },
     async ({ owner, slug, sequenceUid, frameIdx }) => {
       const avala = getClient("get_frame");
-      const frame = await avala.datasets.getFrame(owner, slug, sequenceUid, frameIdx);
+      const frame = await avala.datasets.getFrame(
+        owner,
+        slug,
+        sequenceUid,
+        frameIdx,
+      );
       return {
         content: [
           {
@@ -424,20 +495,33 @@ export function registerDatasetTools(server: McpServer, getClient: GetClient, al
           },
         ],
       };
-    }
+    },
   );
 
-  server.tool(
+  server.registerTool(
     "get_calibration",
-    "Get a sequence's canonicalized per-camera rig (position, heading, intrinsics, projection model) derived from frame[0].",
     {
-      owner: z.string().describe("Dataset owner username, handle, or organization slug"),
-      slug: z.string().describe("Dataset slug"),
-      sequenceUid: z.string().describe("Sequence UUID"),
+      description:
+        "Get a sequence's canonicalized per-camera rig (position, heading, intrinsics, projection model) derived from frame[0].",
+      inputSchema: z.object({
+        owner: z
+          .string()
+          .describe("Dataset owner username, handle, or organization slug"),
+        slug: z.string().describe("Dataset slug"),
+        sequenceUid: z.string().describe("Sequence UUID"),
+      }),
+      _meta: {
+        "avala.ai/required-scope": "datasets.read",
+        "avala.ai/toolset": "sequences",
+      },
     },
     async ({ owner, slug, sequenceUid }) => {
       const avala = getClient("get_calibration");
-      const calibration = await avala.datasets.getCalibration(owner, slug, sequenceUid);
+      const calibration = await avala.datasets.getCalibration(
+        owner,
+        slug,
+        sequenceUid,
+      );
       return {
         content: [
           {
@@ -446,7 +530,7 @@ export function registerDatasetTools(server: McpServer, getClient: GetClient, al
           },
         ],
       };
-    }
+    },
   );
 
   registerReadCatalogTool(server, getClient, getDatasetHealthTool);
@@ -455,22 +539,48 @@ export function registerDatasetTools(server: McpServer, getClient: GetClient, al
   registerReadCatalogTool(server, getClient, listCaptureCampaignsTool);
 
   if (allowMutations) {
-    server.tool(
+    server.registerTool(
       "create_dataset",
-      "Create a new dataset for annotation. Supports image, video, lidar, and mcap data types.",
       {
-        name: z.string().describe("Display name for the dataset"),
-        slug: z.string().describe("URL-friendly identifier for the dataset"),
-        dataType: z.string().describe("Type of data: 'image', 'video', 'lidar', or 'mcap'"),
-        visibility: z.string().optional().describe("Dataset visibility: 'private' or 'public' (default: 'private')"),
-        createMetadata: z.boolean().optional().describe("Whether to create dataset metadata (default: true)"),
-        providerConfig: z
-          .record(z.unknown())
-          .optional()
-          .describe("Cloud storage provider configuration (S3 bucket, region, prefix, credentials)"),
-        ownerName: z.string().optional().describe("Dataset owner username or email"),
+        description:
+          "Create a new dataset for annotation. Supports image, video, lidar, and mcap data types.",
+        inputSchema: z.object({
+          name: z.string().describe("Display name for the dataset"),
+          slug: z.string().describe("URL-friendly identifier for the dataset"),
+          dataType: z
+            .string()
+            .describe("Type of data: 'image', 'video', 'lidar', or 'mcap'"),
+          visibility: z
+            .string()
+            .optional()
+            .describe(
+              "Dataset visibility: 'private' or 'public' (default: 'private')",
+            ),
+          createMetadata: z
+            .boolean()
+            .optional()
+            .describe("Whether to create dataset metadata (default: true)"),
+          providerConfig: z
+            .record(z.string(), z.unknown())
+            .optional()
+            .describe(
+              "Cloud storage provider configuration (S3 bucket, region, prefix, credentials)",
+            ),
+          ownerName: z
+            .string()
+            .optional()
+            .describe("Dataset owner username or email"),
+        }),
       },
-      async ({ name, slug, dataType, visibility, createMetadata, providerConfig, ownerName }) => {
+      async ({
+        name,
+        slug,
+        dataType,
+        visibility,
+        createMetadata,
+        providerConfig,
+        ownerName,
+      }) => {
         const avala = getClient("create_dataset");
         const dataset = await avala.datasets.create({
           name,
@@ -489,7 +599,7 @@ export function registerDatasetTools(server: McpServer, getClient: GetClient, al
             },
           ],
         };
-      }
+      },
     );
   }
 }

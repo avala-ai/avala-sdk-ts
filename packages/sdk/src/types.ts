@@ -1,12 +1,28 @@
-export interface AvalaConfig {
-  apiKey?: string;
+interface AvalaConnectionConfig {
   baseUrl?: string;
   timeout?: number;
   /** Bounded machine-client identifier forwarded as X-Avala-Client. */
   clientName?: string;
   /** Trusted internal service credential forwarded as X-Avala-Internal-Client. */
   internalClientSecret?: string;
+  /** End-client IP asserted by a trusted proxy as X-Avala-Forwarded-Client-IP. */
+  forwardedClientIp?: string;
+  /** Original MCP subject-token iat, forwarded only by trusted hosted OAuth. */
+  mcpSubjectTokenIssuedAt?: number;
 }
+
+/**
+ * Avala accepts exactly one caller credential.
+ *
+ * API keys remain the default for SDK and local MCP use. OAuth access tokens
+ * are intended for delegated services such as the hosted MCP server after an
+ * RFC 8693 on-behalf-of exchange.
+ */
+export type AvalaConfig = AvalaConnectionConfig &
+  (
+    | { apiKey?: string; accessToken?: never }
+    | { apiKey?: never; accessToken: string }
+  );
 
 /** Known personas plus forward-compatible server-defined agent tiers. */
 export type CredentialPersona = "customer" | "coworker" | (string & {});

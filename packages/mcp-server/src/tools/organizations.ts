@@ -1,6 +1,10 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
-import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
+import {
+  definePageOutputSchema,
+  defineReadCatalogTool,
+  registerReadCatalogTool,
+} from "../catalog.js";
 import { z } from "zod";
 
 const organizationIdentitySchema = {
@@ -50,8 +54,16 @@ const listOrganizationsTool = defineReadCatalogTool({
   title: "List organizations",
   description: "List all organizations you are a member of.",
   inputSchema: z.object({
-    limit: z.number().int().positive().optional().describe("Maximum number of organizations to return"),
-    cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of organizations to return"),
+    cursor: z
+      .string()
+      .optional()
+      .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(organizationListOutputSchema),
   route: {
@@ -68,7 +80,8 @@ const listOrganizationsTool = defineReadCatalogTool({
 const getOrganizationTool = defineReadCatalogTool({
   name: "get_organization",
   title: "Get organization",
-  description: "Get detailed information about a specific organization including member and dataset counts.",
+  description:
+    "Get detailed information about a specific organization including member and dataset counts.",
   inputSchema: z.object({
     slug: z.string().describe("The slug identifier of the organization"),
   }),
@@ -83,9 +96,15 @@ const getOrganizationTool = defineReadCatalogTool({
   },
 });
 
-export const ORGANIZATION_READ_CATALOG_TOOLS = [listOrganizationsTool, getOrganizationTool] as const;
+export const ORGANIZATION_READ_CATALOG_TOOLS = [
+  listOrganizationsTool,
+  getOrganizationTool,
+] as const;
 
-export function registerOrganizationTools(server: McpServer, getClient: GetClient): void {
+export function registerOrganizationTools(
+  server: McpServer,
+  getClient: GetClient,
+): void {
   registerReadCatalogTool(server, getClient, listOrganizationsTool);
   registerReadCatalogTool(server, getClient, getOrganizationTool);
 }

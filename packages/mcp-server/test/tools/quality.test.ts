@@ -9,12 +9,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -69,7 +73,10 @@ describe("quality tools", () => {
     const handler = server.getHandler("list_quality_targets")!;
     const result = await handler({ projectUid: "proj-1" });
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/projects/proj-1/quality-targets/", undefined);
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/projects/proj-1/quality-targets/",
+      undefined,
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].name).toBe("Accuracy Target");
     expect(result.structuredContent).toEqual(mockPage);
@@ -86,10 +93,13 @@ describe("quality tools", () => {
     const handler = server.getHandler("list_quality_targets")!;
     await handler({ projectUid: "proj-1", limit: 10, cursor: "abc" });
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/projects/proj-1/quality-targets/", {
-      limit: "10",
-      cursor: "abc",
-    });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/projects/proj-1/quality-targets/",
+      {
+        limit: "10",
+        cursor: "abc",
+      },
+    );
   });
 
   it("get_campaign_acceptance_summary returns yield and reviewer agreement", async () => {
@@ -106,7 +116,10 @@ describe("quality tools", () => {
         agreementRate: 0.8,
         machineAbstained: 1,
         notReviewed: 1,
-        confusion: { accept: { accept: 7, reject: 1 }, reject: { accept: 1, reject: 1 } },
+        confusion: {
+          accept: { accept: 7, reject: 1 },
+          reject: { accept: 1, reject: 1 },
+        },
         machineRejectedHumanAccepted: 1,
         machineAcceptedHumanRejected: 1,
       },
@@ -141,7 +154,9 @@ describe("quality tools", () => {
       "/projects/campaign-1/acceptance/summary/",
     );
     expect(result.structuredContent).toEqual(summary);
-    expect(JSON.parse(result.content[0].text).agreement.agreementRate).toBe(0.8);
+    expect(JSON.parse(result.content[0].text).agreement.agreementRate).toBe(
+      0.8,
+    );
   });
 
   it("get_result_acceptance returns the verdict and measured evidence", async () => {
@@ -196,7 +211,9 @@ describe("quality tools", () => {
       `/results/${acceptance.resultUid}/acceptance/`,
     );
     expect(result.structuredContent).toEqual(acceptance);
-    expect(JSON.parse(result.content[0].text).criteria[0].reason).toBe("hands_not_visible");
+    expect(JSON.parse(result.content[0].text).criteria[0].reason).toBe(
+      "hands_not_visible",
+    );
   });
 
   it("get_campaign_acceptance_coverage forwards requested axes", async () => {
@@ -217,7 +234,10 @@ describe("quality tools", () => {
     avala.transport.requestSingle.mockResolvedValue(coverage);
 
     const handler = server.getHandler("get_campaign_acceptance_coverage")!;
-    const result = await handler({ projectUid: "campaign-1", axes: "subject,device_tier" });
+    const result = await handler({
+      projectUid: "campaign-1",
+      axes: "subject,device_tier",
+    });
 
     expect(avala.transport.requestSingle).toHaveBeenCalledWith(
       "/projects/campaign-1/acceptance/coverage/",
@@ -245,8 +265,7 @@ describe("quality tools", () => {
   });
 
   it("registers the quality target and acceptance tools", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(4);
-    expect(server.tool).toHaveBeenCalledTimes(1);
+    expect(server.registerTool).toHaveBeenCalledTimes(5);
     expect(server.getHandler("list_quality_targets")).toBeDefined();
     expect(server.getHandler("get_result_acceptance")).toBeDefined();
     expect(server.getHandler("get_campaign_acceptance_summary")).toBeDefined();

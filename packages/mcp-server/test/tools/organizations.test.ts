@@ -9,12 +9,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -83,7 +87,10 @@ describe("organization tools", () => {
     const handler = server.getHandler("list_organizations")!;
     const result = await handler({});
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/organizations/", undefined);
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/organizations/",
+      undefined,
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].name).toBe("Acme Corp");
     expect(result.structuredContent).toEqual(mockPage);
@@ -100,7 +107,10 @@ describe("organization tools", () => {
     const handler = server.getHandler("list_organizations")!;
     await handler({ limit: 5, cursor: "abc" });
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/organizations/", { limit: "5", cursor: "abc" });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/organizations/",
+      { limit: "5", cursor: "abc" },
+    );
   });
 
   it("get_organization dispatches its declared detail route", async () => {
@@ -109,7 +119,9 @@ describe("organization tools", () => {
     const handler = server.getHandler("get_organization")!;
     const result = await handler({ slug: "acme" });
 
-    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/organizations/acme/");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/organizations/acme/",
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.slug).toBe("acme");
     expect(parsed.memberCount).toBe(5);
@@ -117,7 +129,6 @@ describe("organization tools", () => {
 
   it("registers both list_organizations and get_organization tools", () => {
     expect(server.registerTool).toHaveBeenCalledTimes(2);
-    expect(server.tool).not.toHaveBeenCalled();
     expect(server.getHandler("list_organizations")).toBeDefined();
     expect(server.getHandler("get_organization")).toBeDefined();
   });

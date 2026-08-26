@@ -49,6 +49,17 @@ Or pass it explicitly:
 const avala = new Avala({ apiKey: "avk_your_api_key" });
 ```
 
+Delegated services may instead pass an OAuth access token issued specifically
+for the Avala API:
+
+```typescript
+const avala = new Avala({ accessToken: apiAudienceAccessToken });
+```
+
+`apiKey` and `accessToken` are mutually exclusive. Do not pass an ID token or a
+token issued for another resource (for example, an MCP-server token); exchange
+it for an Avala API-audience token first.
+
 ## Pagination
 
 All `.list()` methods return a `CursorPage` with `.items`, `.hasMore`, and `.nextCursor`:

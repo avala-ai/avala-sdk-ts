@@ -1,8 +1,13 @@
-import type { McpServer, ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type {
+  McpServer,
+  ToolCallback,
+  CallToolResult,
+} from "@modelcontextprotocol/server";
 import { z } from "zod";
 import type { GetClient } from "./client.js";
 import { sanitizeForOutput } from "./redact.js";
+
+type AnyZodObject = z.ZodObject;
 
 export type ReadToolset =
   | "datasets"
@@ -18,7 +23,7 @@ export type ReadToolset =
   | "fleet"
   | "exports";
 
-export interface ReadRouteDefinition<InputSchema extends z.AnyZodObject> {
+export interface ReadRouteDefinition<InputSchema extends AnyZodObject> {
   /** Stable Django URL name from server/api_route_manifest.json. */
   name: string;
   method: "GET";
@@ -34,8 +39,8 @@ export interface ReadRouteDefinition<InputSchema extends z.AnyZodObject> {
 }
 
 export interface ReadCatalogToolDefinition<
-  InputSchema extends z.AnyZodObject,
-  OutputSchema extends z.AnyZodObject,
+  InputSchema extends AnyZodObject,
+  OutputSchema extends AnyZodObject,
 > {
   name: string;
   title: string;
@@ -48,21 +53,27 @@ export interface ReadCatalogToolDefinition<
 export type CompositeRouteReader = (routeName: string) => Promise<unknown>;
 
 export interface CompositeReadCatalogToolDefinition<
-  InputSchema extends z.AnyZodObject,
-  OutputSchema extends z.AnyZodObject,
+  InputSchema extends AnyZodObject,
+  OutputSchema extends AnyZodObject,
 > {
   name: string;
   title: string;
   description: string;
   inputSchema: InputSchema;
   outputSchema: OutputSchema;
-  routes: readonly [ReadRouteDefinition<InputSchema>, ...ReadRouteDefinition<InputSchema>[]];
-  execute: (args: z.infer<InputSchema>, read: CompositeRouteReader) => Promise<unknown>;
+  routes: readonly [
+    ReadRouteDefinition<InputSchema>,
+    ...ReadRouteDefinition<InputSchema>[],
+  ];
+  execute: (
+    args: z.infer<InputSchema>,
+    read: CompositeRouteReader,
+  ) => Promise<unknown>;
 }
 
 export function defineReadCatalogTool<
-  InputSchema extends z.AnyZodObject,
-  OutputSchema extends z.AnyZodObject,
+  InputSchema extends AnyZodObject,
+  OutputSchema extends AnyZodObject,
 >(
   definition: ReadCatalogToolDefinition<InputSchema, OutputSchema>,
 ): ReadCatalogToolDefinition<InputSchema, OutputSchema> {
@@ -70,25 +81,17 @@ export function defineReadCatalogTool<
 }
 
 export function defineCompositeReadCatalogTool<
-  InputSchema extends z.AnyZodObject,
-  OutputSchema extends z.AnyZodObject,
+  InputSchema extends AnyZodObject,
+  OutputSchema extends AnyZodObject,
 >(
   definition: CompositeReadCatalogToolDefinition<InputSchema, OutputSchema>,
 ): CompositeReadCatalogToolDefinition<InputSchema, OutputSchema> {
   return definition;
 }
 
-export function definePageOutputSchema<ItemSchema extends z.AnyZodObject>(
+export function definePageOutputSchema<ItemSchema extends AnyZodObject>(
   itemSchema: ItemSchema,
-): z.ZodObject<
-  {
-    items: z.ZodArray<ItemSchema>;
-    nextCursor: z.ZodNullable<z.ZodString>;
-    previousCursor: z.ZodNullable<z.ZodString>;
-    hasMore: z.ZodBoolean;
-  },
-  "passthrough"
-> {
+) {
   return z
     .object({
       items: z.array(itemSchema),
@@ -105,9 +108,9 @@ export function definePageOutputSchema<ItemSchema extends z.AnyZodObject>(
  * for structured consumers while the text result keeps its legacy array
  * shape.
  */
-export function defineListOutputSchema<ItemSchema extends z.AnyZodObject>(
+export function defineListOutputSchema<ItemSchema extends AnyZodObject>(
   itemSchema: ItemSchema,
-): z.ZodObject<{ items: z.ZodArray<ItemSchema> }, "strip"> {
+) {
   return z.object({ items: z.array(itemSchema) }).strip();
 }
 
@@ -117,13 +120,21 @@ function encodePathSegment(value: unknown, key: string): string {
   }
 
   const text = String(value);
-  if (text === "" || text === "." || text === ".." || /[/\\\r\n\0]/.test(text)) {
+  if (
+    text === "" ||
+    text === "." ||
+    text === ".." ||
+    /[/\\\r\n\0]/.test(text)
+  ) {
     throw new Error(`Path argument '${key}' is not a valid URL path segment.`);
   }
   return encodeURIComponent(text);
 }
 
-export function renderCatalogPath(template: string, args: Record<string, unknown>): string {
+export function renderCatalogPath(
+  template: string,
+  args: Record<string, unknown>,
+): string {
   if (
     !template.startsWith("/") ||
     !template.endsWith("/") ||
@@ -132,19 +143,24 @@ export function renderCatalogPath(template: string, args: Record<string, unknown
     template.includes("..") ||
     /[?#\r\n\0]/.test(template)
   ) {
-    throw new Error(`Catalog path template must be an absolute, trailing-slash API path: ${template}`);
+    throw new Error(
+      `Catalog path template must be an absolute, trailing-slash API path: ${template}`,
+    );
   }
 
-  const rendered = template.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (_placeholder, key: string) =>
-    encodePathSegment(args[key], key),
+  const rendered = template.replace(
+    /\{([A-Za-z][A-Za-z0-9]*)\}/g,
+    (_placeholder, key: string) => encodePathSegment(args[key], key),
   );
   if (rendered.includes("{") || rendered.includes("}")) {
-    throw new Error(`Catalog path template contains an invalid placeholder: ${template}`);
+    throw new Error(
+      `Catalog path template contains an invalid placeholder: ${template}`,
+    );
   }
   return rendered;
 }
 
-export function buildCatalogQuery<InputSchema extends z.AnyZodObject>(
+export function buildCatalogQuery<InputSchema extends AnyZodObject>(
   mapping: ReadRouteDefinition<InputSchema>["query"],
   args: Record<string, unknown>,
   fixedQuery?: ReadRouteDefinition<InputSchema>["fixedQuery"],
@@ -155,8 +171,14 @@ export function buildCatalogQuery<InputSchema extends z.AnyZodObject>(
       if (queryKey === undefined) continue;
       const value = args[inputKey];
       if (value === undefined || value === null) continue;
-      if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
-        throw new Error(`Query argument '${inputKey}' must be a string, number, or boolean.`);
+      if (
+        typeof value !== "string" &&
+        typeof value !== "number" &&
+        typeof value !== "boolean"
+      ) {
+        throw new Error(
+          `Query argument '${inputKey}' must be a string, number, or boolean.`,
+        );
       }
       query[queryKey] = String(value);
     }
@@ -167,7 +189,7 @@ export function buildCatalogQuery<InputSchema extends z.AnyZodObject>(
   return Object.keys(query).length > 0 ? query : undefined;
 }
 
-async function executeCatalogRoute<InputSchema extends z.AnyZodObject>(
+async function executeCatalogRoute<InputSchema extends AnyZodObject>(
   transport: ReturnType<GetClient>["transport"],
   route: ReadRouteDefinition<InputSchema>,
   args: Record<string, unknown>,
@@ -195,7 +217,7 @@ const READ_ONLY_ANNOTATIONS = {
  * again so MCP structured content cannot leak a credential or violate the
  * tool's advertised output schema after redaction.
  */
-function parseSafeStructuredContent<OutputSchema extends z.AnyZodObject>(
+function parseSafeStructuredContent<OutputSchema extends AnyZodObject>(
   outputSchema: OutputSchema,
   value: unknown,
 ): z.infer<OutputSchema> {
@@ -211,15 +233,21 @@ function parseSafeStructuredContent<OutputSchema extends z.AnyZodObject>(
  * HTTP call therefore cannot drift into separate hand-written code paths.
  */
 export function registerReadCatalogTool<
-  InputSchema extends z.AnyZodObject,
-  OutputSchema extends z.AnyZodObject,
+  InputSchema extends AnyZodObject,
+  OutputSchema extends AnyZodObject,
 >(
   server: McpServer,
   getClient: GetClient,
   definition: ReadCatalogToolDefinition<InputSchema, OutputSchema>,
 ): void {
-  const handler = async (args: z.infer<InputSchema>): Promise<CallToolResult> => {
-    const raw = await executeCatalogRoute(getClient(definition.name).transport, definition.route, args);
+  const handler = async (
+    args: z.infer<InputSchema>,
+  ): Promise<CallToolResult> => {
+    const raw = await executeCatalogRoute(
+      getClient(definition.name).transport,
+      definition.route,
+      args,
+    );
     const structuredContent = parseSafeStructuredContent(
       definition.outputSchema,
       definition.route.response === "list" ? { items: raw } : raw,
@@ -230,7 +258,12 @@ export function registerReadCatalogTool<
         : structuredContent;
     return {
       structuredContent: structuredContent as Record<string, unknown>,
-      content: [{ type: "text" as const, text: JSON.stringify(textContent, null, 2) ?? "{}" }],
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(textContent, null, 2) ?? "{}",
+        },
+      ],
     };
   };
 
@@ -265,8 +298,8 @@ export function registerReadCatalogTool<
  * metadata exposed to MCP clients and checked against the Django manifest.
  */
 export function registerCompositeReadCatalogTool<
-  InputSchema extends z.AnyZodObject,
-  OutputSchema extends z.AnyZodObject,
+  InputSchema extends AnyZodObject,
+  OutputSchema extends AnyZodObject,
 >(
   server: McpServer,
   getClient: GetClient,
@@ -275,17 +308,23 @@ export function registerCompositeReadCatalogTool<
   const routes = new Map<string, ReadRouteDefinition<InputSchema>>();
   for (const route of definition.routes) {
     if (routes.has(route.name)) {
-      throw new Error(`Composite catalog tool '${definition.name}' declares route '${route.name}' more than once.`);
+      throw new Error(
+        `Composite catalog tool '${definition.name}' declares route '${route.name}' more than once.`,
+      );
     }
     routes.set(route.name, route);
   }
 
-  const handler = async (args: z.infer<InputSchema>): Promise<CallToolResult> => {
+  const handler = async (
+    args: z.infer<InputSchema>,
+  ): Promise<CallToolResult> => {
     const transport = getClient(definition.name).transport;
     const read: CompositeRouteReader = async (routeName) => {
       const route = routes.get(routeName);
       if (!route) {
-        throw new Error(`Composite catalog tool '${definition.name}' tried to read undeclared route '${routeName}'.`);
+        throw new Error(
+          `Composite catalog tool '${definition.name}' tried to read undeclared route '${routeName}'.`,
+        );
       }
       return executeCatalogRoute(transport, route, args);
     };
@@ -295,12 +334,19 @@ export function registerCompositeReadCatalogTool<
     );
     return {
       structuredContent: structuredContent as Record<string, unknown>,
-      content: [{ type: "text" as const, text: JSON.stringify(structuredContent, null, 2) ?? "{}" }],
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(structuredContent, null, 2) ?? "{}",
+        },
+      ],
     };
   };
 
   const scopes = [...new Set(definition.routes.map((route) => route.scope))];
-  const toolsets = [...new Set(definition.routes.map((route) => route.toolset))];
+  const toolsets = [
+    ...new Set(definition.routes.map((route) => route.toolset)),
+  ];
   const meta: Record<string, unknown> = {
     "avala.ai/rest-routes": definition.routes.map((route) => route.name),
     "avala.ai/rest-methods": definition.routes.map((route) => route.method),

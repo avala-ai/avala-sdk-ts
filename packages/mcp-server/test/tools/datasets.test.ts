@@ -9,12 +9,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -55,7 +59,15 @@ describe("dataset tools", () => {
 
   it("list_datasets dispatches its declared route and returns structured JSON", async () => {
     const mockPage = {
-      items: [{ uid: "ds-1", name: "Dataset 1", slug: "dataset-1", itemCount: 100, dataType: "image" }],
+      items: [
+        {
+          uid: "ds-1",
+          name: "Dataset 1",
+          slug: "dataset-1",
+          itemCount: 100,
+          dataType: "image",
+        },
+      ],
       nextCursor: null,
       previousCursor: null,
       hasMore: false,
@@ -65,7 +77,10 @@ describe("dataset tools", () => {
     const handler = server.getHandler("list_datasets")!;
     const result = await handler({});
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/datasets/", undefined);
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/datasets/",
+      undefined,
+    );
     expect(result.content).toHaveLength(1);
     expect(result.content[0].type).toBe("text");
     const parsed = JSON.parse(result.content[0].text);
@@ -103,14 +118,22 @@ describe("dataset tools", () => {
     const handler = server.getHandler("get_dataset")!;
     const result = await handler({ uid: "ds-1" });
 
-    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/datasets/ds-1/");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/datasets/ds-1/",
+    );
     expect(result.content).toHaveLength(1);
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.name).toBe("Dataset 1");
   });
 
   it("create_dataset calls avala.datasets.create and returns JSON", async () => {
-    const mockDataset = { uid: "new-ds", name: "New Dataset", slug: "new-dataset", dataType: "lidar", itemCount: 0 };
+    const mockDataset = {
+      uid: "new-ds",
+      name: "New Dataset",
+      slug: "new-dataset",
+      dataType: "lidar",
+      itemCount: 0,
+    };
     avala.datasets.create.mockResolvedValue(mockDataset);
 
     const handler = server.getHandler("create_dataset")!;
@@ -136,7 +159,13 @@ describe("dataset tools", () => {
   });
 
   it("create_dataset passes provider config and owner", async () => {
-    const mockDataset = { uid: "s3-ds", name: "S3 Dataset", slug: "s3-dataset", dataType: "image", itemCount: 0 };
+    const mockDataset = {
+      uid: "s3-ds",
+      name: "S3 Dataset",
+      slug: "s3-dataset",
+      dataType: "image",
+      itemCount: 0,
+    };
     avala.datasets.create.mockResolvedValue(mockDataset);
 
     const handler = server.getHandler("create_dataset")!;
@@ -177,7 +206,10 @@ describe("dataset tools", () => {
     avala.transport.requestPage.mockResolvedValue(page);
 
     const handler = server.getHandler("list_sequences")!;
-    const result = await handler({ owner: "thirddimension", slug: "third-dimension-095940-full-scene" });
+    const result = await handler({
+      owner: "thirddimension",
+      slug: "third-dimension-095940-full-scene",
+    });
 
     expect(avala.transport.requestPage).toHaveBeenCalledWith(
       "/datasets/thirddimension/third-dimension-095940-full-scene/sequences/",
@@ -247,7 +279,10 @@ describe("dataset tools", () => {
   });
 
   it("get_calibration calls avala.datasets.getCalibration and returns JSON", async () => {
-    const calib = { sequenceUid: "seq-1", cameras: [{ cameraId: "cam_01", model: "pinhole" }] };
+    const calib = {
+      sequenceUid: "seq-1",
+      cameras: [{ cameraId: "cam_01", model: "pinhole" }],
+    };
     avala.datasets.getCalibration.mockResolvedValue(calib);
 
     const handler = server.getHandler("get_calibration")!;
@@ -284,7 +319,10 @@ describe("dataset tools", () => {
     avala.transport.requestSingle.mockResolvedValue(health);
 
     const handler = server.getHandler("get_dataset_health")!;
-    const result = await handler({ owner: "thirddimension", slug: "third-dimension-095940-full-scene" });
+    const result = await handler({
+      owner: "thirddimension",
+      slug: "third-dimension-095940-full-scene",
+    });
 
     expect(avala.transport.requestSingle).toHaveBeenCalledWith(
       "/datasets/thirddimension/third-dimension-095940-full-scene/health/",
@@ -363,19 +401,26 @@ describe("dataset tools", () => {
       cursor: "capture-page",
     });
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/datasets/dataset-1/capture-submissions/", {
-      status: "rejected",
-      limit: "10",
-      cursor: "capture-page",
-    });
-    const structured = result.structuredContent as { items: Record<string, unknown>[] };
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/datasets/dataset-1/capture-submissions/",
+      {
+        status: "rejected",
+        limit: "10",
+        cursor: "capture-page",
+      },
+    );
+    const structured = result.structuredContent as {
+      items: Record<string, unknown>[];
+    };
     expect(structured.items[0]).not.toHaveProperty("playbackUrl");
     expect(structured.items[0]).not.toHaveProperty("thumbnailUrl");
     const text = result.content[0].text;
     expect(text).not.toContain("X-Amz-Credential");
     expect(text).not.toContain("X-Amz-Signature");
     expect(text).not.toContain("X-Amz-Security-Token");
-    expect(JSON.parse(text).items[0].campaign.taskDescription.spec).toBe("front-view");
+    expect(JSON.parse(text).items[0].campaign.taskDescription.spec).toBe(
+      "front-view",
+    );
   });
 
   it("get_capture_submission dispatches the tenant-scoped result route", async () => {
@@ -408,7 +453,9 @@ describe("dataset tools", () => {
     const handler = server.getHandler("get_capture_submission")!;
     const result = await handler({ resultUid: "result-1" });
 
-    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/results/result-1/capture-submission/");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/results/result-1/capture-submission/",
+    );
     expect(result.structuredContent).not.toHaveProperty("playbackUrl");
     expect(result.structuredContent).not.toHaveProperty("thumbnailUrl");
     expect(result.content[0].text).not.toContain("X-Amz-");
@@ -479,9 +526,14 @@ describe("dataset tools", () => {
     const handler = server.getHandler("list_capture_campaigns")!;
     const result = await handler({ datasetUid: "dataset-1" });
 
-    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/datasets/dataset-1/capture-campaigns/");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/datasets/dataset-1/capture-campaigns/",
+    );
     expect(result.structuredContent).toEqual(campaigns);
-    expect(JSON.parse(result.content[0].text).campaigns[0].taskDescriptions[0].progress.accepted).toBe(5);
+    expect(
+      JSON.parse(result.content[0].text).campaigns[0].taskDescriptions[0]
+        .progress.accepted,
+    ).toBe(5);
   });
 
   it("list_capture_campaigns preserves the valid no-campaign state", async () => {
@@ -498,7 +550,9 @@ describe("dataset tools", () => {
     };
     avala.transport.requestSingle.mockResolvedValue(empty);
 
-    const result = await server.getHandler("list_capture_campaigns")!({ datasetUid: "dataset-1" });
+    const result = await server.getHandler("list_capture_campaigns")!({
+      datasetUid: "dataset-1",
+    });
 
     expect(result.structuredContent).toEqual(empty);
   });
@@ -517,8 +571,7 @@ describe("dataset tools", () => {
     // + 8 validation/capture reads (list_sequences, get_sequence, get_frame, get_calibration,
     // get_dataset_health, list_capture_submissions, get_capture_submission, list_capture_campaigns)
     // + 1 mutation (create_dataset)
-    expect(server.registerTool).toHaveBeenCalledTimes(8);
-    expect(server.tool).toHaveBeenCalledTimes(3);
+    expect(server.registerTool).toHaveBeenCalledTimes(11);
     expect(server.getHandler("list_datasets")).toBeDefined();
     expect(server.getHandler("get_dataset")).toBeDefined();
     expect(server.getHandler("list_sequences")).toBeDefined();

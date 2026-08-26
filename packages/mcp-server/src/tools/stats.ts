@@ -1,11 +1,26 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
+import { z } from "zod";
 
-export function registerStatsTools(server: McpServer, getClient: GetClient): void {
-  server.tool(
+export function registerStatsTools(
+  server: McpServer,
+  getClient: GetClient,
+): void {
+  server.registerTool(
     "get_workspace_stats",
-    "Get a summary of workspace usage including dataset count and project count.",
-    {},
+    {
+      description:
+        "Get a summary of workspace usage including dataset count and project count.",
+      inputSchema: z.object({}),
+      _meta: {
+        "avala.ai/required-scopes": [
+          "datasets.read",
+          "projects.read",
+          "exports.read",
+        ],
+        "avala.ai/toolset": "workspace",
+      },
+    },
     async () => {
       const avala = getClient("get_workspace_stats");
       const [datasets, projects, exports] = await Promise.all([
@@ -28,6 +43,6 @@ export function registerStatsTools(server: McpServer, getClient: GetClient): voi
           },
         ],
       };
-    }
+    },
   );
 }

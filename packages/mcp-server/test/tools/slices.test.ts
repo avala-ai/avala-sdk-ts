@@ -9,12 +9,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -63,10 +67,13 @@ describe("slice tools", () => {
     const handler = server.getHandler("list_slices")!;
     const result = await handler({ owner: "acme", limit: 10, cursor: "xyz" });
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/slices/acme/list/", {
-      limit: "10",
-      cursor: "xyz",
-    });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/slices/acme/list/",
+      {
+        limit: "10",
+        cursor: "xyz",
+      },
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].slug).toBe("training-set");
     expect(result.structuredContent).toEqual(mockPage);
@@ -83,7 +90,10 @@ describe("slice tools", () => {
     const handler = server.getHandler("list_slices")!;
     await handler({ owner: "acme" });
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/slices/acme/list/", undefined);
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/slices/acme/list/",
+      undefined,
+    );
   });
 
   it("get_slice dispatches its declared detail route", async () => {
@@ -92,7 +102,9 @@ describe("slice tools", () => {
     const handler = server.getHandler("get_slice")!;
     const result = await handler({ owner: "acme", slug: "training-set" });
 
-    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/slices/acme/training-set/");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/slices/acme/training-set/",
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.slug).toBe("training-set");
     expect(parsed.itemCount).toBe(100);
@@ -100,7 +112,6 @@ describe("slice tools", () => {
 
   it("registers both list_slices and get_slice tools", () => {
     expect(server.registerTool).toHaveBeenCalledTimes(2);
-    expect(server.tool).not.toHaveBeenCalled();
     expect(server.getHandler("list_slices")).toBeDefined();
     expect(server.getHandler("get_slice")).toBeDefined();
   });

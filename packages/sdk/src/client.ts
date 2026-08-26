@@ -83,20 +83,41 @@ export class Avala {
   public readonly transport: HttpTransport;
 
   constructor(config?: AvalaConfig) {
-    const apiKey = config?.apiKey ?? (typeof process !== "undefined" ? process.env.AVALA_API_KEY : undefined);
-    if (!apiKey) {
-      throw new Error(
-        "No API key provided. Pass apiKey in config or set the AVALA_API_KEY environment variable."
-      );
+    // Presence, rather than truthiness, is the credential discriminant.
+    // JavaScript callers are not constrained by the TypeScript union and an
+    // object containing both fields must never silently select one of them.
+    const hasApiKeyField = config?.apiKey !== undefined;
+    const hasAccessTokenField = config?.accessToken !== undefined;
+    if (hasApiKeyField && hasAccessTokenField) {
+      throw new Error("Provide exactly one of apiKey or accessToken.");
+    }
+    let credential: { apiKey: string } | { accessToken: string };
+    if (hasAccessTokenField) {
+      // HttpTransport owns canonical bearer validation. Preserve the runtime
+      // value unchanged so empty/null values fail there instead of falling
+      // back to an ambient API key.
+      credential = { accessToken: config!.accessToken as string };
+    } else if (hasApiKeyField) {
+      credential = { apiKey: config!.apiKey as string };
+    } else {
+      const environmentApiKey = typeof process !== "undefined" ? process.env.AVALA_API_KEY : undefined;
+      if (!environmentApiKey) {
+        throw new Error(
+          "No API key or OAuth access token provided. Pass apiKey/accessToken in config or set the AVALA_API_KEY environment variable."
+        );
+      }
+      credential = { apiKey: environmentApiKey };
     }
 
     const baseUrl = resolveBaseUrl(config?.baseUrl ?? "https://api.avala.ai/api/v1");
     this.transport = new HttpTransport({
-      apiKey,
+      ...credential,
       baseUrl,
       timeout: config?.timeout ?? 30_000,
       clientName: config?.clientName,
       internalClientSecret: config?.internalClientSecret,
+      forwardedClientIp: config?.forwardedClientIp,
+      mcpSubjectTokenIssuedAt: config?.mcpSubjectTokenIssuedAt,
     });
 
     this.datasets = new DatasetsResource(this.transport);

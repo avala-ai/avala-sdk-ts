@@ -9,12 +9,16 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
   return {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
-    registerTool: vi.fn((name: string, _config: unknown, handler: ToolHandler) => {
-      handlers.set(name, handler);
-    }),
+    tool: vi.fn(
+      (name: string, _desc: string, _schema: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
+    registerTool: vi.fn(
+      (name: string, _config: unknown, handler: ToolHandler) => {
+        handlers.set(name, handler);
+      },
+    ),
     getHandler(name: string) {
       return handlers.get(name);
     },
@@ -59,7 +63,10 @@ describe("task tools", () => {
     const handler = server.getHandler("list_tasks")!;
     const result = await handler({});
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith("/tasks/", undefined);
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/tasks/",
+      undefined,
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].uid).toBe("task-1");
     expect(result.structuredContent).toEqual(mockPage);
@@ -74,7 +81,12 @@ describe("task tools", () => {
     });
 
     const handler = server.getHandler("list_tasks")!;
-    await handler({ project: "proj-1", status: "active", limit: 10, cursor: "xyz" });
+    await handler({
+      project: "proj-1",
+      status: "active",
+      limit: 10,
+      cursor: "xyz",
+    });
 
     expect(avala.transport.requestPage).toHaveBeenCalledWith("/tasks/", {
       project: "proj-1",
@@ -90,7 +102,9 @@ describe("task tools", () => {
     const handler = server.getHandler("get_task")!;
     const result = await handler({ uid: "task-1" });
 
-    expect(avala.transport.requestSingle).toHaveBeenCalledWith("/tasks/task-1/");
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/tasks/task-1/",
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.status).toBe("active");
     expect(parsed.project).toBe("proj-1");
@@ -98,7 +112,6 @@ describe("task tools", () => {
 
   it("registers both list_tasks and get_task tools", () => {
     expect(server.registerTool).toHaveBeenCalledTimes(2);
-    expect(server.tool).not.toHaveBeenCalled();
     expect(server.getHandler("list_tasks")).toBeDefined();
     expect(server.getHandler("get_task")).toBeDefined();
   });

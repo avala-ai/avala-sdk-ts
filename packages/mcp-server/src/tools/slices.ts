@@ -1,6 +1,10 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
-import { definePageOutputSchema, defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
+import {
+  definePageOutputSchema,
+  defineReadCatalogTool,
+  registerReadCatalogTool,
+} from "../catalog.js";
 import { z } from "zod";
 
 const sliceOutputSchema = z
@@ -9,11 +13,11 @@ const sliceOutputSchema = z
     name: z.string(),
     slug: z.string().nullable(),
     ownerName: z.string().nullable(),
-    organization: z.record(z.unknown()).nullable(),
+    organization: z.record(z.string(), z.unknown()).nullable(),
     visibility: z.string().nullable(),
     status: z.string().nullable(),
     itemCount: z.number().nullable(),
-    subSlices: z.array(z.record(z.unknown())).nullable(),
+    subSlices: z.array(z.record(z.string(), z.unknown())).nullable(),
     sourceData: z.unknown().nullable(),
     featuredSliceItemUrls: z.array(z.string()).nullable(),
   })
@@ -25,8 +29,16 @@ const listSlicesTool = defineReadCatalogTool({
   description: "List slices for an owner (user or organization).",
   inputSchema: z.object({
     owner: z.string().describe("Owner name (user or organization slug)"),
-    limit: z.number().int().positive().optional().describe("Maximum number of slices to return"),
-    cursor: z.string().optional().describe("Pagination cursor from a previous request"),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of slices to return"),
+    cursor: z
+      .string()
+      .optional()
+      .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(sliceOutputSchema),
   route: {
@@ -61,7 +73,10 @@ const getSliceTool = defineReadCatalogTool({
 
 export const SLICE_READ_CATALOG_TOOLS = [listSlicesTool, getSliceTool] as const;
 
-export function registerSliceTools(server: McpServer, getClient: GetClient): void {
+export function registerSliceTools(
+  server: McpServer,
+  getClient: GetClient,
+): void {
   registerReadCatalogTool(server, getClient, listSlicesTool);
   registerReadCatalogTool(server, getClient, getSliceTool);
 }
