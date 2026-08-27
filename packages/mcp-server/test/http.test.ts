@@ -24,6 +24,7 @@ import {
 import {
   HostedOAuthError,
   PROTECTED_RESOURCE_METADATA_PATH,
+  PROTECTED_RESOURCE_METADATA_ROOT_PATH,
   type HostedOAuthConfig,
 } from "../src/oauth.js";
 
@@ -526,6 +527,21 @@ describe("Streamable HTTP transport", () => {
     expect(await head.text()).toBe("");
   });
 
+  it("serves the same metadata at the RFC 9728 root path for clients that do not path-suffix", async () => {
+    const suffixed = await (
+      await fetch(`${base}${PROTECTED_RESOURCE_METADATA_PATH}`)
+    ).json();
+    const res = await fetch(`${base}${PROTECTED_RESOURCE_METADATA_ROOT_PATH}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect(await res.json()).toEqual(suffixed);
+    expect(
+      (await fetch(`${base}${PROTECTED_RESOURCE_METADATA_ROOT_PATH}`, {
+        method: "POST",
+      })).status,
+    ).toBe(405);
+  });
+
   it("unknown paths return 404", async () => {
     const res = await fetch(`${base}/nope`);
     expect(res.status).toBe(404);
@@ -549,8 +565,9 @@ describe("Streamable HTTP transport", () => {
   it("POST without a credential returns a JSON-RPC-shaped 401 with a Bearer challenge", async () => {
     const res = await mcpPost(INITIALIZE);
     expect(res.status).toBe(401);
+    // Canonical MCP challenge shape: resource_metadata + error + scope.
     expect(res.headers.get("www-authenticate")).toBe(
-      `Bearer resource_metadata="${RESOURCE_METADATA_URL}", scope="${BEARER_SCOPE}"`,
+      `Bearer resource_metadata="${RESOURCE_METADATA_URL}", error="invalid_token", scope="${BEARER_SCOPE}"`,
     );
     const body = (await res.json()) as {
       jsonrpc: string;
@@ -801,6 +818,73 @@ describe("Streamable HTTP transport", () => {
     expect(createdClients[0]!.clientName).toBe("mcp_permissions_discovery");
     expect(consoleError).toHaveBeenCalledWith(
       "avala-mcp-http: credential permission discovery failed (HTTP 401).",
+    );
+  });
+
+  it("lists the staff sandbox proxies only for a staff-privileged grant", async () => {
+    permissionsForKey = () => ({
+      type: "customer",
+      isStaffPrivileged: true,
+      scopes: ["datasets.read", "mcp.query"],
+      capabilities: [],
+      toolsets: ["datasets", "docs", "public", "staff"],
+    });
+
+    const res = await mcpPost(rpc(4, "tools/list"), {
+      "X-Avala-Api-Key": KEY_A,
+    });
+    expect(res.status).toBe(200);
+    const names = (
+      await mcpResult<{ result: { tools: { name: string }[] } }>(res)
+    ).result.tools.map((tool) => tool.name);
+    expect(names).toContain("staff_query");
+    expect(names).toContain("staff_aggregate");
+    expect(names).toContain("staff_describe_table");
+  });
+
+  it("hides the staff sandbox proxies from a non-staff grant even if discovery names the toolset", async () => {
+    permissionsForKey = () => ({
+      type: "customer",
+      isStaffPrivileged: false,
+      scopes: ["datasets.read", "mcp.query"],
+      capabilities: [],
+      toolsets: ["datasets", "docs", "public", "staff"],
+    });
+
+    const res = await mcpPost(rpc(4, "tools/list"), {
+      "X-Avala-Api-Key": KEY_A,
+    });
+    expect(res.status).toBe(200);
+    const names = (
+      await mcpResult<{ result: { tools: { name: string }[] } }>(res)
+    ).result.tools.map((tool) => tool.name);
+    expect(names).not.toContain("staff_query");
+    expect(names).not.toContain("staff_aggregate");
+    expect(names).not.toContain("staff_describe_table");
+  });
+
+  it("fails closed on a malformed staff-privilege grant", async () => {
+    permissionsForKey = () => ({
+      type: "customer",
+      isStaffPrivileged: "yes",
+      scopes: ["datasets.read"],
+      capabilities: [],
+      toolsets: ["datasets"],
+    });
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    const res = await mcpPost(rpc(7, "tools/list"), {
+      "X-Avala-Api-Key": KEY_A,
+    });
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(
+      "Credential permission discovery is unavailable.",
+    );
+    expect(consoleError).toHaveBeenCalledWith(
+      "avala-mcp-http: credential permission discovery failed.",
     );
   });
 

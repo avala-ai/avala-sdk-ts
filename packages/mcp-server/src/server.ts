@@ -11,6 +11,7 @@ import { registerOrganizationTools } from "./tools/organizations.js";
 import { registerProjectTools } from "./tools/projects.js";
 import { registerQualityTools } from "./tools/quality.js";
 import { registerSliceTools } from "./tools/slices.js";
+import { registerStaffTools } from "./tools/staff.js";
 import { registerStatsTools } from "./tools/stats.js";
 import { registerStorageTools } from "./tools/storage.js";
 import { registerTaskTools } from "./tools/tasks.js";
@@ -137,6 +138,11 @@ export const TOOL_REGISTRARS: readonly ToolRegistrar[] = [
     category: "workflows",
     register: (server, getClient, options): void =>
       registerWorkflowTools(server, getClient, options.allowMutations),
+  },
+  {
+    category: "staff",
+    register: (server, getClient, options): void =>
+      registerStaffTools(server, getClient, options),
   },
 ];
 

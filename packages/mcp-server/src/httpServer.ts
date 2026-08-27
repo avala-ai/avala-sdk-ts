@@ -33,6 +33,7 @@ import {
   Auth0OnBehalfOfBroker,
   HostedOAuthError,
   PROTECTED_RESOURCE_METADATA_PATH,
+  PROTECTED_RESOURCE_METADATA_ROOT_PATH,
   bearerChallenge,
   protectedResourceMetadata,
   protectedResourceMetadataUrl,
@@ -279,9 +280,18 @@ function validatedStringSet(
 function credentialGrantFrom(
   permissions: CredentialPermissions,
 ): CredentialToolGrant {
+  // Strict boolean, fail closed: a missing or malformed staff flag must read
+  // as a malformed grant (503), never as quietly-not-staff — the same
+  // contract `validatedStringSet` applies to the scope and toolset arrays.
+  if (typeof permissions.isStaffPrivileged !== "boolean") {
+    throw new Error(
+      "Permission discovery returned an invalid staff-privilege grant.",
+    );
+  }
   return {
     scopes: validatedStringSet(permissions.scopes, "scope"),
     toolsets: validatedStringSet(permissions.toolsets, "toolset"),
+    isStaffPrivileged: permissions.isStaffPrivileged,
   };
 }
 
@@ -467,10 +477,17 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
   ): Promise<void> {
     const credential = extractCredential(req);
     if (!credential.ok) {
+      // RFC 6750 §3.1 lets a server omit `error` when no credential was
+      // presented, but the canonical MCP challenge every major client is
+      // tested against (Claude's connector docs, the SDK reference server)
+      // carries `error="invalid_token"` in this case too. Include it so a
+      // client that keys on the parameter starts its OAuth flow instead of
+      // reporting a generic connection failure.
       const headers: Record<string, string> =
         credential.status === 401
           ? {
               "WWW-Authenticate": bearerChallenge(oauthConfig.resource, {
+                error: "invalid_token",
                 scopes: oauthConfig.scopesSupported,
               }),
             }
@@ -665,7 +682,10 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
       return;
     }
 
-    if (pathname === PROTECTED_RESOURCE_METADATA_PATH) {
+    if (
+      pathname === PROTECTED_RESOURCE_METADATA_PATH ||
+      pathname === PROTECTED_RESOURCE_METADATA_ROOT_PATH
+    ) {
       if (req.method === "GET" || req.method === "HEAD") {
         res.writeHead(200, {
           "Content-Type": "application/json",

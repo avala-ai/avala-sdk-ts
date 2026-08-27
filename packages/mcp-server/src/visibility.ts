@@ -3,6 +3,15 @@ import type { McpServer } from "@modelcontextprotocol/server";
 export interface CredentialToolGrant {
   readonly scopes: ReadonlySet<string>;
   readonly toolsets: ReadonlySet<string>;
+  /**
+   * Whether permission discovery reported this credential as staff-privileged
+   * (`request_has_staff_privilege` on the server — a session, or an API key
+   * with `is_staff_access`). Listing of the `staff` toolset already keys on
+   * the discovered toolset set; this flag exists so the `staff_*` sandbox
+   * proxies can additionally refuse to FORWARD a call for a non-staff
+   * credential (defence in depth, mcp-platform-auth-model.md §5.4).
+   */
+  readonly isStaffPrivileged: boolean;
 }
 
 interface ToolRequirement {
@@ -100,13 +109,26 @@ function declarativeRequirement(
   };
 }
 
+/**
+ * Toolsets that discovery grants by credential privilege rather than by
+ * scope. Listing one of these keys on the privilege flag as well as the
+ * toolset set, so a discovery drift that hands out the toolset name without
+ * the privilege cannot list the tools (mirrors the forward-time refusal in
+ * `tools/staff.ts`).
+ */
+const PRIVILEGED_TOOLSETS: ReadonlySet<string> = new Set(["staff"]);
+
 function isVisible(
   requirement: ToolRequirement,
   grant: CredentialToolGrant,
 ): boolean {
   return (
     requirement.scopes.every((scope) => grant.scopes.has(scope)) &&
-    requirement.toolsets.some((toolset) => grant.toolsets.has(toolset))
+    requirement.toolsets.some(
+      (toolset) =>
+        grant.toolsets.has(toolset) &&
+        (!PRIVILEGED_TOOLSETS.has(toolset) || grant.isStaffPrivileged),
+    )
   );
 }
 

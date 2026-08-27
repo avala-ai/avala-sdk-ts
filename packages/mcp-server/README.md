@@ -96,6 +96,7 @@ Unlike stdio mode, no `AVALA_API_KEY` environment variable is read — the serve
 | Slices            | List and inspect data slices                                                                                                                           |
 | Stats             | Get overview statistics for your account                                                                                                               |
 | **Workflows**     | **Composite tools: fleet health overview, project quality summary, workspace overview, annotation pipeline creation**                                  |
+| Staff             | Avala staff only: read-only proxies to the staff SQL sandbox (`staff_query`, `staff_aggregate`, `staff_describe_table`)                                |
 | Note              | Write/delete tools (`create_*`, `delete_*`, `test_storage_config`, `evaluate_quality`, `compute_consensus`) require `AVALA_MCP_ENABLE_MUTATIONS=true`. |
 
 ## Documentation

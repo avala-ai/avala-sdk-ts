@@ -31,6 +31,21 @@ function stringArray(value: unknown): string[] | null {
   return value;
 }
 
+/**
+ * Toolsets granted by credential PRIVILEGE, not by scope intersection.
+ *
+ * `staff` must never enter toolset-scopes.json / mcp_toolset_scopes.json:
+ * Django's `toolsets_for_permissions` hands a customer every manifest toolset
+ * whose scope set intersects the credential's, and then adds `staff` only for
+ * `is_staff_privileged` credentials — putting it in the manifest would list
+ * the staff sandbox for any customer credential carrying `mcp.query`. The
+ * scopes here mirror `HasScope(SCOPE_MCP_QUERY)` on the Django endpoint the
+ * `staff_*` proxies forward to.
+ */
+const PRIVILEGED_TOOLSET_SCOPES: Record<string, readonly string[]> = {
+  staff: ["mcp.query"],
+};
+
 describe("credential toolset scope contract", () => {
   it.skipIf(!monorepoAvailable)(
     "keeps the server discovery manifest synchronized in monorepo SDK CI",
@@ -80,6 +95,20 @@ describe("credential toolset scope contract", () => {
       expect(toolsets).not.toHaveLength(0);
 
       for (const toolset of toolsets!) {
+        const privilegedScopes = PRIVILEGED_TOOLSET_SCOPES[toolset];
+        if (privilegedScopes !== undefined) {
+          expect(
+            (toolsetScopes as Record<string, string[]>)[toolset],
+            `privileged toolset '${toolset}' must stay out of the scope-discovery manifest`,
+          ).toBeUndefined();
+          for (const scope of scopes!) {
+            expect(
+              privilegedScopes,
+              `${name} requires '${scope}' but the privileged toolset '${toolset}' does not carry it`,
+            ).toContain(scope);
+          }
+          continue;
+        }
         const discoverableScopes = (toolsetScopes as Record<string, string[]>)[
           toolset
         ];

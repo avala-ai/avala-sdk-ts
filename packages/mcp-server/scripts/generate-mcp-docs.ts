@@ -54,6 +54,7 @@ const CATEGORY_ORDER: Record<string, string> = {
   annotationIssues: "Annotation Issues & QC",
   fleet: "Fleet",
   workflows: "Workflows",
+  staff: "Staff",
 };
 
 // ── Parser ─────────────────────────────────────────────────────────────────

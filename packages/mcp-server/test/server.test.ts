@@ -11,13 +11,27 @@ import {
  * registers tools through the same `registerTools`, so this count is the
  * stdio/HTTP parity baseline: if it moves, both transports moved together.
  */
-const FULL_TOOL_COUNT = 61;
+const FULL_TOOL_COUNT = 64;
 const HOSTED_READ_TOOL_COUNT = 44;
+const STAFF_TOOL_COUNT = 3;
 
 function fullCredentialGrant(): CredentialToolGrant {
   return {
     scopes: new Set(Object.values(toolsetScopes).flat()),
     toolsets: new Set(Object.keys(toolsetScopes)),
+    isStaffPrivileged: false,
+  };
+}
+
+// The staff sandbox toolset is deliberately absent from toolset-scopes.json
+// (discovery grants it via is_staff_privileged, never via scope intersection),
+// so the staff grant is composed here rather than derived from the manifest.
+function staffCredentialGrant(): CredentialToolGrant {
+  const base = fullCredentialGrant();
+  return {
+    scopes: new Set([...base.scopes, "mcp.query"]),
+    toolsets: new Set([...base.toolsets, "staff"]),
+    isStaffPrivileged: true,
   };
 }
 
@@ -59,7 +73,7 @@ function createMockServer() {
 }
 
 describe("MCP server", () => {
-  it("registers the full catalog (61 tools) when mutations are enabled", () => {
+  it("registers the full catalog when mutations are enabled", () => {
     const server = createMockServer();
     registerTools(server as never, (() => ({})) as never, {
       allowMutations: true,
@@ -83,6 +97,48 @@ describe("MCP server", () => {
     });
     expect(server.names).toHaveLength(HOSTED_READ_TOOL_COUNT);
     expect(new Set(server.names).size).toBe(HOSTED_READ_TOOL_COUNT);
+    expect(server.names).not.toContain("staff_query");
+  });
+
+  it("lists the staff sandbox proxies only for a staff-privileged grant", () => {
+    const server = createMockServer();
+    registerTools(server as never, (() => ({})) as never, {
+      allowMutations: false,
+      credentialGrant: staffCredentialGrant(),
+    });
+    expect(server.names).toHaveLength(HOSTED_READ_TOOL_COUNT + STAFF_TOOL_COUNT);
+    expect(server.names).toContain("staff_query");
+    expect(server.names).toContain("staff_aggregate");
+    expect(server.names).toContain("staff_describe_table");
+  });
+
+  it("hides the staff sandbox proxies when the toolset is granted without the staff privilege", () => {
+    const server = createMockServer();
+    const base = staffCredentialGrant();
+    registerTools(server as never, (() => ({})) as never, {
+      allowMutations: false,
+      credentialGrant: { ...base, isStaffPrivileged: false },
+    });
+    expect(server.names).toHaveLength(HOSTED_READ_TOOL_COUNT);
+    expect(server.names).not.toContain("staff_query");
+    expect(server.names).not.toContain("staff_aggregate");
+    expect(server.names).not.toContain("staff_describe_table");
+  });
+
+  it("hides the staff sandbox proxies when the toolset is granted without mcp.query", () => {
+    const server = createMockServer();
+    const base = staffCredentialGrant();
+    registerTools(server as never, (() => ({})) as never, {
+      allowMutations: false,
+      credentialGrant: {
+        scopes: new Set([...base.scopes].filter((s) => s !== "mcp.query")),
+        toolsets: base.toolsets,
+        isStaffPrivileged: true,
+      },
+    });
+    expect(server.names).not.toContain("staff_query");
+    expect(server.names).not.toContain("staff_aggregate");
+    expect(server.names).not.toContain("staff_describe_table");
   });
 
   it("filters declarative reads by exact scope and toolset", () => {
@@ -92,6 +148,7 @@ describe("MCP server", () => {
       credentialGrant: {
         scopes: new Set(["datasets.read"]),
         toolsets: new Set(["datasets", "quality", "sequences"]),
+        isStaffPrivileged: false,
       },
     });
 
@@ -113,6 +170,7 @@ describe("MCP server", () => {
       credentialGrant: {
         scopes: new Set(),
         toolsets: new Set(["docs", "public"]),
+        isStaffPrivileged: false,
       },
     });
     expect(server.names).toEqual([]);

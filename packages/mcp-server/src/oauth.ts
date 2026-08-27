@@ -12,6 +12,13 @@ import { validateAccessToken } from "@avala-ai/sdk";
 /** RFC 9728 metadata location for the protected `/mcp` resource. */
 export const PROTECTED_RESOURCE_METADATA_PATH =
   "/.well-known/oauth-protected-resource/mcp";
+/**
+ * RFC 9728 §3.1 fallback: a client that does not path-suffix the well-known
+ * URL looks for the document at the origin root. Both paths serve the same
+ * document, whose `resource` field still names the canonical /mcp URL.
+ */
+export const PROTECTED_RESOURCE_METADATA_ROOT_PATH =
+  "/.well-known/oauth-protected-resource";
 
 const TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
 const ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
