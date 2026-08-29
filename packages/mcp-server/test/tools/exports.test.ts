@@ -104,15 +104,20 @@ describe("export tools", () => {
       limit: "10",
       cursor: "next-page",
     });
-    expect(result.structuredContent).toEqual({
-      items: [EXPORT],
-      nextCursor: null,
-      previousCursor: null,
-      hasMore: false,
+    const parsed = JSON.parse(result.content[0]!.text);
+    expect(parsed.items[0]).toMatchObject({
+      uid: "exp-1",
+      name: "Warehouse labels",
+      format: "avala-json-external",
+      status: "exported",
+      exportedTaskCount: 20,
+      totalTaskCount: 20,
+      createdAt: "2026-08-24T00:00:00Z",
     });
-    expect(JSON.parse(result.content[0]!.text)).toEqual(
-      result.structuredContent,
-    );
+    expect(parsed.items[0]).not.toHaveProperty("downloadUrl");
+    expect(parsed.has_more).toBe(false);
+    expect(parsed.next_cursor).toBeNull();
+    expect(result.structuredContent).toEqual(parsed);
   });
 
   it("get_export_status dispatches its exact route and returns structured output", async () => {
@@ -122,8 +127,18 @@ describe("export tools", () => {
     expect(avala.transport.requestSingle).toHaveBeenCalledWith(
       "/exports/exp-1/",
     );
-    expect(result.structuredContent).toEqual(EXPORT);
-    expect(JSON.parse(result.content[0]!.text)).toEqual(EXPORT);
+    const parsed = JSON.parse(result.content[0]!.text);
+    expect(parsed).toMatchObject({
+      uid: "exp-1",
+      name: "Warehouse labels",
+      format: "avala-json-external",
+      status: "exported",
+      exportedTaskCount: 20,
+      totalTaskCount: 20,
+      createdAt: "2026-08-24T00:00:00Z",
+    });
+    expect(parsed).not.toHaveProperty("downloadUrl");
+    expect(result.structuredContent).toEqual(parsed);
   });
 
   it("get_export_status strips unknown fields and redacts nested organization credentials", async () => {
@@ -138,6 +153,7 @@ describe("export tools", () => {
 
     const result = await server.getHandler("get_export_status")!({
       uid: "exp-1",
+      detail: "full",
     });
 
     expect(result.structuredContent).not.toHaveProperty("unexpected");
@@ -166,7 +182,12 @@ describe("export tools", () => {
       hasMore: false,
     });
 
-    const result = await server.getHandler("list_exports")!({});
+    const result = await server.getHandler("list_exports")!({
+      detail: "full",
+    });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/exports/", {
+      limit: "25",
+    });
     const item = (
       result.structuredContent as { items: Record<string, unknown>[] }
     ).items[0]!;

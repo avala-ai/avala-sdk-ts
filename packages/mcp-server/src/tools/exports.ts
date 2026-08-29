@@ -7,8 +7,6 @@ import {
 } from "../catalog.js";
 import { z } from "zod";
 
-// Catalog execution sanitizes every validated result before it reaches MCP.
-// Keep schemas transform-free so SDK v2 can emit standards-compliant JSON Schema.
 const sanitizedRecordSchema = z.record(z.string(), z.unknown());
 
 const exportOutputSchema = z
@@ -29,24 +27,37 @@ const exportOutputSchema = z
   })
   .strip();
 
+const EXPORT_CONCISE_KEYS = [
+  "uid",
+  "name",
+  "format",
+  "status",
+  "exportedTaskCount",
+  "totalTaskCount",
+  "createdAt",
+] as const;
+
 const listExportsTool = defineReadCatalogTool({
   name: "list_exports",
   title: "List exports",
   description:
-    "List all exports with their formats, creation dates, and download URLs.",
+    "List exports. Default detail is identity, format, status, and counts. Download URLs require detail=full.",
   inputSchema: z.object({
     limit: z
       .number()
       .int()
       .positive()
       .optional()
-      .describe("Maximum number of exports to return"),
+      .describe(
+        "Maximum number of exports to return. Defaults to 25 when omitted.",
+      ),
     cursor: z
       .string()
       .optional()
       .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(exportOutputSchema),
+  conciseKeys: EXPORT_CONCISE_KEYS,
   route: {
     name: "export-list",
     method: "GET",
@@ -62,11 +73,12 @@ const getExportStatusTool = defineReadCatalogTool({
   name: "get_export_status",
   title: "Get export status",
   description:
-    "Check whether an export is still processing, completed, or failed.",
+    "Check whether an export is still processing, completed, or failed. Download URL requires detail=full.",
   inputSchema: z.object({
     uid: z.string().describe("The unique identifier (UUID) of the export"),
   }),
   outputSchema: exportOutputSchema,
+  conciseKeys: EXPORT_CONCISE_KEYS,
   route: {
     name: "export-detail",
     method: "GET",

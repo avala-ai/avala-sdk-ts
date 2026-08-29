@@ -18,23 +18,29 @@ const webhookOutputSchema = z
   })
   .passthrough();
 
+const WEBHOOK_CONCISE_KEYS = ["uid", "isActive", "updatedAt"] as const;
+
 const listWebhooksTool = defineReadCatalogTool({
   name: "list_webhooks",
   title: "List webhooks",
-  description: "List all webhook subscriptions in your workspace.",
+  description:
+    "List webhook subscriptions. Default detail is identity and status. Target URLs require detail=full.",
   inputSchema: z.object({
     limit: z
       .number()
       .int()
       .positive()
       .optional()
-      .describe("Maximum number of webhooks to return"),
+      .describe(
+        "Maximum number of webhooks to return. Defaults to 25 when omitted.",
+      ),
     cursor: z
       .string()
       .optional()
       .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(webhookOutputSchema),
+  conciseKeys: WEBHOOK_CONCISE_KEYS,
   route: {
     name: "webhook-list",
     method: "GET",

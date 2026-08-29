@@ -75,11 +75,21 @@ describe("storage tools", () => {
 
     expect(avala.transport.requestPage).toHaveBeenCalledWith(
       "/storage-configs/",
-      undefined,
+      { limit: "25" },
     );
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.items[0].name).toBe("Production S3");
-    expect(result.structuredContent).toEqual(mockPage);
+    expect(parsed.items[0]).toMatchObject({
+      uid: "sc-1",
+      name: "Production S3",
+      provider: "aws_s3",
+      isVerified: true,
+      updatedAt: "2025-01-02T00:00:00Z",
+    });
+    expect(parsed.items[0]).not.toHaveProperty("s3BucketName");
+    expect(parsed.items[0]).not.toHaveProperty("s3BucketPrefix");
+    expect(parsed.has_more).toBe(false);
+    expect(parsed.next_cursor).toBeNull();
+    expect(result.structuredContent).toEqual(parsed);
   });
 
   it("list_storage_configs passes limit and cursor", async () => {

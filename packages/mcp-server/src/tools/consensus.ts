@@ -16,17 +16,25 @@ const consensusSummaryOutputSchema = z
   })
   .passthrough();
 
+const CONSENSUS_CONCISE_KEYS = [
+  "meanScore",
+  "medianScore",
+  "totalItems",
+  "itemsWithConsensus",
+] as const;
+
 const getConsensusSummaryTool = defineReadCatalogTool({
   name: "get_consensus_summary",
   title: "Get consensus summary",
   description:
-    "Get a consensus summary for a project including mean/median scores and distribution.",
+    "Get a consensus summary for a project. Default detail is mean/median scores and item counts. Distribution histograms require detail=full.",
   inputSchema: z.object({
     projectUid: z
       .string()
       .describe("The unique identifier (UUID) of the project"),
   }),
   outputSchema: consensusSummaryOutputSchema,
+  conciseKeys: CONSENSUS_CONCISE_KEYS,
   route: {
     name: "consensus-summary",
     method: "GET",

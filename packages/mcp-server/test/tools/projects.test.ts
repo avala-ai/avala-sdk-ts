@@ -25,6 +25,8 @@ function createMockAvala() {
     projects: {
       list: vi.fn(),
       get: vi.fn(),
+      listMine: vi.fn(),
+      getMine: vi.fn(),
     },
     exports: { list: vi.fn(), get: vi.fn(), create: vi.fn() },
     tasks: { list: vi.fn(), get: vi.fn() },
@@ -41,25 +43,45 @@ describe("project tools", () => {
     registerProjectTools(server as never, (() => avala) as never);
   });
 
-  it("list_projects calls avala.projects.list and returns JSON", async () => {
+  it("list_projects reads the caller's own projects and returns JSON", async () => {
     const mockPage = {
-      items: [{ uid: "proj-1", name: "Project 1", status: "active" }],
+      items: [
+        {
+          uid: "proj-1",
+          name: "Project 1",
+          status: "active",
+          ownerName: "acme",
+          updatedAt: "2025-01-02T00:00:00Z",
+          config: { hidden: true },
+        },
+      ],
       nextCursor: null,
       previousCursor: null,
       hasMore: false,
     };
-    avala.projects.list.mockResolvedValue(mockPage);
+    avala.projects.listMine.mockResolvedValue(mockPage);
 
     const handler = server.getHandler("list_projects")!;
     const result = await handler({});
 
-    expect(avala.projects.list).toHaveBeenCalled();
+    expect(avala.projects.listMine).toHaveBeenCalledWith({
+      limit: 25,
+      cursor: undefined,
+    });
+    expect(avala.projects.list).not.toHaveBeenCalled();
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.items[0].name).toBe("Project 1");
+    expect(parsed.items[0]).toMatchObject({
+      uid: "proj-1",
+      name: "Project 1",
+      status: "active",
+    });
+    expect(parsed.items[0]).not.toHaveProperty("config");
+    expect(parsed.has_more).toBe(false);
+    expect(parsed.next_cursor).toBeNull();
   });
 
   it("list_projects passes limit and cursor", async () => {
-    avala.projects.list.mockResolvedValue({
+    avala.projects.listMine.mockResolvedValue({
       items: [],
       nextCursor: null,
       previousCursor: null,
@@ -69,27 +91,35 @@ describe("project tools", () => {
     const handler = server.getHandler("list_projects")!;
     await handler({ limit: 10, cursor: "xyz" });
 
-    expect(avala.projects.list).toHaveBeenCalledWith({
+    expect(avala.projects.listMine).toHaveBeenCalledWith({
       limit: 10,
       cursor: "xyz",
     });
+    expect(avala.projects.list).not.toHaveBeenCalled();
   });
 
-  it("get_project calls avala.projects.get and returns JSON", async () => {
+  it("get_project reads a caller-scoped project and returns JSON", async () => {
     const mockProject = {
       uid: "proj-1",
       name: "Project 1",
       status: "active",
       createdAt: "2025-01-01",
+      config: { hidden: true },
     };
-    avala.projects.get.mockResolvedValue(mockProject);
+    avala.projects.getMine.mockResolvedValue(mockProject);
 
     const handler = server.getHandler("get_project")!;
     const result = await handler({ uid: "proj-1" });
 
-    expect(avala.projects.get).toHaveBeenCalledWith("proj-1");
+    expect(avala.projects.getMine).toHaveBeenCalledWith("proj-1");
+    expect(avala.projects.get).not.toHaveBeenCalled();
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.status).toBe("active");
+    expect(parsed).toMatchObject({
+      uid: "proj-1",
+      name: "Project 1",
+      status: "active",
+    });
+    expect(parsed).not.toHaveProperty("config");
   });
 
   it("registers both list_projects and get_project tools", () => {

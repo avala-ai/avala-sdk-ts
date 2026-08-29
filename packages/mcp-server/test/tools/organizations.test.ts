@@ -89,11 +89,24 @@ describe("organization tools", () => {
 
     expect(avala.transport.requestPage).toHaveBeenCalledWith(
       "/organizations/",
-      undefined,
+      { limit: "25" },
     );
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.items[0].name).toBe("Acme Corp");
-    expect(result.structuredContent).toEqual(mockPage);
+    expect(parsed.items[0]).toMatchObject({
+      uid: "org-1",
+      name: "Acme Corp",
+      slug: "acme",
+      handle: null,
+      plan: "enterprise",
+      role: "owner",
+      memberCount: 5,
+      isActive: true,
+    });
+    expect(parsed.items[0]).not.toHaveProperty("logo");
+    expect(parsed.items[0]).not.toHaveProperty("billingStatus");
+    expect(parsed.has_more).toBe(false);
+    expect(parsed.next_cursor).toBeNull();
+    expect(result.structuredContent).toEqual(parsed);
   });
 
   it("list_organizations passes limit and cursor", async () => {

@@ -63,13 +63,19 @@ describe("webhook tools", () => {
     const handler = server.getHandler("list_webhooks")!;
     const result = await handler({});
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith(
-      "/webhooks/",
-      undefined,
-    );
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/webhooks/", {
+      limit: "25",
+    });
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.items[0].targetUrl).toBe("https://example.com/hook");
-    expect(result.structuredContent).toEqual(mockPage);
+    expect(parsed.items[0]).toMatchObject({
+      uid: "wh-1",
+      isActive: true,
+      updatedAt: "2025-01-02T00:00:00Z",
+    });
+    expect(parsed.items[0]).not.toHaveProperty("targetUrl");
+    expect(parsed.has_more).toBe(false);
+    expect(parsed.next_cursor).toBeNull();
+    expect(result.structuredContent).toEqual(parsed);
   });
 
   it("list_webhooks passes limit and cursor", async () => {

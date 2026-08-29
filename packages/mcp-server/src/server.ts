@@ -17,6 +17,7 @@ import { registerStorageTools } from "./tools/storage.js";
 import { registerTaskTools } from "./tools/tasks.js";
 import { registerWebhookTools } from "./tools/webhooks.js";
 import { registerWorkflowTools } from "./tools/workflows.js";
+import { enforceEgressScrubbing } from "./egress.js";
 import {
   scopeServerForCredential,
   type CredentialToolGrant,
@@ -164,9 +165,14 @@ export function registerTools(
       "Credential-scoped MCP registration cannot expose mutations before confirmation support exists.",
     );
   }
+  // Egress scrubbing is applied to the RAW server first, so every later
+  // wrapper registers through it. A tool added by a future contributor who has
+  // never read `egress.ts` is covered without opting in — which is the whole
+  // point, since the 24 tools that leaked did so by forgetting to opt in.
+  const scrubbedServer = enforceEgressScrubbing(server);
   const registrationServer = options.credentialGrant
-    ? scopeServerForCredential(server, options.credentialGrant)
-    : server;
+    ? scopeServerForCredential(scrubbedServer, options.credentialGrant)
+    : scrubbedServer;
   for (const registrar of TOOL_REGISTRARS) {
     registrar.register(registrationServer, getClient, options);
   }

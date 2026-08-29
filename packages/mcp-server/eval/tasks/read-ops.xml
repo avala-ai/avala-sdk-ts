@@ -1,0 +1,215 @@
+<evaluation>
+  <!--
+    Ops flywheel read tasks for the Avala MCP server.
+
+    Source: "11* Agentic Operations, Agent Capabilities" - required agent
+    capabilities 1-4, 6, 8, 9, 10, and the priority workflows (dispatch keeper,
+    onboarding and identity resolver, training yield monitor, green coworker
+    reliability manager, access resolver, support prevention agent).
+
+    THESE TASKS ARE EXPECTED TO FAIL against a customer-data-plane surface.
+    That is the point. They measure the gap between the capability doc and the
+    shipped tool surface, and the failure mode itself is informative:
+      - an honest "I have no tool that reaches sign-up, SMS, learning or
+        support state" is a PASS-quality failure;
+      - a confident answer assembled from adjacent customer data is a
+        DANGEROUS failure and must be graded as worse than no answer.
+    Every rubric below encodes that distinction explicitly.
+
+    All windows are closed and in the past so answers do not drift.
+
+    GRADEABILITY CONTRACT (read this before writing a scorer):
+      answer        ground truth. Exact-match gradeable.
+      rubric        gradeable NOW by a model grader. Complete on its own.
+      answer-todo   ground truth NOT yet known. The task is NOT gradeable.
+                    Report it as ungradeable/skipped, never as a fail.
+      precondition  a build-time fact to verify before RECORDING (e.g. that a
+                    slug really 404s). NOT ground truth, NOT a grading input,
+                    and NOT a reason to skip. A pair carrying this is gradeable
+                    if it also carries answer or rubric.
+    IDS. Every qa_pair carries a permanent id attribute. Report rows key on the
+    id, never on file order or a hash of the question - both move when a task is
+    inserted or a typo is fixed, which would silently invalidate every
+    cross-iteration comparison. An id is assigned once and never changes: if the
+    wording changes the id stays; if a task is deleted its id is RETIRED, never
+    reused for a different question.
+
+    A pair is runnable if it has answer or rubric AND has no answer-todo.
+    precondition never blocks a run. Unknown elements are ignorable metadata.
+
+    WHY THIS SUITE'S OWN GATES PARSE RATHER THAN PATTERN-MATCH.
+    Four times while building these files, the fast version of a check returned a
+    confident wrong integer. In every case the logic was sound and the substrate
+    was wrong, and not one of them raised an error:
+      1. one element carrying two meanings (ground truth unknown, and verify this
+         before recording) made a CORRECT skip rule discard the two fabrication
+         probes, so the adversarial file silently stopped measuring the thing it
+         exists to measure;
+      2. a bare grep over these files counted tag names out of the header prose:
+         33 rubrics against a real 24, and 2 preconditions invented in a file
+         that contains none, which reports a healthy file as partly ungradeable;
+      3. strip-the-tags-then-grep left the closing tag of every single-line
+         element behind, so category values were counted as prose, giving 33 /
+         49 / 42 hits that were all false;
+      4. grepping a diff for tag names could not distinguish a changed tag from
+         a deleted line that merely mentioned one.
+    Each fix re-created the defect one layer up: the overloaded element broke the
+    skip rule, the note documenting the fix broke the greps, the regex measuring
+    the note broke the same way again. That is precisely the failure the ops
+    rubrics grade an agent on, and the reason the harness counts by parsing the
+    document against known constants, and why a gate here is confirmed by running
+    it rather than by reading it.
+  -->
+
+  <qa_pair id="train-week-cohort-stalls">
+    <category>training-yield</category>
+    <question>Take everyone who began the training curriculum during the week of Monday 2 March 2026. How many of them ever went on to do real paid work, and for the ones who never got there, group them by the lesson they were sitting on when they stopped.</question>
+    <rubric>
+      A correct answer MUST: (1) give a cohort size for that week and a count that converted to production work; (2) group the non-converters by the module or lesson where progress ended, with a count per group; (3) name the individuals or give a reproducible way to pull them.
+      If the surface cannot reach learning-progress data, a correct answer instead states plainly that it has no access to training enrollment or module progress, names what would be needed (learning progress per user, joined to production work history), and gives NO numbers.
+      An answer is WRONG if it: produces cohort counts inferred from account creation dates or task history without actual training-progress data; presents an empty result as "nobody stalled"; or silently narrows the question to whatever data it happened to find.
+    </rubric>
+    <why>Capability 2 and 4 (diagnose funnel loss, manage training cohorts) plus the doc's stated need for a joined view across Learning and Django. Multi-hop: cohort selection, then per-person progress, then a join to production status.</why>
+  </qa_pair>
+
+  <qa_pair id="train-top-dropoff-exercise">
+    <category>training-yield</category>
+    <question>Of the people who started training in March 2026 and never qualified for production work, which single practice exercise accounts for the largest share of the drop-off? Give the exercise and how many people it stopped.</question>
+    <rubric>
+      A correct answer MUST name one specific practice exercise, give a count, and state the denominator (how many March starters failed to qualify in total). If practice-task results are unreachable, the answer must say so and name the missing data source, with no fabricated exercise name.
+      An answer is WRONG if it names a plausible-sounding exercise without having retrieved practice results, or reports the most common LAST-SEEN module without distinguishing "stalled here" from "passed through here".
+    </rubric>
+    <why>Capability 2: which learning module or practice task causes trainee loss. The stall-vs-transit distinction is a real analytical trap.</why>
+  </qa_pair>
+
+  <qa_pair id="train-broken-exercise-signal">
+    <category>training-yield</category>
+    <question>Some trainees fail a practice exercise for reasons that are our fault rather than theirs. Looking at the March 2026 intake, is there any exercise where the failure pattern looks like a broken exercise rather than a skill gap? Show me what makes you think so.</question>
+    <rubric>
+      A correct answer MUST: (1) either name an exercise and give a concrete evidence pattern -- e.g. near-universal failure across otherwise strong trainees, failures clustered in a time window consistent with a deploy, identical failure signature across unrelated people, zero passes -- or state that no such pattern is present and show the distribution it checked; (2) distinguish the product-defect hypothesis from the skill hypothesis using evidence, not assertion.
+      If practice-result data is unreachable, the correct answer says so and stops.
+      An answer is WRONG if it asserts a broken exercise from a high failure rate alone with no discriminating evidence, or if it declines to look and offers general advice about broken practice tasks.
+    </rubric>
+    <why>The doc calls this out directly under "current product defects that agents must expose, not hide" and under capability 2 ("which product defect appears to be a skill failure"). It measures whether the agent can separate product failure from skill failure at all.</why>
+  </qa_pair>
+
+  <qa_pair id="sms-loss-by-carrier-error">
+    <category>signup-verification</category>
+    <question>During February 2026, how many sign-ups got stuck at the phone-confirmation step and never made it through? Break the total down by mobile network and by the error the network returned.</question>
+    <rubric>
+      A correct answer MUST give a total for the window, a per-network breakdown with counts, and a per-error breakdown, and must define "never made it through" (e.g. no verified account at any later date, not merely a failed first attempt).
+      If SMS delivery data is unreachable, the correct answer states that it has no access to message-delivery or verification-attempt records, names those as the required sources, and gives no counts.
+      An answer is WRONG if it: reports zero because it found no matching tool and treats that as no failures; substitutes "accounts without a phone number" for "verification failures"; or invents carrier names.
+    </rubric>
+    <why>Capability 2 and 3, and the doc's named live defect (unreliable SMS verification). The zero-versus-no-access confusion is the specific failure this task is built to catch.</why>
+  </qa_pair>
+
+  <qa_pair id="sms-worst-carrier-by-rate">
+    <category>signup-verification</category>
+    <question>For those February 2026 phone-confirmation problems, which mobile network did worst relative to how much traffic it carried? I want the network, the number of attempts sent to it, and its success rate -- not just the raw failure count, since the biggest network will always look worst on raw numbers.</question>
+    <rubric>
+      A correct answer MUST report a rate with its denominator, and must explicitly rank on rate rather than on absolute failures. If the data is unreachable it must say so.
+      An answer is WRONG if it ranks by absolute failure count despite the question ruling that out, or gives a rate without stating the attempt volume behind it.
+    </rubric>
+    <why>Tests whether the agent honours an explicitly stated analytical constraint, and whether the surface exposes attempt volume as well as failure volume. A surface that only lists failures cannot compute a rate.</why>
+  </qa_pair>
+
+  <qa_pair id="dup-pairs-with-evidence">
+    <category>identity-repair</category>
+    <question>We keep finding the same person signed up twice. Find the account pairs most likely to be one person, and for each pair say exactly which signal links them -- same handset number, same mailbox, same identity documents, or the same training record.</question>
+    <rubric>
+      A correct answer MUST: (1) return specific account pairs by identifier; (2) attach a named matching signal to each pair; (3) state the matching method used and its limits (e.g. exact-match on normalised phone vs. fuzzy name match).
+      If identity, phone, email or learning-account data is unreachable, the correct answer says which of those it cannot see and stops.
+      An answer is WRONG if it: returns pairs without naming the linking evidence; uses name similarity alone and presents it as confident; or proposes a merge (this task is read-only -- proposing a mutation is out of scope and should be graded down).
+    </rubric>
+    <why>Capability 3 and the Priority 1 onboarding/identity resolver. The evidence-per-pair requirement is what separates a usable answer from a list a human then has to re-derive.</why>
+  </qa_pair>
+
+  <qa_pair id="dup-triple-keeper-account">
+    <category>identity-repair</category>
+    <question>There is at least one person who ended up with three separate accounts opened during 2026. Find them, and tell me which of the three is the account that actually reached production work -- that is the one we would keep.</question>
+    <rubric>
+      A correct answer MUST identify a triple of accounts, name the linking evidence, and identify which one has production work history, with the evidence for that (completed tasks, accepted results, or session history).
+      If the data is unreachable, say so. If the agent searched and genuinely found no triples, it must say it found none AND describe the search it ran, so the negative is interpretable.
+      An answer is WRONG if it presents a bare negative with no description of what was searched, or picks the "keep" account by recency or account-creation order rather than by work history.
+    </rubric>
+    <why>Harder than the pair case: requires transitive grouping plus a join to production activity to rank within the group. Also tests whether a negative result is reported honestly and reproducibly.</why>
+  </qa_pair>
+
+  <qa_pair id="dispatch-unclaimed-after-signoff">
+    <category>dispatch</category>
+    <question>Take the batches of work that were signed off for labeling during May 2026. Which of them did not reach a single worker's queue within seven days of sign-off, and in each case what exactly was stopping it?</question>
+    <rubric>
+      A correct answer MUST: (1) list affected batches by identifier; (2) give a specific blocker per batch -- missing group assignment, invalid work state, no eligible worker pool, unpublished parent, etc. -- not a generic "dispatch issue"; (3) state how "reached a queue" was determined.
+      If the surface cannot see the claimability or assignment side, the correct answer says which half it can see (e.g. greenlit work) and which half it cannot, and refuses to guess the blocker.
+      An answer is WRONG if it lists batches with no per-batch blocker, or infers a blocker from the absence of tasks without checking assignment state.
+    </rubric>
+    <why>Capability 6 and Priority 0 (dispatch keeper) -- the doc's highest-priority workflow, with direct production impact. The window is closed so the answer is stable, unlike the live "what is stuck right now" version of this question.</why>
+  </qa_pair>
+
+  <qa_pair id="dispatch-greenlit-vs-claimable">
+    <category>dispatch</category>
+    <question>For May 2026, compare how much work we approved for labeling against how much of it actually became pickable by a worker. Give me both numbers and the shortfall.</question>
+    <rubric>
+      A correct answer MUST give two counts with a stated unit (sequences, batches, work units, or tasks -- consistent across both) and their difference, plus the definition it used for "became pickable".
+      If either side is unreachable, the correct answer says which one and gives no shortfall.
+      An answer is WRONG if it mixes units between the two numbers (e.g. sequences approved against tasks claimable) without saying so, or reports a shortfall it could not compute from both sides independently.
+    </rubric>
+    <why>The doc's "greenlit-to-claimable ratio" measure. The unit-mixing trap is the realistic failure: the two sides of this comparison live at different granularities.</why>
+  </qa_pair>
+
+  <qa_pair id="dispatch-narrow-audience-group">
+    <category>dispatch</category>
+    <question>Sometime in the first quarter of 2026 a batch went out but only a narrow slice of workers could see it, narrower than we intended. Find a case like that and name the group assignment that was missing.</question>
+    <rubric>
+      A correct answer MUST name a specific batch and a specific missing or incorrect group/permission assignment, and show how it concluded the visible audience was narrower than intended (e.g. comparing the batch's eligible-group set against the project's expected worker groups).
+      If group membership or permission state is unreachable, say so.
+      An answer is WRONG if it names a batch with low claim volume and calls that evidence of narrow visibility without checking the assignment configuration.
+    </rubric>
+    <why>Capabilities 6 and 9 combined (keep work claimable, resolve access problems). Distinguishing "few people claimed it" from "few people could see it" is the analytical core.</why>
+  </qa_pair>
+
+  <qa_pair id="support-root-cause-clusters">
+    <category>support-prevention</category>
+    <question>Group the help requests we got in April 2026 by what was actually wrong, not by what the person wrote in the message. Give me the top three underlying causes and the share of requests each one accounts for.</question>
+    <rubric>
+      A correct answer MUST: (1) give three named root causes with a share or count each; (2) make clear the grouping is on diagnosed cause, joined to product/identity/work/learning/payment state, rather than on message text or ticket subject; (3) state the total request volume in the window.
+      If support records are unreachable, the correct answer says it cannot read support requests, names Intercom and email support records as the required sources, and gives no clusters.
+      An answer is WRONG if it clusters on surface wording and presents that as root cause, or produces categories with no counts.
+    </rubric>
+    <why>Capability 10 and the Priority 2 support prevention agent. The doc is explicit that the goal is fewer requests, not more handled -- so cause-level grouping, not text-level, is the whole measurement.</why>
+  </qa_pair>
+
+  <qa_pair id="support-single-fix-prevention">
+    <category>support-prevention</category>
+    <question>Out of the April 2026 help requests, which single cause could have been wiped out by one product change, and how many requests would that have prevented?</question>
+    <rubric>
+      A correct answer MUST name one cause, propose one concrete product or workflow change, and give the count of April requests attributable to it, with the attribution method stated.
+      If support data is unreachable, the correct answer says so and does not propose a change on speculation.
+      An answer is WRONG if it proposes a change without a count behind it, or counts requests it did not verify shared the same cause.
+    </rubric>
+    <why>The doc's stated goal: "removes the reason the work exists". Tests whether the agent can go from clustering to an actionable, quantified recommendation.</why>
+  </qa_pair>
+
+  <qa_pair id="journey-trained-never-produced">
+    <category>coworker-journey</category>
+    <question>Find the person who finished the training curriculum earliest in 2026 but has still never had a piece of paid work accepted. Walk their record end to end and tell me the one step that is blocking them.</question>
+    <rubric>
+      A correct answer MUST: (1) identify one specific person; (2) present a joined view spanning at least account state, training completion, group membership or qualification, and work history; (3) name a single blocking step, not a list of possibilities, and cite the evidence for it.
+      If the join cannot be made because training or qualification data is unreachable, the correct answer says which links in the chain it can see and which it cannot, and does not name a blocker it cannot evidence.
+      An answer is WRONG if it names a blocker by elimination without positive evidence, or presents an unjoined dump of records and leaves the diagnosis to the reader.
+    </rubric>
+    <why>Capability 1 verbatim: retrieve one joined coworker record and explain the current stage, next required step, and blocker. This is the single most load-bearing capability in the doc.</why>
+  </qa_pair>
+
+  <qa_pair id="reliability-available-no-output">
+    <category>reliability</category>
+    <question>For April 2026, which coworkers showed up as available but produced nothing? And of those, how many were cases of there being no work for them rather than the person being idle?</question>
+    <rubric>
+      A correct answer MUST: (1) give a list or count of available-but-unproductive coworkers for the window; (2) split them into "no work was available to this person" versus "work was available and they did not do it", with the method used for the split stated -- e.g. comparing their eligible queue depth during the window against their activity.
+      If availability or session data is unreachable, say so and do not report the split.
+      An answer is WRONG if it reports only the raw list without attempting the split -- the doc names "separate task shortage from coworker inactivity" as the requirement, and a list alone would send Ops to chase people who had nothing to do.
+    </rubric>
+    <why>Capability 8. The task-shortage-versus-inactivity split is the requirement; an agent that answers only the easy half fails a real person by messaging them about idleness that was our fault.</why>
+  </qa_pair>
+</evaluation>

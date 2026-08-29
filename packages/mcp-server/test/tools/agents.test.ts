@@ -67,13 +67,22 @@ describe("agent tools", () => {
     const handler = server.getHandler("list_agents")!;
     const result = await handler({});
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith(
-      "/agents/",
-      undefined,
-    );
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/agents/", {
+      limit: "25",
+    });
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.items[0].name).toBe("My Agent");
-    expect(result.structuredContent).toEqual(mockPage);
+    expect(parsed.items[0]).toMatchObject({
+      uid: "agent-1",
+      name: "My Agent",
+      isActive: true,
+      project: null,
+      updatedAt: "2025-01-02T00:00:00Z",
+    });
+    expect(parsed.items[0]).not.toHaveProperty("callbackUrl");
+    expect(parsed.items[0]).not.toHaveProperty("description");
+    expect(parsed.has_more).toBe(false);
+    expect(parsed.next_cursor).toBeNull();
+    expect(result.structuredContent).toEqual(parsed);
   });
 
   it("list_agents passes limit and cursor", async () => {
@@ -104,8 +113,20 @@ describe("agent tools", () => {
       "/agents/agent-1/",
     );
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.name).toBe("My Agent");
-    expect(parsed.callbackUrl).toBe("https://example.com/hook");
+    expect(parsed).toMatchObject({
+      uid: "agent-1",
+      name: "My Agent",
+      isActive: true,
+      project: null,
+      updatedAt: "2025-01-02T00:00:00Z",
+    });
+    expect(parsed).not.toHaveProperty("callbackUrl");
+    expect(parsed).not.toHaveProperty("executionStats");
+
+    const full = await handler({ uid: "agent-1", detail: "full" });
+    const fullParsed = JSON.parse(full.content[0].text);
+    expect(fullParsed.callbackUrl).toBe("https://example.com/hook");
+    expect(fullParsed.executionStats).toEqual({ completed: 2 });
   });
 
   it("create_agent calls avala.agents.create with all params and returns JSON", async () => {

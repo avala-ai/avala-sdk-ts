@@ -7,8 +7,6 @@ import {
 } from "../catalog.js";
 import { z } from "zod";
 
-// Catalog execution sanitizes every validated result before it reaches MCP.
-// Keep schemas transform-free so SDK v2 can emit standards-compliant JSON Schema.
 const sanitizedRecordSchema = z.record(z.string(), z.unknown());
 
 const annotationIssueProblemOutputSchema = z
@@ -93,10 +91,19 @@ const annotationIssueMetricsOutputSchema = z
   })
   .strip();
 
+const ISSUE_CONCISE_KEYS = [
+  "uid",
+  "status",
+  "priority",
+  "severity",
+  "sequenceUid",
+] as const;
+
 const listAnnotationIssuesBySequenceTool = defineReadCatalogTool({
   name: "list_annotation_issues_by_sequence",
   title: "List annotation issues by sequence",
-  description: "List annotation issues for a specific sequence.",
+  description:
+    "List annotation issues for a specific sequence. Default detail is identity and status. Coordinates, reporter, and class-correction fields require detail=full. Upstream is an unpaginated list — no cursor is invented client-side.",
   inputSchema: z.object({
     sequenceUid: z.string().describe("The UID of the sequence"),
     datasetItemUid: z
@@ -106,6 +113,7 @@ const listAnnotationIssuesBySequenceTool = defineReadCatalogTool({
     projectUid: z.string().optional().describe("Filter by project UID"),
   }),
   outputSchema: defineListOutputSchema(annotationIssueOutputSchema),
+  conciseKeys: ISSUE_CONCISE_KEYS,
   route: {
     name: "sequence-annotation-issues",
     method: "GET",
@@ -120,13 +128,15 @@ const listAnnotationIssuesBySequenceTool = defineReadCatalogTool({
 const listAnnotationIssuesByDatasetTool = defineReadCatalogTool({
   name: "list_annotation_issues_by_dataset",
   title: "List annotation issues by dataset",
-  description: "List annotation issues for a specific dataset.",
+  description:
+    "List annotation issues for a specific dataset. Default detail is identity and status. Upstream is an unpaginated list — no cursor is invented client-side.",
   inputSchema: z.object({
     owner: z.string().describe("The dataset owner"),
     datasetSlug: z.string().describe("The dataset slug"),
     sequenceUid: z.string().optional().describe("Filter by sequence UID"),
   }),
   outputSchema: defineListOutputSchema(annotationIssueOutputSchema),
+  conciseKeys: ISSUE_CONCISE_KEYS,
   route: {
     name: "dataset-issues",
     method: "GET",
@@ -141,13 +151,15 @@ const listAnnotationIssuesByDatasetTool = defineReadCatalogTool({
 const listQcToolsTool = defineReadCatalogTool({
   name: "list_qc_tools",
   title: "List QC tools",
-  description: "List available QC annotation tools for a dataset type.",
+  description:
+    "List available QC annotation tools for a dataset type. Default detail is uid, name, and datasetType. Problem catalogs require detail=full. Upstream is an unpaginated list.",
   inputSchema: z.object({
     datasetType: z
       .string()
       .describe("The dataset type (e.g. 'image', 'video', 'lidar')"),
   }),
   outputSchema: defineListOutputSchema(annotationIssueToolOutputSchema),
+  conciseKeys: ["uid", "name", "datasetType"] as const,
   route: {
     name: "qc-available-tools",
     method: "GET",
@@ -162,13 +174,15 @@ const listQcToolsTool = defineReadCatalogTool({
 const getAnnotationIssueMetricsTool = defineReadCatalogTool({
   name: "get_annotation_issue_metrics",
   title: "Get annotation issue metrics",
-  description: "Get annotation issue metrics for a dataset.",
+  description:
+    "Get annotation issue metrics for a dataset. Default detail is the status/priority/severity counts.",
   inputSchema: z.object({
     owner: z.string().describe("The dataset owner"),
     datasetSlug: z.string().describe("The dataset slug"),
     sequenceUid: z.string().optional().describe("Filter by sequence UID"),
   }),
   outputSchema: annotationIssueMetricsOutputSchema,
+  conciseKeys: ["statusCount", "priorityCount", "severityCount"] as const,
   route: {
     name: "dataset-issue-metrics",
     method: "GET",

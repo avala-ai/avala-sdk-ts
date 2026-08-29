@@ -6,6 +6,12 @@ import type {
 import { z } from "zod";
 import type { GetClient } from "./client.js";
 import { sanitizeForOutput } from "./redact.js";
+import {
+  DEFAULT_PAGE_LIMIT,
+  detailInputField,
+  presentReadDetail,
+  resolveReadDetail,
+} from "./readDetail.js";
 
 type AnyZodObject = z.ZodObject;
 
@@ -48,6 +54,21 @@ export interface ReadCatalogToolDefinition<
   inputSchema: InputSchema;
   outputSchema: OutputSchema;
   route: ReadRouteDefinition<InputSchema>;
+  /**
+   * Optional rewrite of the validated REST payload before detail projection.
+   * Used for count-field aliases. Must not be a Zod transform — SDK v2 needs
+   * transform-free output schemas.
+   */
+  normalize?: (value: unknown) => unknown;
+  /**
+   * Keys kept when `detail` is omitted or `concise`.
+   * TODO(payload-lane): fleet.ts and workflows.ts receive `detail` via
+   * withReadDetailInput but do not set conciseKeys (other lane owns those
+   * files). Until they opt in, their default responses stay full.
+   */
+  conciseKeys?: readonly string[];
+  /** Override concise/full presentation after normalize. */
+  project?: (value: unknown, detail: "concise" | "full") => unknown;
 }
 
 export type CompositeRouteReader = (routeName: string) => Promise<unknown>;
@@ -69,6 +90,9 @@ export interface CompositeReadCatalogToolDefinition<
     args: z.infer<InputSchema>,
     read: CompositeRouteReader,
   ) => Promise<unknown>;
+  normalize?: (value: unknown) => unknown;
+  conciseKeys?: readonly string[];
+  project?: (value: unknown, detail: "concise" | "full") => unknown;
 }
 
 export function defineReadCatalogTool<
@@ -98,6 +122,10 @@ export function definePageOutputSchema<ItemSchema extends AnyZodObject>(
       nextCursor: z.string().nullable(),
       previousCursor: z.string().nullable(),
       hasMore: z.boolean(),
+      next_cursor: z.string().nullable().optional(),
+      has_more: z.boolean().optional(),
+      totalCount: z.number().int().nonnegative().nullable().optional(),
+      total_count: z.number().int().nonnegative().nullable().optional(),
     })
     .passthrough();
 }
@@ -112,6 +140,47 @@ export function defineListOutputSchema<ItemSchema extends AnyZodObject>(
   itemSchema: ItemSchema,
 ) {
   return z.object({ items: z.array(itemSchema) }).strip();
+}
+
+/**
+ * Add `detail` to a catalog input schema when the tool did not declare it.
+ * `detail` is MCP-layer projection — it is never mapped onto a REST query.
+ */
+export function withReadDetailInput<InputSchema extends AnyZodObject>(
+  inputSchema: InputSchema,
+): InputSchema {
+  const shape = inputSchema.shape as Record<string, unknown>;
+  if (shape.detail) return inputSchema;
+  return inputSchema.extend({
+    detail: detailInputField,
+  }) as unknown as InputSchema;
+}
+
+/**
+ * Default `limit` only when the route already maps it. Tools whose upstream
+ * cannot paginate must not grow a fake client-side cursor.
+ */
+export function applyReadListDefaults(
+  args: Record<string, unknown>,
+  route: { query?: Partial<Record<string, string>> },
+): Record<string, unknown> {
+  if (!route.query?.limit || args.limit !== undefined) return args;
+  return { ...args, limit: DEFAULT_PAGE_LIMIT };
+}
+
+function presentCatalogResult(
+  value: unknown,
+  args: Record<string, unknown>,
+  definition: {
+    normalize?: (value: unknown) => unknown;
+    conciseKeys?: readonly string[];
+    project?: (value: unknown, detail: "concise" | "full") => unknown;
+  },
+): unknown {
+  const normalized = definition.normalize ? definition.normalize(value) : value;
+  const detail = resolveReadDetail(args);
+  if (definition.project) return definition.project(normalized, detail);
+  return presentReadDetail(normalized, args, definition.conciseKeys);
 }
 
 function encodePathSegment(value: unknown, key: string): string {
@@ -240,24 +309,34 @@ export function registerReadCatalogTool<
   getClient: GetClient,
   definition: ReadCatalogToolDefinition<InputSchema, OutputSchema>,
 ): void {
+  const inputSchema = withReadDetailInput(definition.inputSchema);
   const handler = async (
     args: z.infer<InputSchema>,
   ): Promise<CallToolResult> => {
+    const requestArgs = applyReadListDefaults(
+      args as Record<string, unknown>,
+      definition.route,
+    );
     const raw = await executeCatalogRoute(
       getClient(definition.name).transport,
       definition.route,
-      args,
+      requestArgs,
     );
     const structuredContent = parseSafeStructuredContent(
       definition.outputSchema,
       definition.route.response === "list" ? { items: raw } : raw,
     );
+    const presented = presentCatalogResult(
+      structuredContent,
+      requestArgs,
+      definition,
+    );
     const textContent =
       definition.route.response === "list"
-        ? (structuredContent as { items: Record<string, unknown>[] }).items
-        : structuredContent;
+        ? (presented as { items: Record<string, unknown>[] }).items
+        : presented;
     return {
-      structuredContent: structuredContent as Record<string, unknown>,
+      structuredContent: presented as Record<string, unknown>,
       content: [
         {
           type: "text" as const,
@@ -272,7 +351,7 @@ export function registerReadCatalogTool<
     {
       title: definition.title,
       description: definition.description,
-      inputSchema: definition.inputSchema,
+      inputSchema,
       outputSchema: definition.outputSchema,
       annotations: { title: definition.title, ...READ_ONLY_ANNOTATIONS },
       _meta: {
@@ -305,6 +384,7 @@ export function registerCompositeReadCatalogTool<
   getClient: GetClient,
   definition: CompositeReadCatalogToolDefinition<InputSchema, OutputSchema>,
 ): void {
+  const inputSchema = withReadDetailInput(definition.inputSchema);
   const routes = new Map<string, ReadRouteDefinition<InputSchema>>();
   for (const route of definition.routes) {
     if (routes.has(route.name)) {
@@ -318,6 +398,10 @@ export function registerCompositeReadCatalogTool<
   const handler = async (
     args: z.infer<InputSchema>,
   ): Promise<CallToolResult> => {
+    const requestArgs = applyReadListDefaults(
+      args as Record<string, unknown>,
+      definition.routes[0],
+    );
     const transport = getClient(definition.name).transport;
     const read: CompositeRouteReader = async (routeName) => {
       const route = routes.get(routeName);
@@ -326,18 +410,23 @@ export function registerCompositeReadCatalogTool<
           `Composite catalog tool '${definition.name}' tried to read undeclared route '${routeName}'.`,
         );
       }
-      return executeCatalogRoute(transport, route, args);
+      return executeCatalogRoute(transport, route, requestArgs);
     };
     const structuredContent = parseSafeStructuredContent(
       definition.outputSchema,
-      await definition.execute(args, read),
+      await definition.execute(requestArgs as z.infer<InputSchema>, read),
+    );
+    const presented = presentCatalogResult(
+      structuredContent,
+      requestArgs,
+      definition,
     );
     return {
-      structuredContent: structuredContent as Record<string, unknown>,
+      structuredContent: presented as Record<string, unknown>,
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(structuredContent, null, 2) ?? "{}",
+          text: JSON.stringify(presented, null, 2) ?? "{}",
         },
       ],
     };
@@ -361,7 +450,7 @@ export function registerCompositeReadCatalogTool<
     {
       title: definition.title,
       description: definition.description,
-      inputSchema: definition.inputSchema,
+      inputSchema,
       outputSchema: definition.outputSchema,
       annotations: { title: definition.title, ...READ_ONLY_ANNOTATIONS },
       _meta: meta,
@@ -369,3 +458,5 @@ export function registerCompositeReadCatalogTool<
     handler as unknown as ToolCallback<InputSchema>,
   );
 }
+
+export { resolveReadDetail };

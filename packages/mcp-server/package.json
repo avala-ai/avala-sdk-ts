@@ -18,10 +18,12 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
-    "lint": "tsc --project ../sdk/tsconfig.json --emitDeclarationOnly && tsc --noEmit && tsc --project scripts/tsconfig.json",
+    "lint": "tsc --project ../sdk/tsconfig.json --emitDeclarationOnly && tsc --noEmit && tsc --project scripts/tsconfig.json && tsc --project eval/tsconfig.json",
     "docs:generate": "bun scripts/generate-mcp-docs.ts",
     "docs:check": "bun scripts/generate-mcp-docs.ts --check",
-    "docs:list": "bun scripts/generate-mcp-docs.ts --list"
+    "docs:list": "bun scripts/generate-mcp-docs.ts --list",
+    "eval": "bun eval/runner.ts",
+    "eval:record": "bun eval/runner.ts --live --trials 1 --concurrency 1"
   },
   "dependencies": {
     "@avala-ai/sdk": "workspace:*",
@@ -31,6 +33,8 @@
     "zod": "^4.2.0"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.122.0",
+    "@modelcontextprotocol/client": "^2.0.0",
     "@types/node": "^25.3.0",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",

@@ -228,7 +228,7 @@ describe("workflow tools", () => {
       );
     });
 
-    it("keeps partial fleet results and exposes only safe error summaries", async () => {
+    it("omits the failed part, flags degraded, and leaks nothing", async () => {
       const unsafeError = Object.assign(
         new Error("https://api.example.com/?token=FAKE-not-a-real-token"),
         {
@@ -242,12 +242,34 @@ describe("workflow tools", () => {
 
       const result = await server.getHandler("get_fleet_health")!({});
 
-      expect(result.structuredContent).toEqual({
-        devices: { total: 0, online: 0, offline: 0, maintenance: 0 },
-        alerts: { totalOpen: 0, bySeverity: {} },
-        recordings: { recentCount: 0 },
-        errors: ["alerts: Error (HTTP 503)"],
+      const body = result.structuredContent as Record<string, unknown>;
+
+      // `alerts` FAILED, so it is absent. It used to be reported as
+      // `{ totalOpen: 0, bySeverity: {} }`, which an agent reads as "no open
+      // alerts" — a confident wrong answer from a silent failure.
+      expect(body.alerts).toBeUndefined();
+      expect(body.degraded).toBe(true);
+
+      // `devices` and `recordings` SUCCEEDED and genuinely returned nothing.
+      // A real zero must still be reported as zero, or the fix would trade one
+      // wrong answer for another.
+      expect(body.devices).toEqual({
+        total: 0,
+        online: 0,
+        offline: 0,
+        maintenance: 0,
       });
+      expect(body.recordings).toEqual({ recentCount: 0 });
+
+      const unavailable = body.unavailable as { part: string; status: number; remedy: string }[];
+      expect(unavailable).toHaveLength(1);
+      expect(unavailable[0]!.part).toBe("alerts");
+      expect(unavailable[0]!.status).toBe(503);
+      expect(unavailable[0]!.remedy).toMatch(/Avala-side fault/);
+
+      // Deprecated alias still present for one release.
+      expect(body.errors).toHaveLength(1);
+
       expect(result.content[0]!.text).not.toContain("FAKE-not-a-real-token");
     });
   });

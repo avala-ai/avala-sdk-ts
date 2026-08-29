@@ -19,10 +19,20 @@ const taskOutputSchema = z
   })
   .passthrough();
 
+const TASK_CONCISE_KEYS = [
+  "uid",
+  "name",
+  "type",
+  "status",
+  "project",
+  "updatedAt",
+] as const;
+
 const listTasksTool = defineReadCatalogTool({
   name: "list_tasks",
   title: "List tasks",
-  description: "List tasks with optional filtering by project or status.",
+  description:
+    "List tasks with optional server-side filtering by project or status. Default detail is identity and status.",
   inputSchema: z.object({
     project: z.string().optional().describe("Filter by project UID"),
     status: z.string().optional().describe("Filter by task status"),
@@ -31,13 +41,14 @@ const listTasksTool = defineReadCatalogTool({
       .int()
       .positive()
       .optional()
-      .describe("Maximum number of tasks to return"),
+      .describe("Maximum number of tasks to return. Defaults to 25 when omitted."),
     cursor: z
       .string()
       .optional()
       .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(taskOutputSchema),
+  conciseKeys: TASK_CONCISE_KEYS,
   route: {
     name: "customer-task-list",
     method: "GET",
@@ -57,11 +68,13 @@ const listTasksTool = defineReadCatalogTool({
 const getTaskTool = defineReadCatalogTool({
   name: "get_task",
   title: "Get task",
-  description: "Get detailed information about a specific task.",
+  description:
+    "Get a task. Default detail is identity and status. Use detail=full for the rest of the task record.",
   inputSchema: z.object({
     uid: z.string().describe("The unique identifier (UUID) of the task"),
   }),
   outputSchema: taskOutputSchema,
+  conciseKeys: TASK_CONCISE_KEYS,
   route: {
     name: "customer-task-detail",
     method: "GET",

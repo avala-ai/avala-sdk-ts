@@ -49,23 +49,39 @@ const organizationDetailOutputSchema = z
   })
   .passthrough();
 
+const ORGANIZATION_CONCISE_KEYS = [
+  "uid",
+  "name",
+  "slug",
+  "handle",
+  "plan",
+  "role",
+  "memberCount",
+  "isActive",
+  "updatedAt",
+] as const;
+
 const listOrganizationsTool = defineReadCatalogTool({
   name: "list_organizations",
   title: "List organizations",
-  description: "List all organizations you are a member of.",
+  description:
+    "List organizations you are a member of. Default detail is identity, plan, and membership. Logos and contact fields require detail=full.",
   inputSchema: z.object({
     limit: z
       .number()
       .int()
       .positive()
       .optional()
-      .describe("Maximum number of organizations to return"),
+      .describe(
+        "Maximum number of organizations to return. Defaults to 25 when omitted.",
+      ),
     cursor: z
       .string()
       .optional()
       .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(organizationListOutputSchema),
+  conciseKeys: ORGANIZATION_CONCISE_KEYS,
   route: {
     name: "organization-list-create",
     method: "GET",
@@ -81,11 +97,12 @@ const getOrganizationTool = defineReadCatalogTool({
   name: "get_organization",
   title: "Get organization",
   description:
-    "Get detailed information about a specific organization including member and dataset counts.",
+    "Get an organization. Default detail is identity and counts. Use detail=full for contact fields, domains, and the logo URL.",
   inputSchema: z.object({
     slug: z.string().describe("The slug identifier of the organization"),
   }),
   outputSchema: organizationDetailOutputSchema,
+  conciseKeys: ORGANIZATION_CONCISE_KEYS,
   route: {
     name: "organization-detail",
     method: "GET",

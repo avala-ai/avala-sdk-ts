@@ -28,23 +28,33 @@ const agentDetailOutputSchema = z
   })
   .passthrough();
 
+const AGENT_CONCISE_KEYS = [
+  "uid",
+  "name",
+  "isActive",
+  "project",
+  "updatedAt",
+] as const;
+
 const listAgentsTool = defineReadCatalogTool({
   name: "list_agents",
   title: "List agents",
-  description: "List all automation agents configured in your workspace.",
+  description:
+    "List automation agents. Default detail is identity and status. Callback URLs and execution stats require detail=full.",
   inputSchema: z.object({
     limit: z
       .number()
       .int()
       .positive()
       .optional()
-      .describe("Maximum number of agents to return"),
+      .describe("Maximum number of agents to return. Defaults to 25 when omitted."),
     cursor: z
       .string()
       .optional()
       .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(agentListOutputSchema),
+  conciseKeys: AGENT_CONCISE_KEYS,
   route: {
     name: "agent-list",
     method: "GET",
@@ -59,11 +69,13 @@ const listAgentsTool = defineReadCatalogTool({
 const getAgentTool = defineReadCatalogTool({
   name: "get_agent",
   title: "Get agent",
-  description: "Get detailed information about a specific automation agent.",
+  description:
+    "Get an automation agent. Default detail is identity and status. Use detail=full for callback URL, events, and execution stats.",
   inputSchema: z.object({
     uid: z.string().describe("The unique identifier (UUID) of the agent"),
   }),
   outputSchema: agentDetailOutputSchema,
+  conciseKeys: AGENT_CONCISE_KEYS,
   route: {
     name: "agent-detail",
     method: "GET",

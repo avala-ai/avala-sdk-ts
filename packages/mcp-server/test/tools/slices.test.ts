@@ -75,8 +75,21 @@ describe("slice tools", () => {
       },
     );
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.items[0].slug).toBe("training-set");
-    expect(result.structuredContent).toEqual(mockPage);
+    expect(parsed.items[0]).toMatchObject({
+      uid: "slice-1",
+      slug: "training-set",
+      name: "Training Set",
+      ownerName: "acme",
+      visibility: "private",
+      status: "created",
+      itemCount: 100,
+      assetCount: 100,
+    });
+    expect(parsed.items[0]).not.toHaveProperty("featuredSliceItemUrls");
+    expect(parsed.items[0]).not.toHaveProperty("subSlices");
+    expect(parsed.has_more).toBe(false);
+    expect(parsed.next_cursor).toBeNull();
+    expect(result.structuredContent).toEqual(parsed);
   });
 
   it("list_slices passes owner without optional params", async () => {
@@ -92,7 +105,7 @@ describe("slice tools", () => {
 
     expect(avala.transport.requestPage).toHaveBeenCalledWith(
       "/slices/acme/list/",
-      undefined,
+      { limit: "25" },
     );
   });
 
@@ -106,8 +119,14 @@ describe("slice tools", () => {
       "/slices/acme/training-set/",
     );
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.slug).toBe("training-set");
-    expect(parsed.itemCount).toBe(100);
+    expect(parsed).toMatchObject({
+      uid: "slice-1",
+      slug: "training-set",
+      itemCount: 100,
+      assetCount: 100,
+    });
+    expect(parsed).not.toHaveProperty("featuredSliceItemUrls");
+    expect(parsed).not.toHaveProperty("sourceData");
   });
 
   it("registers both list_slices and get_slice tools", () => {

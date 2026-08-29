@@ -75,11 +75,22 @@ describe("quality tools", () => {
 
     expect(avala.transport.requestPage).toHaveBeenCalledWith(
       "/projects/proj-1/quality-targets/",
-      undefined,
+      { limit: "25" },
     );
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.items[0].name).toBe("Accuracy Target");
-    expect(result.structuredContent).toEqual(mockPage);
+    expect(parsed.items[0]).toMatchObject({
+      uid: "qt-1",
+      name: "Accuracy Target",
+      metric: "acceptance_rate",
+      isBreached: false,
+      lastValue: 0.97,
+      severity: "warning",
+    });
+    expect(parsed.items[0]).not.toHaveProperty("notifyEmails");
+    expect(parsed.items[0]).not.toHaveProperty("notifyWebhook");
+    expect(parsed.has_more).toBe(false);
+    expect(parsed.next_cursor).toBeNull();
+    expect(result.structuredContent).toEqual(parsed);
   });
 
   it("list_quality_targets passes limit and cursor", async () => {
@@ -153,10 +164,24 @@ describe("quality tools", () => {
     expect(avala.transport.requestSingle).toHaveBeenCalledWith(
       "/projects/campaign-1/acceptance/summary/",
     );
-    expect(result.structuredContent).toEqual(summary);
-    expect(JSON.parse(result.content[0].text).agreement.agreementRate).toBe(
-      0.8,
-    );
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed).toEqual({
+      total: 12,
+      reviewed: 10,
+      machineAcceptanceRate: 8 / 12,
+      actualAcceptanceRate: 0.7,
+      agreementRate: 0.8,
+    });
+    expect(parsed).not.toHaveProperty("agreement");
+    expect(parsed).not.toHaveProperty("byDeviceTier");
+    expect(parsed).not.toHaveProperty("topRejectReasons");
+    expect(result.structuredContent).toEqual(parsed);
+
+    const full = await handler({
+      projectUid: "campaign-1",
+      detail: "full",
+    });
+    expect(JSON.parse(full.content[0].text).agreement.agreementRate).toBe(0.8);
   });
 
   it("get_result_acceptance returns the verdict and measured evidence", async () => {
@@ -210,8 +235,20 @@ describe("quality tools", () => {
     expect(avala.transport.requestSingle).toHaveBeenCalledWith(
       `/results/${acceptance.resultUid}/acceptance/`,
     );
-    expect(result.structuredContent).toEqual(acceptance);
-    expect(JSON.parse(result.content[0].text).criteria[0].reason).toBe(
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed).toEqual({
+      resultUid: acceptance.resultUid,
+      machineVerdict: "reject",
+    });
+    expect(parsed).not.toHaveProperty("criteria");
+    expect(parsed).not.toHaveProperty("signals");
+    expect(result.structuredContent).toEqual(parsed);
+
+    const full = await handler({
+      resultUid: acceptance.resultUid,
+      detail: "full",
+    });
+    expect(JSON.parse(full.content[0].text).criteria[0].reason).toBe(
       "hands_not_visible",
     );
   });
@@ -243,8 +280,17 @@ describe("quality tools", () => {
       "/projects/campaign-1/acceptance/coverage/",
       { axes: "subject,device_tier" },
     );
-    expect(result.structuredContent).toEqual(coverage);
-    expect(JSON.parse(result.content[0].text).axes[0].cells[0].count).toBe(2);
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed).toEqual({ totalAccepted: 7 });
+    expect(parsed).not.toHaveProperty("axes");
+    expect(result.structuredContent).toEqual(parsed);
+
+    const full = await handler({
+      projectUid: "campaign-1",
+      axes: "subject,device_tier",
+      detail: "full",
+    });
+    expect(JSON.parse(full.content[0].text).axes[0].cells[0].count).toBe(2);
   });
 
   it("evaluate_quality calls avala.qualityTargets.evaluate with projectUid and returns JSON", async () => {

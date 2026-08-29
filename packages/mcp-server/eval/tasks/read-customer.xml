@@ -1,0 +1,159 @@
+<evaluation>
+  <!--
+    Customer-facing read tasks for the Avala MCP server.
+
+    Written from "11* Agentic Operations, Agent Capabilities" and from how a
+    perception lead, labeling QA lead, or programme manager actually asks.
+    Deliberately NOT written from the server's tool list.
+
+    Rules every task here follows:
+      - read-only and idempotent
+      - independent of every other task
+      - anchored to a closed window or a fixed as-of date so the answer does not drift
+      - multi-hop: a later step needs a fact produced by an earlier one
+      - paraphrased: the target's distinctive vocabulary is kept OUT of the question
+        so the task cannot be solved by keyword search
+
+    GRADEABILITY CONTRACT (read this before writing a scorer):
+      answer        ground truth. Exact-match gradeable.
+      rubric        gradeable NOW by a model grader. Complete on its own.
+      answer-todo   ground truth NOT yet known. The task is NOT gradeable.
+                    Report it as ungradeable/skipped, never as a fail.
+      precondition  a build-time fact to verify before RECORDING (e.g. that a
+                    slug really 404s). NOT ground truth, NOT a grading input,
+                    and NOT a reason to skip. A pair carrying this is gradeable
+                    if it also carries answer or rubric.
+    IDS. Every qa_pair carries a permanent id attribute. Report rows key on the
+    id, never on file order or a hash of the question - both move when a task is
+    inserted or a typo is fixed, which would silently invalidate every
+    cross-iteration comparison. An id is assigned once and never changes: if the
+    wording changes the id stays; if a task is deleted its id is RETIRED, never
+    reused for a different question.
+
+    A pair is runnable if it has answer or rubric AND has no answer-todo.
+    precondition never blocks a run. Unknown elements are ignorable metadata.
+
+    WHY THIS SUITE'S OWN GATES PARSE RATHER THAN PATTERN-MATCH.
+    Four times while building these files, the fast version of a check returned a
+    confident wrong integer. In every case the logic was sound and the substrate
+    was wrong, and not one of them raised an error:
+      1. one element carrying two meanings (ground truth unknown, and verify this
+         before recording) made a CORRECT skip rule discard the two fabrication
+         probes, so the adversarial file silently stopped measuring the thing it
+         exists to measure;
+      2. a bare grep over these files counted tag names out of the header prose:
+         33 rubrics against a real 24, and 2 preconditions invented in a file
+         that contains none, which reports a healthy file as partly ungradeable;
+      3. strip-the-tags-then-grep left the closing tag of every single-line
+         element behind, so category values were counted as prose, giving 33 /
+         49 / 42 hits that were all false;
+      4. grepping a diff for tag names could not distinguish a changed tag from
+         a deleted line that merely mentioned one.
+    Each fix re-created the defect one layer up: the overloaded element broke the
+    skip rule, the note documenting the fix broke the greps, the regex measuring
+    the note broke the same way again. That is precisely the failure the ops
+    rubrics grade an agent on, and the reason the harness counts by parsing the
+    document against known constants, and why a gate here is confirmed by running
+    it rather than by reading it.
+  -->
+
+  <qa_pair id="recon-blocked-most-frames">
+    <category>reconstruction-readiness</category>
+    <question>We are budgeting GPU time for photoreal scene rebuilds. Across every multi-sensor collection this credential can reach, find the recording run that has the most frames but still cannot enter the rebuild stage, and tell me the specific prerequisite it is missing.</question>
+    <why>Requires enumerating collections, filtering to the ones with both a range sensor and cameras, drilling into per-run readiness, ranking by frame count, and then reading the blocking reason off the winner. The words "calibration", "sequence" and "4DGS" are deliberately absent, so keyword search cannot shortcut it.</why>
+    <answer-todo>Run the enumeration by hand against the eval tenant: list every dataset, keep those carrying both point-cloud and image modalities, list each dataset's sequences, and for each sequence read its reconstruction-readiness state and frame count. Record the sequence identifier (uid or name), its parent dataset slug, and the blocker string. Stable because frame counts on a delivered collection do not change; re-verify by confirming the chosen sequence is in a closed/delivered dataset rather than one still ingesting.</answer-todo>
+  </qa_pair>
+
+  <qa_pair id="recon-single-cause-collection">
+    <category>reconstruction-readiness</category>
+    <question>One of our point-cloud collections is unusual: every one of its runs is held back by the same single missing sensor-alignment artifact, rather than by a mix of causes the way the other collections are. Which collection is it, and how many runs does that affect?</question>
+    <why>Multi-hop aggregation. The agent must fan out across all collections, group each collection's per-run blockers, and find the one collection whose blocker set has cardinality one. Tests whether the surface supports a grouped read rather than only per-item lookups.</why>
+    <answer-todo>Compute per-dataset: the set of distinct blocking reasons across its sequences. Select the dataset where that set has exactly one member and that member is an alignment/extrinsics artifact. Answer is the dataset slug plus the sequence count. Verify stability by checking the dataset has no in-flight ingest; a dataset still receiving sequences can change this answer.</answer-todo>
+  </qa_pair>
+
+  <qa_pair id="recon-sibling-collection-diff">
+    <category>reconstruction-readiness</category>
+    <question>A customer is asking why volumetric rebuilds keep failing on one of their collections while a sibling collection recorded by the same vehicle rig goes through fine. Work out what actually differs between the two and explain it in language a programme manager with no perception background can act on.</question>
+    <rubric>
+      A correct answer MUST: (1) identify a specific pair of collections that share a rig or sensor configuration, naming both by slug; (2) state the concrete difference that causes the failure, grounded in data the agent actually retrieved -- e.g. missing intrinsics/extrinsics on one side, missing ego-pose, a sensor stream absent, or frames failing a readiness gate -- not a generic list of possible causes; (3) cite which runs in the failing collection are affected and how many; (4) be written without jargon, or define any term it uses.
+      An answer is WRONG if it: names a cause it did not verify against retrieved data; presents a list of hypotheses instead of a diagnosis; claims the collections are identical without showing what it compared; or asserts a fix without evidence the missing artifact is in fact missing.
+    </rubric>
+    <why>Tests diagnosis rather than lookup: the agent must select a comparison pair itself, then explain a causal difference. This is the shape of a real customer support question.</why>
+  </qa_pair>
+
+  <qa_pair id="accept-agreement-march-window">
+    <category>acceptance-agreement</category>
+    <question>For our egocentric capture programme, take every take submitted between 1 March 2026 and 31 March 2026 inclusive. How often did the automated screen and the human reviewer land on the same call? Give me the agreement rate, and separately the number of takes the automated screen never scored at all.</question>
+    <why>Two-part and adversarially shaped: the second half tests whether the agent distinguishes "machine said no" from "machine never looked", which is the exact failure mode that makes an acceptance rate lie. Requires joining machine verdict to final reviewer verdict over a closed window.</why>
+    <answer-todo>For the capture campaign(s) active in March 2026, pull every submission in the window and record machine verdict and final/adjudicated verdict per submission. Agreement rate = (machine verdict equals final verdict) / (submissions with BOTH a machine verdict and a human ruling). Not-scored count = submissions with no machine verdict row. Do NOT let unruled submissions count as agreement. Stable because the window is closed; re-verify by re-running the count a week later and confirming it is unchanged (if it moves, late scoring is still landing and the window needs to be older).</answer-todo>
+  </qa_pair>
+
+  <qa_pair id="accept-widest-machine-human-gap">
+    <category>acceptance-agreement</category>
+    <question>Across all our capture programmes, one shows the widest gap between what the automated screen passes and what reviewers ultimately keep. Name that programme, and tell me which way the gap runs -- is the machine tougher than our people, or softer?</question>
+    <why>Requires computing a signed disagreement per campaign and ranking, then interpreting the sign. A surface that only returns per-campaign summaries without machine-vs-human breakdown cannot answer the direction half.</why>
+    <answer-todo>Per campaign, compute the count of (machine=accept, human=reject) and (machine=reject, human=accept) over all adjudicated submissions. Gap = total disagreements / adjudicated submissions. Direction = which of the two cells dominates. Answer is the campaign name/uid plus "machine stricter" or "machine more lenient". Verify stability by restricting to campaigns whose submission window has closed.</answer-todo>
+  </qa_pair>
+
+  <qa_pair id="accept-indeterminate-share">
+    <category>acceptance-agreement</category>
+    <question>Take whichever of our capture programmes received the most submissions overall. What share of the automated decisions on it came back as "cannot determine" rather than a clean pass or fail, and what was the most common reason the system could not decide?</question>
+    <why>Three hops: rank campaigns by volume, pull the verdict distribution for the winner, then break the indeterminate bucket down by reason. Tests whether the surface exposes the reason a criterion abstained, not just the verdict.</why>
+    <answer-todo>Identify the campaign with the largest submission count. Over its submissions, compute the fraction whose machine verdict is the indeterminate/quarantine state, then group those by the criterion or reason that could not be measured. Answer is a percentage plus the top reason string. Stable if the campaign is closed; note the percentage in the answer to one decimal place and pin the as-of date used.</answer-todo>
+  </qa_pair>
+
+  <qa_pair id="coverage-thinnest-conditions">
+    <category>coverage-gaps</category>
+    <question>We have budget for one more week of field collection on the egocentric programme. Looking only at material that has actually been kept -- not everything that was handed in -- which two collection conditions are the thinnest right now, and roughly how much more would we need on the thinnest one to bring it level with the middle of the pack?</question>
+    <rubric>
+      A correct answer MUST: (1) name two specific collection conditions (axis values) that are under-represented, with counts; (2) state explicitly that the counts are computed over accepted/kept material only, and not over all submissions; (3) give a quantified gap for the thinnest condition against the median cell, as a count of additional accepted takes; (4) name the campaign the numbers come from.
+      An answer is WRONG if it: counts submissions regardless of outcome (this is the central trap -- quarantined and rejected material must not fill a coverage cell); gives conditions without counts; or presents a ranking without saying what the denominator was.
+    </rubric>
+    <why>The doc's "what should we gather next" capability. The trap is deliberate: coverage computed over all submissions rather than accepted ones reports a cell as filled by material that will never ship.</why>
+  </qa_pair>
+
+  <qa_pair id="coverage-received-vs-counted">
+    <category>coverage-gaps</category>
+    <question>For each of our capture programmes, compare the number of takes handed in against the number that actually count toward our coverage commitments. Which programme has the biggest shortfall between those two numbers, and what is the shortfall?</question>
+    <why>Forces the agent to distinguish two superficially similar counts (received vs. counted) across several campaigns, then rank. Multi-hop and directly exposes whether the surface can separate submission volume from accepted volume.</why>
+    <answer-todo>Per campaign: total submissions, and submissions whose final verdict is accept. Shortfall = difference. Answer is the campaign with the max shortfall plus the two numbers. Anchor to an as-of date and record it; re-verify a week later on closed campaigns only.</answer-todo>
+  </qa_pair>
+
+  <qa_pair id="issues-oldest-severe-triage">
+    <category>annotation-issues</category>
+    <question>Our QA lead needs a triage list for the collection carrying the most labeled frames. Give me the three unresolved problem reports on it that are both most serious and have been sitting open longest -- oldest first -- with how many days each had been open as of 30 June 2026.</question>
+    <why>Four hops: rank collections by labeled volume, pull that collection's problem reports, filter to unresolved, sort by two keys, then compute an age against a pinned date. The pinned as-of date is what makes it stable.</why>
+    <answer-todo>Find the dataset with the highest annotated-frame count. List its annotation issues, keep the unresolved ones created on or before 2026-06-30, sort by severity descending then created-at ascending, take three. Age = 2026-06-30 minus created-at, in whole days. Record issue identifiers, severities, and ages. Stability caveat: if any of the three is later resolved the "unresolved as of 30 June 2026" framing still holds, but the grader must compare against resolution state AS OF that date, not today -- capture the resolved-at timestamps when filling this in so the grader can apply the as-of filter.</answer-todo>
+  </qa_pair>
+
+  <qa_pair id="issues-most-closed-q1">
+    <category>annotation-issues</category>
+    <question>Which of our collections had the most problem reports closed out during the first quarter of 2026? Give the collection and the count, and name the single most common thing those reports were about.</question>
+    <why>Uses closed records, so the answer cannot drift. Requires per-dataset aggregation over a date range plus a grouping on issue type or reason.</why>
+    <answer-todo>Across all datasets, count annotation issues with a resolution timestamp between 2026-01-01 and 2026-03-31 inclusive. Take the max. Then group that dataset's Q1-closed issues by type/category and report the modal one. Fully stable -- closed records in a closed window.</answer-todo>
+  </qa_pair>
+
+  <qa_pair id="issues-concentration-by-run">
+    <category>annotation-issues</category>
+    <question>On the collection with the largest number of open problem reports, are the reports concentrated on a handful of runs or spread evenly? Tell me the concentration and, if they are concentrated, which runs are carrying them.</question>
+    <rubric>
+      A correct answer MUST: (1) name the collection by slug; (2) give a concrete distribution statement -- e.g. the share of open reports carried by the top three runs, or the number of distinct runs affected against the collection's total run count; (3) if concentrated, name the specific runs by identifier; (4) state the as-of date the counts were taken.
+      An answer is WRONG if it: asserts concentration or evenness without a number behind it; lists open reports without grouping them by run; or names runs without saying how many reports each carries.
+    </rubric>
+    <why>Requires a second-level grouping (issues by run within a dataset) that a flat issue list does not provide. Tests whether the agent can construct the aggregate itself when the surface will not.</why>
+  </qa_pair>
+
+  <qa_pair id="quality-furthest-below-target">
+    <category>quality-targets</category>
+    <question>We set our own quality bars per project. Which project is furthest below the bar it set for itself? Give me the project, which measure is failing, the number we asked for, and the number we are getting.</question>
+    <why>Requires enumerating projects, retrieving each project's configured targets AND its achieved values, computing a normalised shortfall so projects with different measures can be ranked against each other, then reporting four coupled facts.</why>
+    <answer-todo>For every project reachable by the credential, pull configured quality targets and current measured values. Shortfall = (target - achieved) / target, so projects with different units are comparable. Report the max. Record project uid/name, metric name, target, achieved, AND the as-of date. Stability caveat: achieved values move as work lands. Pick a project whose work is complete, or pin the question to a closed measurement period and record which period was used when filling this in.</answer-todo>
+  </qa_pair>
+
+  <qa_pair id="quality-shared-guideline-pair">
+    <category>quality-targets</category>
+    <question>Two of our projects run against the same labeling instructions but sit under different organizations. One is clearing every bar it set and the other is missing at least one. Find that pair and tell me exactly which bar separates them.</question>
+    <why>Hardest customer task here: the agent must discover the shared-guideline relationship itself (there is no obvious "find sibling projects" affordance), cross an organization boundary, then diff two target sets. Tests cross-tenant read scoping as much as it tests analysis.</why>
+    <answer-todo>Enumerate projects across every organization the credential can reach. Group by labeling guideline / taxonomy / annotation spec identifier. Find a group of two spanning different organizations where exactly one project has a breached target. Report both project identifiers, the organizations, and the breached metric with target and achieved. If the credential is single-tenant, the correct outcome is an honest statement that only one organization is reachable -- record that in the answer key as the expected behaviour rather than leaving the task unanswerable.</answer-todo>
+  </qa_pair>
+</evaluation>

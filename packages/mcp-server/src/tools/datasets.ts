@@ -5,6 +5,19 @@ import {
   defineReadCatalogTool,
   registerReadCatalogTool,
 } from "../catalog.js";
+import {
+  ASSET_COUNT_DESCRIPTION,
+  DEPRECATED_ITEM_COUNT_ON_DATASET,
+  DEPRECATED_ITEM_COUNT_ON_HEALTH,
+  FRAME_COUNT_DESCRIPTION,
+  SEQUENCE_COUNT_DESCRIPTION,
+  aliasDatasetCounts,
+  aliasDatasetHealthCounts,
+  aliasSequenceCounts,
+  detailInputField,
+  presentReadDetail,
+  resolveReadDetail,
+} from "../readDetail.js";
 import { z } from "zod";
 
 const datasetOutputSchema = z
@@ -12,8 +25,15 @@ const datasetOutputSchema = z
     uid: z.string(),
     name: z.string(),
     slug: z.string(),
-    itemCount: z.number(),
+    isSequence: z.boolean().optional(),
+    sequenceCount: z.number().optional().describe(SEQUENCE_COUNT_DESCRIPTION),
+    assetCount: z.number().optional().describe(ASSET_COUNT_DESCRIPTION),
+    itemCount: z.number().describe(DEPRECATED_ITEM_COUNT_ON_DATASET),
     dataType: z.string().nullable(),
+    status: z.string().nullable().optional(),
+    owner: z.unknown().optional(),
+    ownerName: z.string().nullable().optional(),
+    updatedAt: z.string().nullable().optional(),
   })
   .passthrough();
 
@@ -25,6 +45,7 @@ const sequenceListOutputSchema = z
     status: z.string().nullable(),
     featuredImage: z.string().nullable(),
     numberOfFrames: z.number().nullable(),
+    frameCount: z.number().optional().describe(FRAME_COUNT_DESCRIPTION),
   })
   .passthrough();
 
@@ -67,7 +88,7 @@ const sequenceHealthOutputSchema = z
     uid: z.string(),
     key: z.string().nullable(),
     status: z.string().nullable(),
-    frameCount: z.number(),
+    frameCount: z.number().describe(FRAME_COUNT_DESCRIPTION),
     hasLidarCalibration: z.boolean(),
     hasCameraCalibration: z.boolean(),
   })
@@ -78,9 +99,10 @@ const datasetHealthOutputSchema = z
     datasetUid: z.string(),
     datasetSlug: z.string(),
     datasetStatus: z.string().nullable(),
-    itemCount: z.number(),
-    sequenceCount: z.number(),
-    totalFrames: z.number(),
+    frameCount: z.number().optional().describe(FRAME_COUNT_DESCRIPTION),
+    itemCount: z.number().describe(DEPRECATED_ITEM_COUNT_ON_HEALTH),
+    sequenceCount: z.number().describe(SEQUENCE_COUNT_DESCRIPTION),
+    totalFrames: z.number().describe(FRAME_COUNT_DESCRIPTION),
     s3Prefix: z.string().nullable(),
     gcStoragePrefix: z.string().nullable(),
     lastUpdatedAt: z.string().nullable(),
@@ -214,7 +236,9 @@ const paginationInputSchema = {
     .int()
     .positive()
     .optional()
-    .describe("Maximum number of results to return"),
+    .describe(
+      "Maximum number of results to return. Defaults to 25 when omitted.",
+    ),
   cursor: z
     .string()
     .optional()
@@ -290,13 +314,90 @@ const listCaptureCampaignsInputSchema = z.object({
 const getSequenceInputSchema = z.object(sequenceLocatorSchema);
 const getDatasetHealthInputSchema = z.object(datasetLocatorSchema);
 
+const DATASET_CONCISE_KEYS = [
+  "uid",
+  "name",
+  "slug",
+  "dataType",
+  "isSequence",
+  "sequenceCount",
+  "assetCount",
+  "itemCount",
+  "status",
+  "owner",
+  "ownerName",
+  "updatedAt",
+] as const;
+
+const SEQUENCE_LIST_CONCISE_KEYS = [
+  "uid",
+  "customUuid",
+  "key",
+  "status",
+  "numberOfFrames",
+  "frameCount",
+] as const;
+
+const SEQUENCE_DETAIL_CONCISE_KEYS = [
+  "uid",
+  "key",
+  "status",
+  "datasetUid",
+  "deviceId",
+] as const;
+
+const DATASET_HEALTH_CONCISE_KEYS = [
+  "datasetUid",
+  "datasetSlug",
+  "datasetStatus",
+  "frameCount",
+  "itemCount",
+  "sequenceCount",
+  "totalFrames",
+  "ingestOk",
+  "issues",
+  "lastUpdatedAt",
+] as const;
+
+const CAPTURE_SUBMISSION_CONCISE_KEYS = [
+  "resultUid",
+  "itemUid",
+  "status",
+  "submittedAt",
+  "rejectReason",
+] as const;
+
+function projectCaptureCampaigns(
+  value: unknown,
+  detail: "concise" | "full",
+): unknown {
+  if (detail === "full" || typeof value !== "object" || value === null) {
+    return value;
+  }
+  const record = value as {
+    campaigns?: Record<string, unknown>[];
+    progress?: unknown;
+  };
+  return {
+    campaigns: (record.campaigns ?? []).map((campaign) => ({
+      projectUid: campaign.projectUid,
+      name: campaign.name,
+      status: campaign.status,
+      progress: campaign.progress,
+    })),
+    progress: record.progress,
+  };
+}
+
 const listDatasetsTool = defineReadCatalogTool({
   name: "list_datasets",
   title: "List datasets",
   description:
-    "List all datasets in your workspace with their IDs, names, and asset counts. Supports filtering by data type, name, status, and visibility.",
+    "List datasets in your workspace. Default detail is concise (uid, name, slug, dataType, unit-bearing counts, status, owner, updatedAt). Labels, nested projects, and media URLs require detail=full. Supports server-side filters: data type, name, status, visibility.",
   inputSchema: listDatasetsInputSchema,
   outputSchema: datasetPageOutputSchema,
+  normalize: aliasDatasetCounts,
+  conciseKeys: DATASET_CONCISE_KEYS,
   route: {
     name: "dataset-list",
     method: "GET",
@@ -319,9 +420,11 @@ const getDatasetTool = defineReadCatalogTool({
   name: "get_dataset",
   title: "Get dataset",
   description:
-    "Get detailed information about a specific dataset including its data type and item count.",
+    "Get a dataset. Default detail is concise (identity, unit-bearing counts, status, owner, updatedAt). Use detail=full for labels, nested projects, and media.",
   inputSchema: getDatasetInputSchema,
   outputSchema: datasetOutputSchema,
+  normalize: aliasDatasetCounts,
+  conciseKeys: DATASET_CONCISE_KEYS,
   route: {
     name: "dataset-detail",
     method: "GET",
@@ -336,9 +439,11 @@ const listSequencesTool = defineReadCatalogTool({
   name: "list_sequences",
   title: "List dataset sequences",
   description:
-    "List sequences for a dataset (paginated). Each sequence includes uid, key, status, and frame count.",
+    "List sequences for a dataset (paginated). Each sequence includes uid, key, status, and frame count. Featured images require detail=full.",
   inputSchema: listSequencesInputSchema,
   outputSchema: sequencePageOutputSchema,
+  normalize: aliasSequenceCounts,
+  conciseKeys: SEQUENCE_LIST_CONCISE_KEYS,
   route: {
     name: "dataset-sequence-item-list-by-owner-and-dataset-name",
     method: "GET",
@@ -354,9 +459,10 @@ const getSequenceTool = defineReadCatalogTool({
   name: "get_sequence",
   title: "Get dataset sequence",
   description:
-    "Get a dataset sequence including its frames array (LiDAR JSON metadata for every frame).",
+    "Get a dataset sequence. Default detail is identity and status. Use detail=full for the frames array (LiDAR JSON metadata for every frame) and predefined labels.",
   inputSchema: getSequenceInputSchema,
   outputSchema: sequenceDetailOutputSchema,
+  conciseKeys: SEQUENCE_DETAIL_CONCISE_KEYS,
   route: {
     name: "dataset-sequence-item-detail-by-owner-and-dataset-name",
     method: "GET",
@@ -371,9 +477,11 @@ const getDatasetHealthTool = defineReadCatalogTool({
   name: "get_dataset_health",
   title: "Get dataset health",
   description:
-    "Get a read-only ingest/health snapshot for a dataset: frame totals, per-sequence counts, S3 prefix, ingest_ok flag, and any issues detected. Useful for validating a dataset after upload without opening Mission Control.",
+    "Get a read-only ingest/health snapshot for a dataset: frame totals, sequence count, ingest_ok flag, and any issues detected. Default detail omits the per-sequence array. Useful for validating a dataset after upload without opening Mission Control.",
   inputSchema: getDatasetHealthInputSchema,
   outputSchema: datasetHealthOutputSchema,
+  normalize: aliasDatasetHealthCounts,
+  conciseKeys: DATASET_HEALTH_CONCISE_KEYS,
   route: {
     name: "dataset-health-by-owner-and-name",
     method: "GET",
@@ -388,9 +496,10 @@ const listCaptureSubmissionsTool = defineReadCatalogTool({
   name: "list_capture_submissions",
   title: "List capture submissions",
   description:
-    "List a dataset's Physical AI capture submissions with media metadata, human review state, machine acceptance summary, and campaign task context.",
+    "List a dataset's Physical AI capture submissions. Default detail is result identity and review status. Use detail=full for media metadata, machine acceptance, and campaign task context.",
   inputSchema: listCaptureSubmissionsInputSchema,
   outputSchema: captureSubmissionPageOutputSchema,
+  conciseKeys: CAPTURE_SUBMISSION_CONCISE_KEYS,
   route: {
     name: "dataset-capture-submissions",
     method: "GET",
@@ -406,9 +515,10 @@ const getCaptureSubmissionTool = defineReadCatalogTool({
   name: "get_capture_submission",
   title: "Get capture submission",
   description:
-    "Get one Physical AI capture submission by result ID, including media metadata, reviewer decision, machine acceptance summary, and campaign task context.",
+    "Get one Physical AI capture submission by result ID. Default detail is identity and review status. Use detail=full for media metadata, reviewer decision, machine acceptance, and campaign task context.",
   inputSchema: getCaptureSubmissionInputSchema,
   outputSchema: captureSubmissionOutputSchema,
+  conciseKeys: CAPTURE_SUBMISSION_CONCISE_KEYS,
   route: {
     name: "capture-submission-detail",
     method: "GET",
@@ -423,9 +533,10 @@ const listCaptureCampaignsTool = defineReadCatalogTool({
   name: "list_capture_campaigns",
   title: "List capture campaigns",
   description:
-    "List every Physical AI capture campaign feeding a dataset, including each task description's capture config and progress plus the dataset-level progress roll-up.",
+    "List every Physical AI capture campaign feeding a dataset. Default detail keeps campaign identity and progress roll-up. Use detail=full for capture config and per-task-description instructions. Upstream returns the full campaign set in one payload — it has no cursor; we do not emulate pagination client-side.",
   inputSchema: listCaptureCampaignsInputSchema,
   outputSchema: captureCampaignsOutputSchema,
+  project: projectCaptureCampaigns,
   route: {
     name: "dataset-capture-campaigns",
     method: "GET",
@@ -447,6 +558,9 @@ export const DATASET_READ_CATALOG_TOOLS = [
   listCaptureCampaignsTool,
 ] as const;
 
+const FRAME_CONCISE_KEYS = ["frameIndex", "model", "key"] as const;
+const CALIBRATION_CONCISE_KEYS = ["sequenceUid"] as const;
+
 export function registerDatasetTools(
   server: McpServer,
   getClient: GetClient,
@@ -461,7 +575,7 @@ export function registerDatasetTools(
     "get_frame",
     {
       description:
-        "Get a single frame's LiDAR JSON metadata (camera model, intrinsics, device pose, per-camera rig). Intended for post-ingest validation — diff what you uploaded against what the server sees.",
+        "Get a single frame's LiDAR JSON metadata (camera model, intrinsics, device pose, per-camera rig). Default detail is frameIndex, model, and key. Use detail=full for the complete rig payload. Intended for post-ingest validation — diff what you uploaded against what the server sees.",
       inputSchema: z.object({
         owner: z
           .string()
@@ -473,13 +587,14 @@ export function registerDatasetTools(
           .int()
           .min(0)
           .describe("Zero-based frame index within the sequence"),
+        detail: detailInputField,
       }),
       _meta: {
         "avala.ai/required-scope": "datasets.read",
         "avala.ai/toolset": "sequences",
       },
     },
-    async ({ owner, slug, sequenceUid, frameIdx }) => {
+    async ({ owner, slug, sequenceUid, frameIdx, detail }) => {
       const avala = getClient("get_frame");
       const frame = await avala.datasets.getFrame(
         owner,
@@ -487,11 +602,16 @@ export function registerDatasetTools(
         sequenceUid,
         frameIdx,
       );
+      const presented = presentReadDetail(
+        frame,
+        { detail: resolveReadDetail({ detail }) },
+        FRAME_CONCISE_KEYS,
+      );
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(frame, null, 2),
+            text: JSON.stringify(presented, null, 2),
           },
         ],
       };
@@ -502,31 +622,37 @@ export function registerDatasetTools(
     "get_calibration",
     {
       description:
-        "Get a sequence's canonicalized per-camera rig (position, heading, intrinsics, projection model) derived from frame[0].",
+        "Get a sequence's canonicalized per-camera rig (position, heading, intrinsics, projection model) derived from frame[0]. Default detail is sequenceUid. Use detail=full for the camera array.",
       inputSchema: z.object({
         owner: z
           .string()
           .describe("Dataset owner username, handle, or organization slug"),
         slug: z.string().describe("Dataset slug"),
         sequenceUid: z.string().describe("Sequence UUID"),
+        detail: detailInputField,
       }),
       _meta: {
         "avala.ai/required-scope": "datasets.read",
         "avala.ai/toolset": "sequences",
       },
     },
-    async ({ owner, slug, sequenceUid }) => {
+    async ({ owner, slug, sequenceUid, detail }) => {
       const avala = getClient("get_calibration");
       const calibration = await avala.datasets.getCalibration(
         owner,
         slug,
         sequenceUid,
       );
+      const presented = presentReadDetail(
+        calibration,
+        { detail: resolveReadDetail({ detail }) },
+        CALIBRATION_CONCISE_KEYS,
+      );
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(calibration, null, 2),
+            text: JSON.stringify(presented, null, 2),
           },
         ],
       };

@@ -28,23 +28,35 @@ const storageConfigOutputSchema = z
   })
   .passthrough();
 
+const STORAGE_CONCISE_KEYS = [
+  "uid",
+  "name",
+  "provider",
+  "isVerified",
+  "updatedAt",
+] as const;
+
 const listStorageConfigsTool = defineReadCatalogTool({
   name: "list_storage_configs",
   title: "List storage configurations",
-  description: "List all storage configurations in your workspace.",
+  description:
+    "List storage configurations. Default detail is identity, provider, and verification status. Bucket names and prefixes require detail=full.",
   inputSchema: z.object({
     limit: z
       .number()
       .int()
       .positive()
       .optional()
-      .describe("Maximum number of storage configs to return"),
+      .describe(
+        "Maximum number of storage configs to return. Defaults to 25 when omitted.",
+      ),
     cursor: z
       .string()
       .optional()
       .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(storageConfigOutputSchema),
+  conciseKeys: STORAGE_CONCISE_KEYS,
   route: {
     name: "storage-config-list",
     method: "GET",
@@ -129,10 +141,6 @@ export function registerStorageTools(
     );
   }
 
-  // AVALA-SEC-2026-0010: test_storage_config issues a state-changing POST
-  // (storageConfigs.test -> POST /storage-configs/{uid}/test/), so it must be
-  // gated behind allowMutations like every other write tool. Registering it
-  // unconditionally exposed a mutation surface in read-only mode.
   if (allowMutations) {
     server.registerTool(
       "test_storage_config",

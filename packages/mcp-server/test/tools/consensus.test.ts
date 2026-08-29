@@ -62,9 +62,15 @@ describe("consensus tools", () => {
       "/projects/proj-1/consensus/",
     );
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.meanScore).toBe(0.89);
-    expect(parsed.medianScore).toBe(0.91);
-    expect(result.structuredContent).toEqual(mockSummary);
+    expect(parsed).toEqual({
+      meanScore: 0.89,
+      medianScore: 0.91,
+      totalItems: 10,
+      itemsWithConsensus: 8,
+    });
+    expect(parsed).not.toHaveProperty("scoreDistribution");
+    expect(parsed).not.toHaveProperty("byTaskName");
+    expect(result.structuredContent).toEqual(parsed);
   });
 
   it("compute_consensus calls avala.consensus.compute with projectUid and returns JSON", async () => {

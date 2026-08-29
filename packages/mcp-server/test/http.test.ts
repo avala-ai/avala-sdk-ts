@@ -696,7 +696,7 @@ describe("Streamable HTTP transport", () => {
     expect(datasetClient?.apiKey).toBe(KEY_A);
     expect(datasetClient?.transport.requestPage).toHaveBeenCalledWith(
       "/datasets/",
-      undefined,
+      { limit: "25" },
     );
   });
 
@@ -988,7 +988,7 @@ describe("Streamable HTTP transport", () => {
     for (const client of dataClients) {
       expect(client.transport.requestPage).toHaveBeenCalledWith(
         "/datasets/",
-        undefined,
+        { limit: "25" },
       );
     }
   });

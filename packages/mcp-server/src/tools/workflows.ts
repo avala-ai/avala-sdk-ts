@@ -10,6 +10,12 @@ import {
   FLEET_RECORDING_LIST_ROUTE,
 } from "./fleet.js";
 import { z } from "zod";
+import {
+  describeUnavailable,
+  degradedFieldsSchema,
+  withDegraded,
+  type UnavailablePart,
+} from "../degraded.js";
 
 function settled<T>(result: PromiseSettledResult<T>): T | null {
   return result.status === "fulfilled" ? result.value : null;
@@ -44,17 +50,20 @@ const fleetHealthOutputSchema = z
         maintenance: z.number().int().nonnegative(),
         note: z.string().optional(),
       })
-      .strip(),
+      .strip()
+      .optional(),
     alerts: z
       .object({
         totalOpen: z.number().int().nonnegative(),
         bySeverity: z.record(z.string(), z.number().int().nonnegative()),
       })
-      .strip(),
+      .strip()
+      .optional(),
     recordings: z
       .object({ recentCount: z.number().int().nonnegative() })
-      .strip(),
-    errors: z.array(z.string()).optional(),
+      .strip()
+      .optional(),
+    ...degradedFieldsSchema,
   })
   .strip();
 
@@ -130,26 +139,35 @@ const getFleetHealthTool = defineCompositeReadCatalogTool({
     if (devices.length >= 100)
       deviceSummary.note = "Capped at 100 — actual total may be higher";
 
+    // A failed leg is OMITTED, never defaulted to zero. `total: 0` reads as
+    // "you have no devices"; absence reads as "this was not measured", which
+    // is the truth.
     const summary: {
-      devices: typeof deviceSummary;
-      alerts: { totalOpen: number; bySeverity: Record<string, number> };
-      recordings: { recentCount: number };
-      errors?: string[];
-    } = {
-      devices: deviceSummary,
-      alerts: { totalOpen: alerts.length, bySeverity: alertsBySeverity },
-      recordings: { recentCount: recordings.length },
-    };
+      devices?: typeof deviceSummary;
+      alerts?: { totalOpen: number; bySeverity: Record<string, number> };
+      recordings?: { recentCount: number };
+    } = {};
+    const unavailable: UnavailablePart[] = [];
 
-    const errors: string[] = [];
     if (devicesResult.status === "rejected")
-      errors.push(`devices: ${safeErrorSummary(devicesResult.reason)}`);
+      unavailable.push(describeUnavailable("devices", devicesResult.reason));
+    else summary.devices = deviceSummary;
+
     if (alertsResult.status === "rejected")
-      errors.push(`alerts: ${safeErrorSummary(alertsResult.reason)}`);
+      unavailable.push(describeUnavailable("alerts", alertsResult.reason));
+    else
+      summary.alerts = {
+        totalOpen: alerts.length,
+        bySeverity: alertsBySeverity,
+      };
+
     if (recordingsResult.status === "rejected")
-      errors.push(`recordings: ${safeErrorSummary(recordingsResult.reason)}`);
-    if (errors.length > 0) summary.errors = errors;
-    return summary;
+      unavailable.push(
+        describeUnavailable("recordings", recordingsResult.reason),
+      );
+    else summary.recordings = { recentCount: recordings.length };
+
+    return withDegraded(summary, unavailable);
   },
 });
 
@@ -263,32 +281,44 @@ export function registerWorkflowTools(
         severity: t.severity,
       }));
 
-      const summary: Record<string, unknown> = {
-        project: project
-          ? { uid: project.uid, name: project.name, status: project.status }
-          : null,
-        qualityTargets: {
+      const summary: Record<string, unknown> = {};
+
+      // Omit what failed rather than emitting `null`/`0`. A null `project`
+      // beside a zeroed `qualityTargets` is what made this tool report a
+      // healthy-looking empty shell when the project fetch 403'd.
+      const unavailable: UnavailablePart[] = [];
+      if (projectResult.status === "rejected")
+        unavailable.push(describeUnavailable("project", projectResult.reason));
+      else if (project)
+        summary.project = {
+          uid: project.uid,
+          name: project.name,
+          status: project.status,
+        };
+
+      if (targetsResult.status === "rejected")
+        unavailable.push(
+          describeUnavailable("qualityTargets", targetsResult.reason),
+        );
+      else
+        summary.qualityTargets = {
           total: targets.length,
           breached: targets.filter((t) => t.isBreached).length,
           targets,
-        },
-        consensus: consensus ?? null,
-      };
+        };
 
-      const errors: string[] = [];
-      if (projectResult.status === "rejected")
-        errors.push(`project: ${safeErrorSummary(projectResult.reason)}`);
-      if (targetsResult.status === "rejected")
-        errors.push(
-          `qualityTargets: ${safeErrorSummary(targetsResult.reason)}`,
-        );
       if (consensusResult.status === "rejected")
-        errors.push(`consensus: ${safeErrorSummary(consensusResult.reason)}`);
-      if (errors.length > 0) summary.errors = errors;
+        unavailable.push(
+          describeUnavailable("consensus", consensusResult.reason),
+        );
+      else if (consensus) summary.consensus = consensus;
 
       return {
         content: [
-          { type: "text" as const, text: JSON.stringify(summary, null, 2) },
+          {
+            type: "text" as const,
+            text: JSON.stringify(withDegraded(summary, unavailable), null, 2),
+          },
         ],
       };
     },
@@ -320,47 +350,64 @@ export function registerWorkflowTools(
           avala.exports.list({ limit: 5 }),
         ]);
 
-      const summary: Record<string, unknown> = {
-        organizations: (settled(orgsResult)?.items ?? []).map((o) => ({
+      const summary: Record<string, unknown> = {};
+
+      // `recentProjects: []` beside a buried 403 is the exact shape that made
+      // an agent report "you have no projects" to a user with 100 of them.
+      // A part we could not read is absent and named.
+      const unavailable: UnavailablePart[] = [];
+      if (orgsResult.status === "rejected")
+        unavailable.push(
+          describeUnavailable("organizations", orgsResult.reason),
+        );
+      else
+        summary.organizations = (settled(orgsResult)?.items ?? []).map((o) => ({
           uid: o.uid,
           name: o.name,
           slug: o.slug,
           memberCount: o.memberCount,
           datasetCount: o.datasetCount,
           projectCount: o.projectCount,
-        })),
-        recentDatasets: (settled(datasetsResult)?.items ?? []).map((d) => ({
-          uid: d.uid,
-          name: d.name,
-          dataType: d.dataType,
-          itemCount: d.itemCount,
-        })),
-        recentProjects: (settled(projectsResult)?.items ?? []).map((p) => ({
-          uid: p.uid,
-          name: p.name,
-          status: p.status,
-        })),
-        recentExports: (settled(exportsResult)?.items ?? []).map((e) => ({
-          uid: e.uid,
-          status: e.status,
-          createdAt: e.createdAt,
-        })),
-      };
+        }));
 
-      const errors: string[] = [];
-      if (orgsResult.status === "rejected")
-        errors.push(`organizations: ${safeErrorSummary(orgsResult.reason)}`);
       if (datasetsResult.status === "rejected")
-        errors.push(`datasets: ${safeErrorSummary(datasetsResult.reason)}`);
+        unavailable.push(
+          describeUnavailable("recentDatasets", datasetsResult.reason),
+        );
+      else
+        summary.recentDatasets = (settled(datasetsResult)?.items ?? []).map(
+          (d) => ({
+            uid: d.uid,
+            name: d.name,
+            dataType: d.dataType,
+            itemCount: d.itemCount,
+          }),
+        );
+
       if (projectsResult.status === "rejected")
-        errors.push(`projects: ${safeErrorSummary(projectsResult.reason)}`);
+        unavailable.push(
+          describeUnavailable("recentProjects", projectsResult.reason),
+        );
+      else
+        summary.recentProjects = (settled(projectsResult)?.items ?? []).map(
+          (p) => ({ uid: p.uid, name: p.name, status: p.status }),
+        );
+
       if (exportsResult.status === "rejected")
-        errors.push(`exports: ${safeErrorSummary(exportsResult.reason)}`);
-      if (errors.length > 0) summary.errors = errors;
+        unavailable.push(
+          describeUnavailable("recentExports", exportsResult.reason),
+        );
+      else
+        summary.recentExports = (settled(exportsResult)?.items ?? []).map(
+          (e) => ({ uid: e.uid, status: e.status, createdAt: e.createdAt }),
+        );
 
       return {
         content: [
-          { type: "text" as const, text: JSON.stringify(summary, null, 2) },
+          {
+            type: "text" as const,
+            text: JSON.stringify(withDegraded(summary, unavailable), null, 2),
+          },
         ],
       };
     },

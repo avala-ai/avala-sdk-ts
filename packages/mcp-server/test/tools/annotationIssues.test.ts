@@ -152,9 +152,28 @@ describe("annotation issue tools", () => {
         sequence_uid: "seq-001",
       },
     );
-    expect(sequenceResult.structuredContent).toEqual({ items: [ISSUE] });
-    expect(datasetResult.structuredContent).toEqual({ items: [ISSUE] });
-    expect(JSON.parse(sequenceResult.content[0]!.text)).toEqual([ISSUE]);
+    const conciseIssue = {
+      uid: "issue-001",
+      status: "open",
+      priority: "high",
+      severity: "moderate",
+      sequenceUid: "seq-001",
+    };
+    expect(sequenceResult.structuredContent).toEqual({ items: [conciseIssue] });
+    expect(datasetResult.structuredContent).toEqual({ items: [conciseIssue] });
+    expect(sequenceResult.structuredContent).not.toHaveProperty("hasMore");
+    expect(sequenceResult.structuredContent).not.toHaveProperty("nextCursor");
+    expect(datasetResult.structuredContent).not.toHaveProperty("has_more");
+    expect(datasetResult.structuredContent).not.toHaveProperty("next_cursor");
+    expect(JSON.parse(sequenceResult.content[0]!.text)).toEqual([conciseIssue]);
+    expect(
+      (sequenceResult.structuredContent as { items: Record<string, unknown>[] })
+        .items[0],
+    ).not.toHaveProperty("coordinates");
+    expect(
+      (sequenceResult.structuredContent as { items: Record<string, unknown>[] })
+        .items[0],
+    ).not.toHaveProperty("reporter");
   });
 
   it("dispatches the QC tool list with its dataset type", async () => {
@@ -166,8 +185,19 @@ describe("annotation issue tools", () => {
       "/qc-available-tools/",
       { dataset_type: "lidar" },
     );
-    expect(result.structuredContent).toEqual({ items: [QC_TOOL] });
-    expect(JSON.parse(result.content[0]!.text)).toEqual([QC_TOOL]);
+    const conciseTool = {
+      uid: "tool-001",
+      name: "Cuboid",
+      datasetType: "lidar",
+    };
+    expect(result.structuredContent).toEqual({ items: [conciseTool] });
+    expect(result.structuredContent).not.toHaveProperty("hasMore");
+    expect(result.structuredContent).not.toHaveProperty("nextCursor");
+    expect(JSON.parse(result.content[0]!.text)).toEqual([conciseTool]);
+    expect(
+      (result.structuredContent as { items: Record<string, unknown>[] })
+        .items[0],
+    ).not.toHaveProperty("problems");
   });
 
   it("strips unknown issue fields and redacts credential-like query parameters", async () => {
@@ -184,7 +214,7 @@ describe("annotation issue tools", () => {
 
     const result = await server.getHandler(
       "list_annotation_issues_by_sequence",
-    )!({ sequenceUid: "seq-001" });
+    )!({ sequenceUid: "seq-001", detail: "full" });
     const item = (
       result.structuredContent as { items: Record<string, unknown>[] }
     ).items[0]!;
@@ -210,8 +240,19 @@ describe("annotation issue tools", () => {
         sequence_uid: "seq-001",
       },
     );
-    expect(result.structuredContent).toEqual(METRICS);
-    expect(JSON.parse(result.content[0]!.text)).toEqual(METRICS);
+    const conciseMetrics = {
+      statusCount: { open: 5 },
+      priorityCount: { high: 3, medium: 2 },
+      severityCount: { critical: 1, moderate: 4 },
+    };
+    expect(result.structuredContent).toEqual(conciseMetrics);
+    expect(result.structuredContent).not.toHaveProperty(
+      "objectCountByAnnotationIssueProblemUid",
+    );
+    expect(result.structuredContent).not.toHaveProperty(
+      "meanSecondsCloseTimeAll",
+    );
+    expect(JSON.parse(result.content[0]!.text)).toEqual(conciseMetrics);
   });
 
   it("redacts credential-like values from metrics aggregation records", async () => {
@@ -229,6 +270,7 @@ describe("annotation issue tools", () => {
     const result = await server.getHandler("get_annotation_issue_metrics")!({
       owner: "acme",
       datasetSlug: "warehouse",
+      detail: "full",
     });
     const records = (result.structuredContent as typeof METRICS)
       .objectCountByAnnotationIssueProblemUid;

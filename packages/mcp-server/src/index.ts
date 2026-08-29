@@ -21,11 +21,20 @@ if (!allowMutations) {
 // stdio mode: long-lived clients keyed by exact MCP tool name, all built from
 // the environment credential. This preserves the same per-tool REST metadata
 // as hosted mode without sharing mutable request state.
+// `AVALA_BASE_URL` is honoured here for parity with the hosted entry
+// (`src/http.ts`), which has always read it. Without it the stdio binary can
+// only ever talk to production, so neither local development against a dev API
+// nor the eval harness — which points the real binary at a local cassette
+// server — can exercise this process at all. The SDK still enforces the
+// https-unless-localhost rule in `resolveBaseUrl`, so this widens the
+// destination only to where that guard already allows.
+const baseUrl = process.env.AVALA_BASE_URL;
+
 const clients = new Map<string, Avala>();
 const getClient = (clientName: string): Avala => {
   const existing = clients.get(clientName);
   if (existing) return existing;
-  const client = new Avala({ apiKey, clientName });
+  const client = new Avala({ apiKey, clientName, ...(baseUrl ? { baseUrl } : {}) });
   clients.set(clientName, client);
   return client;
 };

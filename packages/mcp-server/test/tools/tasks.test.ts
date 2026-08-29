@@ -63,13 +63,22 @@ describe("task tools", () => {
     const handler = server.getHandler("list_tasks")!;
     const result = await handler({});
 
-    expect(avala.transport.requestPage).toHaveBeenCalledWith(
-      "/tasks/",
-      undefined,
-    );
+    expect(avala.transport.requestPage).toHaveBeenCalledWith("/tasks/", {
+      limit: "25",
+    });
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.items[0].uid).toBe("task-1");
-    expect(result.structuredContent).toEqual(mockPage);
+    expect(parsed.items[0]).toMatchObject({
+      uid: "task-1",
+      type: "image_classification",
+      name: "Review frame",
+      status: "active",
+      project: "proj-1",
+      updatedAt: "2025-01-02T00:00:00Z",
+    });
+    expect(parsed.items[0]).not.toHaveProperty("createdAt");
+    expect(parsed.has_more).toBe(false);
+    expect(parsed.next_cursor).toBeNull();
+    expect(result.structuredContent).toEqual(parsed);
   });
 
   it("list_tasks passes project, status, limit, and cursor", async () => {

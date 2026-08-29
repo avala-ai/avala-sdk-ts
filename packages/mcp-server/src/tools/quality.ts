@@ -145,10 +145,35 @@ const resultAcceptanceOutputSchema = z
   })
   .passthrough();
 
+const QUALITY_TARGET_CONCISE_KEYS = [
+  "uid",
+  "name",
+  "metric",
+  "isBreached",
+  "lastValue",
+  "severity",
+] as const;
+
+const RESULT_ACCEPTANCE_CONCISE_KEYS = [
+  "resultUid",
+  "machineVerdict",
+] as const;
+
+const ACCEPTANCE_SUMMARY_CONCISE_KEYS = [
+  "total",
+  "reviewed",
+  "machineAcceptanceRate",
+  "actualAcceptanceRate",
+  "agreementRate",
+] as const;
+
+const ACCEPTANCE_COVERAGE_CONCISE_KEYS = ["totalAccepted"] as const;
+
 const listQualityTargetsTool = defineReadCatalogTool({
   name: "list_quality_targets",
   title: "List quality targets",
-  description: "List quality targets configured for a specific project.",
+  description:
+    "List quality targets for a project. Default detail is identity, metric, and breach state. Notification lists require detail=full.",
   inputSchema: z.object({
     projectUid: z
       .string()
@@ -158,13 +183,16 @@ const listQualityTargetsTool = defineReadCatalogTool({
       .int()
       .positive()
       .optional()
-      .describe("Maximum number of quality targets to return"),
+      .describe(
+        "Maximum number of quality targets to return. Defaults to 25 when omitted.",
+      ),
     cursor: z
       .string()
       .optional()
       .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(qualityTargetOutputSchema),
+  conciseKeys: QUALITY_TARGET_CONCISE_KEYS,
   route: {
     name: "quality-targets-list",
     method: "GET",
@@ -180,13 +208,14 @@ const getCampaignAcceptanceSummaryTool = defineReadCatalogTool({
   name: "get_campaign_acceptance_summary",
   title: "Get campaign acceptance summary",
   description:
-    "Get a capture campaign's machine and reviewer acceptance rates, agreement, device-tier and operator breakdowns, and top rejection reasons.",
+    "Get a capture campaign's acceptance rates. Default detail is headline rates. Breakdowns require detail=full.",
   inputSchema: z.object({
     projectUid: z
       .string()
       .describe("The unique identifier (UUID) of the campaign project"),
   }),
   outputSchema: acceptanceSummaryOutputSchema,
+  conciseKeys: ACCEPTANCE_SUMMARY_CONCISE_KEYS,
   route: {
     name: "campaign-acceptance-summary",
     method: "GET",
@@ -201,13 +230,14 @@ const getResultAcceptanceTool = defineReadCatalogTool({
   name: "get_result_acceptance",
   title: "Get capture acceptance verdict",
   description:
-    "Get the machine acceptance verdict for one capture submission, including criterion outcomes, blocking reasons, unmeasured checks, and the measured signals behind the decision.",
+    "Get the machine acceptance verdict for one capture submission. Default detail is resultUid and verdict. Criteria and signals require detail=full.",
   inputSchema: z.object({
     resultUid: z
       .string()
       .describe("The unique identifier (UUID) of the capture result"),
   }),
   outputSchema: resultAcceptanceOutputSchema,
+  conciseKeys: RESULT_ACCEPTANCE_CONCISE_KEYS,
   route: {
     name: "result-acceptance",
     method: "GET",
@@ -222,7 +252,7 @@ const getCampaignAcceptanceCoverageTool = defineReadCatalogTool({
   name: "get_campaign_acceptance_coverage",
   title: "Get campaign acceptance coverage",
   description:
-    "Get under-covered values and unfilled counts for each axis across reviewer-accepted captures in a campaign.",
+    "Get under-covered values across reviewer-accepted captures. Default detail is totalAccepted. Axis cells require detail=full.",
   inputSchema: z.object({
     projectUid: z
       .string()
@@ -235,6 +265,7 @@ const getCampaignAcceptanceCoverageTool = defineReadCatalogTool({
       ),
   }),
   outputSchema: acceptanceCoverageOutputSchema,
+  conciseKeys: ACCEPTANCE_COVERAGE_CONCISE_KEYS,
   route: {
     name: "campaign-acceptance-coverage",
     method: "GET",
