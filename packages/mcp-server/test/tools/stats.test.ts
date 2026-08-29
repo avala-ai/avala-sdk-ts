@@ -22,7 +22,7 @@ function createMockServer() {
 function createMockAvala() {
   return {
     datasets: { list: vi.fn(), get: vi.fn() },
-    projects: { list: vi.fn(), get: vi.fn() },
+    projects: { list: vi.fn(), get: vi.fn(), listMine: vi.fn(), getMine: vi.fn() },
     exports: { list: vi.fn(), get: vi.fn(), create: vi.fn() },
     tasks: { list: vi.fn(), get: vi.fn() },
   };
@@ -38,12 +38,12 @@ describe("stats tools", () => {
     registerStatsTools(server as never, (() => avala) as never);
   });
 
-  it("get_workspace_stats calls datasets.list, projects.list, and exports.list", async () => {
+  it("get_workspace_stats probes datasets.list, projects.listMine, and exports.list", async () => {
     avala.datasets.list.mockResolvedValue({
       items: [{ uid: "ds-1" }],
       hasMore: true,
     });
-    avala.projects.list.mockResolvedValue({
+    avala.projects.listMine.mockResolvedValue({
       items: [{ uid: "proj-1" }],
       hasMore: false,
     });
@@ -56,7 +56,8 @@ describe("stats tools", () => {
     const result = await handler({});
 
     expect(avala.datasets.list).toHaveBeenCalledWith({ limit: 1 });
-    expect(avala.projects.list).toHaveBeenCalledWith({ limit: 1 });
+    expect(avala.projects.listMine).toHaveBeenCalledWith({ limit: 1 });
+    expect(avala.projects.list).not.toHaveBeenCalled();
     expect(avala.exports.list).toHaveBeenCalledWith({ limit: 1 });
 
     const parsed = JSON.parse(result.content[0].text);
@@ -76,7 +77,7 @@ describe("stats tools", () => {
       items: [{ uid: "ds-1" }],
       hasMore: true,
     });
-    avala.projects.list.mockResolvedValue({
+    avala.projects.listMine.mockResolvedValue({
       items: [{ uid: "proj-1" }],
       hasMore: true,
     });
@@ -98,7 +99,7 @@ describe("stats tools", () => {
 
   it("handles empty workspace", async () => {
     avala.datasets.list.mockResolvedValue({ items: [], hasMore: false });
-    avala.projects.list.mockResolvedValue({ items: [], hasMore: false });
+    avala.projects.listMine.mockResolvedValue({ items: [], hasMore: false });
     avala.exports.list.mockResolvedValue({ items: [], hasMore: false });
 
     const handler = server.getHandler("get_workspace_stats")!;

@@ -261,7 +261,10 @@ export function registerWorkflowTools(
       const avala = getClient("get_project_quality_summary");
       const [projectResult, targetsResult, consensusResult] =
         await Promise.allSettled([
-          avala.projects.get(projectUid),
+          // `getMine`, not `get`: `/projects/{uid}/` is the staff-only
+          // ProjectViewSet and 403s for a customer credential, which is what
+          // made this whole summary return an empty shell.
+          avala.projects.getMine(projectUid),
           avala.qualityTargets.list(projectUid, { limit: 50 }),
           avala.consensus.getSummary(projectUid),
         ]);
@@ -346,7 +349,10 @@ export function registerWorkflowTools(
         await Promise.allSettled([
           avala.organizations.list({ limit: 10 }),
           avala.datasets.list({ limit: 5 }),
-          avala.projects.list({ limit: 5 }),
+          // `listMine`, not `list`. The staff route 403s for a customer
+          // credential, which is why this field used to render as an empty
+          // array beside a buried error.
+          avala.projects.listMine({ limit: 5 }),
           avala.exports.list({ limit: 5 }),
         ]);
 

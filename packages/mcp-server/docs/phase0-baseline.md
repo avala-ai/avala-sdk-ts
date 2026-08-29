@@ -92,10 +92,15 @@ user-scoped route, and if a global project listing is genuinely wanted, register
 it as a *staff* tool, which is permissible precisely because `ProjectViewSet`
 composes the strong staff permission.
 
-Unverified from here, and worth confirming in the same pass: whether
-`list_capture_campaigns` / `list_capture_submissions` / `get_workspace_stats`
-fail for the same reason. They are named in §6.1 alongside projects and are all
-hand-written, unscoped tools.
+**Status 2026-08-29.** `list_projects` / `get_project` now call `listMine` /
+`getMine` (#15579). The same staff `projects.list` leftover lived in
+`get_workspace_stats` (this lane) and still lives in `get_workspace_overview`
+(`workflows.ts`, other lane — do not edit). Capture campaign and submission
+tools are not this defect: they hit dataset-nested routes
+(`/datasets/{uid}/capture-campaigns/`, `/datasets/{uid}/capture-submissions/`),
+not `ProjectViewSet`. Quality tools take a `projectUid` and call nested
+`/projects/{projectUid}/…` routes, which is a different permission question
+than the staff list.
 
 ## 4. Payload measurement is deferred to the harness, deliberately
 

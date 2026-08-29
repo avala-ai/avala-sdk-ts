@@ -17,7 +17,7 @@ export function registerStatsTools(
     "get_workspace_stats",
     {
       description:
-        "Get a summary of workspace usage including dataset count and project count. Already a small payload; detail is accepted for consistency with other get tools.",
+        "Get a summary of workspace usage including dataset count and project count. Project count is the caller's own scope via /users/me/projects/, not every project on the instance. Already a small payload; detail is accepted for consistency with other get tools.",
       inputSchema: z.object({
         detail: detailInputField,
       }),
@@ -34,7 +34,9 @@ export function registerStatsTools(
       const avala = getClient("get_workspace_stats");
       const [datasets, projects, exports] = await Promise.all([
         avala.datasets.list({ limit: 1 }),
-        avala.projects.list({ limit: 1 }),
+        // `listMine`, not `list`: `/projects/` is staff-only and 403s for a
+        // customer credential. See ProjectsResource for both routes.
+        avala.projects.listMine({ limit: 1 }),
         avala.exports.list({ limit: 1 }),
       ]);
 

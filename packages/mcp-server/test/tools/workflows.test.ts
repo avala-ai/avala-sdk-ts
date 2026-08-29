@@ -36,6 +36,8 @@ function createMockAvala() {
     projects: {
       list: vi.fn(),
       get: vi.fn(),
+      listMine: vi.fn(),
+      getMine: vi.fn(),
     },
     exports: {
       list: vi.fn(),
@@ -280,7 +282,7 @@ describe("workflow tools", () => {
     });
 
     it("returns combined project, quality targets, and consensus data", async () => {
-      avala.projects.get.mockResolvedValue({
+      avala.projects.getMine.mockResolvedValue({
         uid: "proj-1",
         name: "My Project",
         status: "active",
@@ -334,6 +336,41 @@ describe("workflow tools", () => {
     });
   });
 
+  describe("composites read the customer project route", () => {
+    // Pinned because the tool-level fix for this was silently reverted twice
+    // by branches that merged cleanly. A mocked `projects.list` passes either
+    // way, so without an explicit route assertion the regression is invisible
+    // in tests and appears only as a 403 in production.
+    beforeEach(() => {
+      registerWorkflowTools(server as never, (() => avala) as never, false);
+    });
+
+    it("get_workspace_overview calls listMine, never the staff list", async () => {
+      avala.organizations.list.mockResolvedValue({ items: [] });
+      avala.datasets.list.mockResolvedValue({ items: [] });
+      avala.projects.listMine.mockResolvedValue({ items: [] });
+      avala.exports.list.mockResolvedValue({ items: [] });
+
+      await server.getHandler("get_workspace_overview")!({});
+
+      expect(avala.projects.listMine).toHaveBeenCalled();
+      expect(avala.projects.list).not.toHaveBeenCalled();
+    });
+
+    it("get_project_quality_summary calls getMine, never the staff get", async () => {
+      avala.projects.getMine.mockResolvedValue({ uid: "p1", name: "P" });
+      avala.qualityTargets.list.mockResolvedValue({ items: [] });
+      avala.consensus.getSummary.mockResolvedValue({});
+
+      await server.getHandler("get_project_quality_summary")!({
+        projectUid: "p1",
+      });
+
+      expect(avala.projects.getMine).toHaveBeenCalled();
+      expect(avala.projects.get).not.toHaveBeenCalled();
+    });
+  });
+
   describe("get_workspace_overview", () => {
     beforeEach(() => {
       registerWorkflowTools(server as never, (() => avala) as never, false);
@@ -361,7 +398,7 @@ describe("workflow tools", () => {
         nextCursor: null,
         hasMore: false,
       });
-      avala.projects.list.mockResolvedValue({
+      avala.projects.listMine.mockResolvedValue({
         items: [{ uid: "proj-1", name: "Detection", status: "active" }],
         nextCursor: null,
         hasMore: false,
