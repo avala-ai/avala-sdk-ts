@@ -294,16 +294,26 @@ export function aliasDatasetCounts(value: unknown): unknown {
 }
 
 /**
- * Dataset health `itemCount` is `dataset.item_count` (denormalized item /
- * frame counter) sitting next to `sequenceCount`. Verified in
- * `DatasetHealthView` (`api_datasets.py`): `"item_count": dataset.item_count`.
- * Rename to `frameCount`; keep `itemCount` as a deprecated alias.
+ * Dataset health `itemCount` is `dataset.item_count` sitting next to
+ * `sequenceCount`. Verified in `DatasetHealthView` (`api_datasets.py`):
+ * `"item_count": dataset.item_count`. Its unit depends on dataset shape:
+ * sequence datasets store frames, while non-sequence datasets store assets.
+ * Add the matching unit-bearing alias; keep `itemCount` for compatibility.
  */
 export function aliasDatasetHealthCounts(value: unknown): unknown {
   const record = asRecord(value);
   if (!record) return value;
-  if (typeof record.itemCount === "number" && typeof record.frameCount !== "number") {
-    record.frameCount = record.itemCount;
+  if (typeof record.itemCount === "number") {
+    if (
+      typeof record.sequenceCount === "number" &&
+      record.sequenceCount === 0
+    ) {
+      if (typeof record.assetCount !== "number") {
+        record.assetCount = record.itemCount;
+      }
+    } else if (typeof record.frameCount !== "number") {
+      record.frameCount = record.itemCount;
+    }
   }
   if (Array.isArray(record.sequences)) {
     for (const sequence of record.sequences) {
@@ -356,6 +366,6 @@ export const ASSET_COUNT_DESCRIPTION =
 export const DEPRECATED_ITEM_COUNT_ON_DATASET =
   "Deprecated alias of sequenceCount when isSequence is true, otherwise of assetCount. Prefer the unit-bearing name. Kept for one release so existing clients keep working.";
 export const DEPRECATED_ITEM_COUNT_ON_HEALTH =
-  "Deprecated alias of frameCount. Number of frames (dataset items) stored on the dataset row. Prefer frameCount. Kept for one release so existing clients keep working.";
+  "Deprecated shape-dependent count. It aliases frameCount when sequenceCount is positive and assetCount when sequenceCount is zero. Prefer totalFrames for live sequence frames or assetCount for non-sequence media. Kept for one release so existing clients keep working.";
 export const DEPRECATED_ITEM_COUNT_ON_SLICE =
   "Deprecated alias of assetCount. Number of assets (dataset items) in this slice. Prefer assetCount. Kept for one release so existing clients keep working.";

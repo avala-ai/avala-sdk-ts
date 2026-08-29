@@ -6,14 +6,14 @@ deliberately not a table of zeros — a report full of zeros reads like a result
 `make eval` overwrites this file with the real numbers on the first run that
 completes.
 
-## Task set (verified against `origin/feat/mcp-eval-tasks` @ `6fab8df6db`)
+## Task set (parsed from the committed XML and pinned by `test/evalTasks.test.ts`)
 
 | file | pairs | gradeable | ungradeable |
 |---|---|---|---|
 | `adversarial.xml` | 9 | 7 | 2 |
-| `read-customer.xml` | 13 | 3 | 10 |
+| `read-customer.xml` | 14 | 4 | 10 |
 | `read-ops.xml` | 14 | 14 | 0 |
-| **total** | **36** | **24** | **12** |
+| **total** | **37** | **25** | **12** |
 
 Gradeable = has `<answer>` or `<rubric>` and no `<answer-todo>`.
 `<precondition>` never blocks a run. Pinned by `test/evalTasks.test.ts`.

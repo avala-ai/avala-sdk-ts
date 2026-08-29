@@ -12,6 +12,7 @@
  *   bun scripts/tool-inventory.ts --json     # machine-readable
  */
 import { TOOL_REGISTRARS } from "../src/server.js";
+import { collectRestMetadata } from "./tool-inventory-metadata.js";
 
 interface Captured {
   name: string;
@@ -24,6 +25,7 @@ interface Captured {
   toolset: string | null;
   restRoute: string | null;
   restMethod: string | null;
+  restUpstream: string | null;
   viaCatalog: boolean;
   handlerStringify: "safeStringify" | "raw JSON.stringify" | "catalog" | "other";
 }
@@ -48,17 +50,8 @@ function collect(allowMutations: boolean): Map<string, Captured> {
         meta["avala.ai/rest-route"] ||
           (Array.isArray(restRoutes) && restRoutes.length > 0),
       );
-      const restRoute =
-        (meta["avala.ai/rest-route"] as string | undefined) ??
-        (Array.isArray(restRoutes) && typeof restRoutes[0] === "string"
-          ? restRoutes[0]
-          : null);
-      const restMethods = meta["avala.ai/rest-methods"];
-      const restMethod =
-        (meta["avala.ai/rest-method"] as string | undefined) ??
-        (Array.isArray(restMethods) && typeof restMethods[0] === "string"
-          ? restMethods[0]
-          : null);
+      const { restRoute, restMethod, restUpstream } =
+        collectRestMetadata(meta);
       out.set(name, {
         name,
         category: registrar.category,
@@ -70,6 +63,7 @@ function collect(allowMutations: boolean): Map<string, Captured> {
         toolset: (meta["avala.ai/toolset"] as string) ?? null,
         restRoute,
         restMethod,
+        restUpstream,
         viaCatalog,
         handlerStringify: viaCatalog
           ? "catalog"
@@ -110,7 +104,7 @@ if (process.argv.includes("--json")) {
   console.log(`|---|---|---|---|---|---|---|---|`);
   for (const t of all) {
     console.log(
-      `| \`${t.name}\` | ${t.isMutation ? "mutation" : "read"} | ${t.restRoute ? `\`${t.restMethod} ${t.restRoute}\`` : "_hand-written_"} ` +
+      `| \`${t.name}\` | ${t.isMutation ? "mutation" : "read"} | ${t.restUpstream ? `\`${t.restUpstream}\`` : "_hand-written_"} ` +
         `| ${t.scope ?? "—"} | ${t.annotations ? "yes" : "**no**"} | ${t.hasOutputSchema ? "yes" : "**no**"} ` +
         `| ${t.handlerStringify === "raw JSON.stringify" ? "**raw**" : t.handlerStringify} | ${t.inputKeys.join(", ") || "—"} |`,
     );

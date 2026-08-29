@@ -5,6 +5,7 @@ import {
 } from "../src/tools/datasets.js";
 import { SLICE_READ_CATALOG_TOOLS } from "../src/tools/slices.js";
 import {
+  ASSET_COUNT_DESCRIPTION,
   DEPRECATED_ITEM_COUNT_ON_DATASET,
   DEPRECATED_ITEM_COUNT_ON_HEALTH,
   DEPRECATED_ITEM_COUNT_ON_SLICE,
@@ -110,6 +111,24 @@ describe("count-field aliases", () => {
     });
   });
 
+  it("maps non-sequence health itemCount to assetCount, not frameCount", () => {
+    const health = {
+      datasetUid: "ds-video",
+      itemCount: 2,
+      sequenceCount: 0,
+      totalFrames: 0,
+      sequences: [],
+    };
+    aliasDatasetHealthCounts(health);
+    expect(health).toMatchObject({
+      assetCount: 2,
+      itemCount: 2,
+      sequenceCount: 0,
+      totalFrames: 0,
+    });
+    expect(health).not.toHaveProperty("frameCount");
+  });
+
   it("mirrors sequence numberOfFrames onto frameCount", () => {
     const page = {
       items: [{ uid: "seq-1", numberOfFrames: 569 }],
@@ -140,7 +159,7 @@ describe("output schema field descriptions (walked, not grepped)", () => {
     expect(descriptions.sequenceCount).toMatch(/sequences \(recording runs\)/);
   });
 
-  it("states that health itemCount is a deprecated frameCount", () => {
+  it("states that health itemCount is a deprecated shape-dependent count", () => {
     const health = DATASET_READ_CATALOG_TOOLS.find(
       (tool) => tool.name === "get_dataset_health",
     )!;
@@ -148,6 +167,8 @@ describe("output schema field descriptions (walked, not grepped)", () => {
     expect(descriptions.frameCount).toBe(FRAME_COUNT_DESCRIPTION);
     expect(descriptions.itemCount).toBe(DEPRECATED_ITEM_COUNT_ON_HEALTH);
     expect(descriptions.sequenceCount).toBe(SEQUENCE_COUNT_DESCRIPTION);
+    expect(descriptions.assetCount).toBe(ASSET_COUNT_DESCRIPTION);
+    expect(descriptions.itemCount).toMatch(/shape-dependent/);
   });
 
   it("states that slice itemCount is a deprecated assetCount", () => {

@@ -17,10 +17,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const TASKS_DIR = join(HERE, "..", "eval", "tasks");
 
 describe("task file contract", () => {
-  it("parses the committed set to exactly 24 gradeable / 12 ungradeable", async () => {
+  it("parses the committed set to exactly 25 gradeable / 12 ungradeable", async () => {
     const { tasks, skipped } = await loadTasks(TASKS_DIR);
-    expect(tasks.length + skipped.length).toBe(36);
-    expect(tasks.length).toBe(24);
+    expect(tasks.length + skipped.length).toBe(37);
+    expect(tasks.length).toBe(25);
     expect(skipped.length).toBe(12);
   });
 
@@ -31,7 +31,7 @@ describe("task file contract", () => {
       skipped: skipped.filter((task) => task.suite === suite).length,
     });
     expect(bySuite("adversarial")).toEqual({ runnable: 7, skipped: 2 });
-    expect(bySuite("read-customer")).toEqual({ runnable: 3, skipped: 10 });
+    expect(bySuite("read-customer")).toEqual({ runnable: 4, skipped: 10 });
     expect(bySuite("read-ops")).toEqual({ runnable: 14, skipped: 0 });
   });
 
@@ -51,14 +51,31 @@ describe("task file contract", () => {
     const count = (predicate: (task: (typeof all)[number]) => unknown) =>
       all.filter(predicate).length;
 
-    expect(all).toHaveLength(36);
-    expect(tasks).toHaveLength(24);
+    expect(all).toHaveLength(37);
+    expect(tasks).toHaveLength(25);
     expect(skipped).toHaveLength(12);
     expect(count((task) => task.answer)).toBe(0);
-    expect(count((task) => task.rubric)).toBe(24);
+    expect(count((task) => task.rubric)).toBe(25);
     expect(count((task) => task.answerTodo)).toBe(12);
     expect(count((task) => task.precondition)).toBe(4);
-    expect(new Set(all.map((task) => task.id)).size).toBe(36);
+    expect(new Set(all.map((task) => task.id)).size).toBe(37);
+  });
+
+  it("keeps the sf-lidar readiness regression gradeable", async () => {
+    const { tasks } = await loadTasks(TASKS_DIR);
+    const regression = tasks.find(
+      (task) => task.id === "recon-sf-lidar-readiness",
+    );
+
+    expect(regression).toMatchObject({
+      suite: "read-customer",
+      category: "reconstruction-readiness",
+      grading: "rubric",
+    });
+    expect(regression?.rubric).toContain("identify both LiDAR calibration");
+    expect(regression?.rubric).toContain(
+      "ingest, sequence presence, and frame presence passed",
+    );
   });
 
   it("counts exactly 4 real preconditions, whatever the headers say", async () => {

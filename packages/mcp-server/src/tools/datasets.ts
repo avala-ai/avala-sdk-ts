@@ -7,7 +7,10 @@ import {
   registerCompositeReadCatalogTool,
   registerReadCatalogTool,
 } from "../catalog.js";
-import { assessDatasetReadiness } from "../datasetReadiness.js";
+import {
+  CALIBRATION_KINDS,
+  assessDatasetReadiness,
+} from "../datasetReadiness.js";
 import {
   ASSET_COUNT_DESCRIPTION,
   DEPRECATED_ITEM_COUNT_ON_DATASET,
@@ -103,6 +106,7 @@ const datasetHealthOutputSchema = z
     datasetSlug: z.string(),
     datasetStatus: z.string().nullable(),
     frameCount: z.number().optional().describe(FRAME_COUNT_DESCRIPTION),
+    assetCount: z.number().optional().describe(ASSET_COUNT_DESCRIPTION),
     itemCount: z.number().describe(DEPRECATED_ITEM_COUNT_ON_HEALTH),
     sequenceCount: z.number().describe(SEQUENCE_COUNT_DESCRIPTION),
     totalFrames: z.number().describe(FRAME_COUNT_DESCRIPTION),
@@ -316,6 +320,15 @@ const listCaptureCampaignsInputSchema = z.object({
 
 const getSequenceInputSchema = z.object(sequenceLocatorSchema);
 const getDatasetHealthInputSchema = z.object(datasetLocatorSchema);
+const getDatasetReadinessInputSchema = z.object({
+  ...datasetLocatorSchema,
+  requiredCalibrations: z
+    .array(z.enum(CALIBRATION_KINDS))
+    .max(CALIBRATION_KINDS.length)
+    .describe(
+      "Stored calibration artifacts required by the selected reconstruction recipe. Use ['camera', 'lidar'] for a calibrated multisensor rebuild, ['camera'] for a camera-only calibrated rig, or [] only when the recipe estimates calibration from its input. Recipes requiring stored calibration also require sequence-shaped input; [] allows non-sequence media assets. Required because DatasetHealthView cannot distinguish an absent sensor from a present but uncalibrated sensor.",
+    ),
+});
 
 const DATASET_CONCISE_KEYS = [
   "uid",
@@ -354,6 +367,7 @@ const DATASET_HEALTH_CONCISE_KEYS = [
   "datasetSlug",
   "datasetStatus",
   "frameCount",
+  "assetCount",
   "itemCount",
   "sequenceCount",
   "totalFrames",
@@ -489,7 +503,7 @@ const getDatasetHealthTool = defineReadCatalogTool({
   name: "get_dataset_health",
   title: "Get dataset health",
   description:
-    "Get a read-only ingest/health snapshot for a dataset: frame totals, sequence count, ingest_ok flag, and any issues detected. Default detail omits the per-sequence array. Useful for validating a dataset after upload without opening Mission Control. For the reconstruction question ('is this ready to rebuild?') use get_dataset_readiness — ingestOk does not see missing calibration.",
+    "Get a read-only ingest/health snapshot for a dataset: live frame totals for sequence data or asset counts for non-sequence media, sequence count, ingest_ok flag, and any issues detected. Default detail omits the per-sequence array. Useful for validating a dataset after upload without opening Mission Control. For the reconstruction question ('is this ready to rebuild?') use get_dataset_readiness — ingestOk does not see missing calibration.",
   inputSchema: getDatasetHealthInputSchema,
   outputSchema: datasetHealthOutputSchema,
   normalize: aliasDatasetHealthCounts,
@@ -521,6 +535,8 @@ const datasetReadinessOutputSchema = z
     purpose: z.literal("reconstruction"),
     sequenceCount: z.number().nullable(),
     frameCount: z.number().nullable(),
+    assetCount: z.number().nullable(),
+    requiredCalibrations: z.array(z.enum(CALIBRATION_KINDS)),
     summary: z.string(),
     checks: z.array(readinessCheckOutputSchema),
     blockingReasons: z.array(z.string()),
@@ -532,15 +548,19 @@ const getDatasetReadinessTool = defineCompositeReadCatalogTool({
   name: "get_dataset_readiness",
   title: "Get dataset reconstruction readiness",
   description:
-    "Answer whether a dataset can enter photoreal reconstruction (4DGS / scene rebuild). Named checks with pass/fail/insufficient_evidence/skipped — never a ready boolean and never a single score. Missing LiDAR or camera calibration is blocking. A check that could not be measured is insufficient_evidence, not a pass and not a fail. Reads the same customer-reachable health route as get_dataset_health (DatasetHealthView, IsAuthenticated). Default detail keeps check counts; missing sequence UIDs and ingest issue strings require detail=full.",
-  inputSchema: getDatasetHealthInputSchema,
+    "Check whether a dataset can enter a selected photoreal-reconstruction recipe. The caller must declare that recipe's required calibration artifacts because the health endpoint cannot distinguish an absent sensor from an uncalibrated one. Required stored calibration also requires sequence-shaped input; recipes with no stored calibration requirement may use non-sequence media assets. Required missing artifacts are blocking; non-required calibration checks are skipped. Results use named pass/fail/insufficient_evidence/skipped checks — never a ready boolean or opaque score. Reads the customer-reachable DatasetHealthView route. Default detail keeps counts; missing sequence UIDs and ingest issue strings require detail=full.",
+  inputSchema: getDatasetReadinessInputSchema,
   outputSchema: datasetReadinessOutputSchema,
   routes: [DATASET_HEALTH_ROUTE],
   execute: async (args, read) => {
     const health = aliasDatasetHealthCounts(
       await read(DATASET_HEALTH_ROUTE.name),
     );
-    return assessDatasetReadiness(health, resolveReadDetail(args));
+    return assessDatasetReadiness(
+      health,
+      args.requiredCalibrations,
+      resolveReadDetail(args),
+    );
   },
 });
 

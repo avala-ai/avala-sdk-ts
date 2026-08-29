@@ -372,6 +372,33 @@ describe("dataset tools", () => {
     expect(parsed).not.toHaveProperty("s3Prefix");
   });
 
+  it("get_dataset_health aliases non-sequence itemCount to assetCount", async () => {
+    avala.transport.requestSingle.mockResolvedValue({
+      datasetUid: "ds-video",
+      datasetSlug: "walkthrough",
+      datasetStatus: "created",
+      itemCount: 2,
+      sequenceCount: 0,
+      totalFrames: 0,
+      s3Prefix: null,
+      gcStoragePrefix: null,
+      lastUpdatedAt: "2026-08-24T00:00:00Z",
+      ingestOk: true,
+      sequences: [],
+      issues: [],
+    });
+
+    const result = await server.getHandler("get_dataset_health")!({
+      owner: "org",
+      slug: "walkthrough",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.assetCount).toBe(2);
+    expect(parsed.itemCount).toBe(2);
+    expect(parsed.totalFrames).toBe(0);
+    expect(parsed).not.toHaveProperty("frameCount");
+  });
+
   it("get_dataset_readiness blocks sf-lidar reconstruction on missing calibration", async () => {
     avala.transport.requestSingle.mockResolvedValue({
       datasetUid: "ds-1",
@@ -395,6 +422,7 @@ describe("dataset tools", () => {
     const result = await server.getHandler("get_dataset_readiness")!({
       owner: "thirddimension",
       slug: "sf-lidar",
+      requiredCalibrations: ["camera", "lidar"],
     });
     const parsed = JSON.parse(result.content[0].text);
 
@@ -405,6 +433,7 @@ describe("dataset tools", () => {
     expect(parsed).not.toHaveProperty("score");
     expect(parsed).not.toHaveProperty("ingestOk");
     expect(parsed.purpose).toBe("reconstruction");
+    expect(parsed.requiredCalibrations).toEqual(["camera", "lidar"]);
     expect(parsed.blockingReasons).toEqual([
       "lidar_calibration",
       "camera_calibration",
@@ -458,6 +487,7 @@ describe("dataset tools", () => {
     const result = await server.getHandler("get_dataset_readiness")!({
       owner: "thirddimension",
       slug: "sf-lidar",
+      requiredCalibrations: ["camera", "lidar"],
       detail: "full",
     });
     const parsed = JSON.parse(result.content[0].text);
@@ -484,6 +514,7 @@ describe("dataset tools", () => {
     const result = await server.getHandler("get_dataset_readiness")!({
       owner: "org",
       slug: "mystery",
+      requiredCalibrations: ["camera", "lidar"],
     });
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.blockingReasons).toEqual([]);
@@ -493,6 +524,80 @@ describe("dataset tools", () => {
     ]);
     expect(parsed.summary).toMatch(/could not be measured/);
     expect(parsed).not.toHaveProperty("ready");
+  });
+
+  it("get_dataset_readiness does not block a camera-only recipe on absent LiDAR", async () => {
+    avala.transport.requestSingle.mockResolvedValue({
+      datasetUid: "ds-camera",
+      datasetSlug: "camera-only",
+      datasetStatus: "created",
+      sequenceCount: 1,
+      totalFrames: 90,
+      ingestOk: true,
+      issues: [],
+      sequences: [
+        {
+          uid: "seq-1",
+          frameCount: 90,
+          hasLidarCalibration: false,
+          hasCameraCalibration: true,
+        },
+      ],
+    });
+
+    const result = await server.getHandler("get_dataset_readiness")!({
+      owner: "org",
+      slug: "camera-only",
+      requiredCalibrations: ["camera"],
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    const byKey = Object.fromEntries(
+      parsed.checks.map((check: { key: string }) => [check.key, check]),
+    );
+
+    expect(byKey.lidar_calibration).toMatchObject({
+      status: "skipped",
+      evidence: { required: false },
+    });
+    expect(byKey.camera_calibration.status).toBe("pass");
+    expect(parsed.blockingReasons).toEqual([]);
+  });
+
+  it("get_dataset_readiness accepts non-sequence video assets for a calibration-free recipe", async () => {
+    avala.transport.requestSingle.mockResolvedValue({
+      datasetUid: "ds-video",
+      datasetSlug: "walkthrough",
+      datasetStatus: "created",
+      itemCount: 2,
+      sequenceCount: 0,
+      totalFrames: 0,
+      ingestOk: true,
+      issues: [],
+      sequences: [],
+    });
+
+    const result = await server.getHandler("get_dataset_readiness")!({
+      owner: "org",
+      slug: "walkthrough",
+      requiredCalibrations: [],
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    const byKey = Object.fromEntries(
+      parsed.checks.map((check: { key: string }) => [check.key, check]),
+    );
+
+    expect(parsed).toMatchObject({
+      frameCount: 0,
+      assetCount: 2,
+      blockingReasons: [],
+      unmeasured: [],
+    });
+    expect(byKey.has_sequences.status).toBe("skipped");
+    expect(byKey.has_assets).toMatchObject({
+      status: "pass",
+      evidence: { assetCount: 2 },
+    });
+    expect(byKey).not.toHaveProperty("has_frames");
   });
 
   it("list_capture_submissions strips signed URLs on detail=full", async () => {

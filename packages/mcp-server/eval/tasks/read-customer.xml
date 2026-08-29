@@ -64,6 +64,15 @@
     <answer-todo>Run the enumeration by hand against the eval tenant: list every dataset, keep those carrying both point-cloud and image modalities, list each dataset's sequences, and for each sequence read its reconstruction-readiness state and frame count. Record the sequence identifier (uid or name), its parent dataset slug, and the blocker string. Stable because frame counts on a delivered collection do not change; re-verify by confirming the chosen sequence is in a closed/delivered dataset rather than one still ingesting.</answer-todo>
   </qa_pair>
 
+  <qa_pair id="recon-sf-lidar-readiness">
+    <category>reconstruction-readiness</category>
+    <question>As of 29 August 2026, can the sf-lidar collection enter a scene rebuild that uses both its image streams and range data? Give a direct yes or no, then name every blocking prerequisite and distinguish those from checks that passed.</question>
+    <rubric>
+      A correct answer MUST: (1) answer no; (2) identify both LiDAR calibration and camera calibration as blocking prerequisites for the requested camera-and-range-data recipe; (3) state that ingest, sequence presence, and frame presence passed rather than implying the upload is empty or failed; and (4) ground the answer in a retrieved readiness result for sf-lidar. An answer is WRONG if it: reports the dataset as ready because ingest succeeded; names only one missing calibration; treats every reconstruction recipe as requiring LiDAR; calls a non-required calibration missing without matching the camera-and-range-data recipe in the question; or invents a readiness score or boolean that the tool did not return.
+    </rubric>
+    <why>Fixed-dataset regression for the first job-shaped tool. It catches both original false answers: ingest health masking missing calibration, and recipe-independent LiDAR blocking. The requested recipe makes both required artifacts explicit.</why>
+  </qa_pair>
+
   <qa_pair id="recon-single-cause-collection">
     <category>reconstruction-readiness</category>
     <question>One of our point-cloud collections is unusual: every one of its runs is held back by the same single missing sensor-alignment artifact, rather than by a mix of causes the way the other collections are. Which collection is it, and how many runs does that affect?</question>
