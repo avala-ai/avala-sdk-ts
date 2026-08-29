@@ -657,9 +657,9 @@ describe("Streamable HTTP transport", () => {
       result: { tools: { name: string }[] };
     }>(listRes);
     // The hosted transport serves the read-only subset of the stdio catalog
-    // (44 of 61) — mutations are stdio-only for now (§5.5-4); full-catalog
+    // (45 of 65) — mutations are stdio-only for now (§5.5-4); full-catalog
     // parity via the shared registerTools is pinned in server.test.ts.
-    expect(list.result.tools).toHaveLength(44);
+    expect(list.result.tools).toHaveLength(45);
     expect(list.result.tools.map((t) => t.name)).toContain("list_datasets");
     expect(createdClients).toHaveLength(2);
     expect(
@@ -727,7 +727,7 @@ describe("Streamable HTTP transport", () => {
       result: { resultType: string; tools: { name: string }[] };
     }>(listRes);
     expect(list.result.resultType).toBe("complete");
-    expect(list.result.tools).toHaveLength(44);
+    expect(list.result.tools).toHaveLength(45);
     expect(list.result.tools.map((tool) => tool.name)).toContain(
       "list_datasets",
     );
@@ -1220,7 +1220,7 @@ describe("Streamable HTTP transport", () => {
       const names = (
         await mcpResult<{ result: { tools: { name: string }[] } }>(res)
       ).result.tools.map((t) => t.name);
-      expect(names).toHaveLength(44);
+      expect(names).toHaveLength(45);
       // The full mutation-gated set, esp. the four destructive delete-by-id
       // tools the finding named.
       const gated = [

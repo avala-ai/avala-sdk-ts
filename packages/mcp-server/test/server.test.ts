@@ -11,8 +11,8 @@ import {
  * registers tools through the same `registerTools`, so this count is the
  * stdio/HTTP parity baseline: if it moves, both transports moved together.
  */
-const FULL_TOOL_COUNT = 64;
-const HOSTED_READ_TOOL_COUNT = 44;
+const FULL_TOOL_COUNT = 65;
+const HOSTED_READ_TOOL_COUNT = 45;
 const STAFF_TOOL_COUNT = 3;
 
 function fullCredentialGrant(): CredentialToolGrant {

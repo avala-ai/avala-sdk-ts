@@ -1,10 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
 import {
+  defineCompositeReadCatalogTool,
   definePageOutputSchema,
   defineReadCatalogTool,
+  registerCompositeReadCatalogTool,
   registerReadCatalogTool,
 } from "../catalog.js";
+import { assessDatasetReadiness } from "../datasetReadiness.js";
 import {
   ASSET_COUNT_DESCRIPTION,
   DEPRECATED_ITEM_COUNT_ON_DATASET,
@@ -473,22 +476,71 @@ const getSequenceTool = defineReadCatalogTool({
   },
 });
 
+const DATASET_HEALTH_ROUTE = {
+  name: "dataset-health-by-owner-and-name",
+  method: "GET" as const,
+  path: "/datasets/{owner}/{slug}/health/",
+  response: "single" as const,
+  scope: "datasets.read" as const,
+  toolset: "datasets" as const,
+};
+
 const getDatasetHealthTool = defineReadCatalogTool({
   name: "get_dataset_health",
   title: "Get dataset health",
   description:
-    "Get a read-only ingest/health snapshot for a dataset: frame totals, sequence count, ingest_ok flag, and any issues detected. Default detail omits the per-sequence array. Useful for validating a dataset after upload without opening Mission Control.",
+    "Get a read-only ingest/health snapshot for a dataset: frame totals, sequence count, ingest_ok flag, and any issues detected. Default detail omits the per-sequence array. Useful for validating a dataset after upload without opening Mission Control. For the reconstruction question ('is this ready to rebuild?') use get_dataset_readiness — ingestOk does not see missing calibration.",
   inputSchema: getDatasetHealthInputSchema,
   outputSchema: datasetHealthOutputSchema,
   normalize: aliasDatasetHealthCounts,
   conciseKeys: DATASET_HEALTH_CONCISE_KEYS,
-  route: {
-    name: "dataset-health-by-owner-and-name",
-    method: "GET",
-    path: "/datasets/{owner}/{slug}/health/",
-    response: "single",
-    scope: "datasets.read",
-    toolset: "datasets",
+  route: DATASET_HEALTH_ROUTE,
+});
+
+const readinessCheckOutputSchema = z
+  .object({
+    key: z.string(),
+    status: z.enum([
+      "pass",
+      "fail",
+      "insufficient_evidence",
+      "skipped",
+    ]),
+    severity: z.enum(["blocking"]).nullable(),
+    reason: z.string(),
+    remediation: z.string().nullable(),
+    evidence: z.record(z.string(), z.unknown()),
+  })
+  .passthrough();
+
+const datasetReadinessOutputSchema = z
+  .object({
+    datasetUid: z.string().nullable(),
+    datasetSlug: z.string().nullable(),
+    datasetStatus: z.string().nullable(),
+    purpose: z.literal("reconstruction"),
+    sequenceCount: z.number().nullable(),
+    frameCount: z.number().nullable(),
+    summary: z.string(),
+    checks: z.array(readinessCheckOutputSchema),
+    blockingReasons: z.array(z.string()),
+    unmeasured: z.array(z.string()),
+  })
+  .passthrough();
+
+const getDatasetReadinessTool = defineCompositeReadCatalogTool({
+  name: "get_dataset_readiness",
+  title: "Get dataset reconstruction readiness",
+  description:
+    "Answer whether a dataset can enter photoreal reconstruction (4DGS / scene rebuild). Named checks with pass/fail/insufficient_evidence/skipped — never a ready boolean and never a single score. Missing LiDAR or camera calibration is blocking. A check that could not be measured is insufficient_evidence, not a pass and not a fail. Reads the same customer-reachable health route as get_dataset_health (DatasetHealthView, IsAuthenticated). Default detail keeps check counts; missing sequence UIDs and ingest issue strings require detail=full.",
+  inputSchema: getDatasetHealthInputSchema,
+  outputSchema: datasetReadinessOutputSchema,
+  routes: [DATASET_HEALTH_ROUTE],
+  execute: async (args, read) => {
+    const health = aliasDatasetHealthCounts(
+      await read(DATASET_HEALTH_ROUTE.name),
+    );
+    return assessDatasetReadiness(health, resolveReadDetail(args));
   },
 });
 
@@ -556,6 +608,10 @@ export const DATASET_READ_CATALOG_TOOLS = [
   listCaptureSubmissionsTool,
   getCaptureSubmissionTool,
   listCaptureCampaignsTool,
+] as const;
+
+export const DATASET_COMPOSITE_READ_CATALOG_TOOLS = [
+  getDatasetReadinessTool,
 ] as const;
 
 const FRAME_CONCISE_KEYS = ["frameIndex", "model", "key"] as const;
@@ -660,6 +716,7 @@ export function registerDatasetTools(
   );
 
   registerReadCatalogTool(server, getClient, getDatasetHealthTool);
+  registerCompositeReadCatalogTool(server, getClient, getDatasetReadinessTool);
   registerReadCatalogTool(server, getClient, listCaptureSubmissionsTool);
   registerReadCatalogTool(server, getClient, getCaptureSubmissionTool);
   registerReadCatalogTool(server, getClient, listCaptureCampaignsTool);

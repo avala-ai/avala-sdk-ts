@@ -43,7 +43,22 @@ function collect(allowMutations: boolean): Map<string, Captured> {
     const capture = (name: string, config: any, handler?: unknown): void => {
       const meta = (config?._meta ?? {}) as Record<string, unknown>;
       const body = typeof handler === "function" ? handler.toString() : "";
-      const viaCatalog = Boolean(meta["avala.ai/rest-route"]);
+      const restRoutes = meta["avala.ai/rest-routes"];
+      const viaCatalog = Boolean(
+        meta["avala.ai/rest-route"] ||
+          (Array.isArray(restRoutes) && restRoutes.length > 0),
+      );
+      const restRoute =
+        (meta["avala.ai/rest-route"] as string | undefined) ??
+        (Array.isArray(restRoutes) && typeof restRoutes[0] === "string"
+          ? restRoutes[0]
+          : null);
+      const restMethods = meta["avala.ai/rest-methods"];
+      const restMethod =
+        (meta["avala.ai/rest-method"] as string | undefined) ??
+        (Array.isArray(restMethods) && typeof restMethods[0] === "string"
+          ? restMethods[0]
+          : null);
       out.set(name, {
         name,
         category: registrar.category,
@@ -53,8 +68,8 @@ function collect(allowMutations: boolean): Map<string, Captured> {
         annotations: config?.annotations ?? null,
         scope: (meta["avala.ai/required-scope"] as string) ?? null,
         toolset: (meta["avala.ai/toolset"] as string) ?? null,
-        restRoute: (meta["avala.ai/rest-route"] as string) ?? null,
-        restMethod: (meta["avala.ai/rest-method"] as string) ?? null,
+        restRoute,
+        restMethod,
         viaCatalog,
         handlerStringify: viaCatalog
           ? "catalog"

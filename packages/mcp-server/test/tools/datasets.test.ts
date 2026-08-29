@@ -372,6 +372,129 @@ describe("dataset tools", () => {
     expect(parsed).not.toHaveProperty("s3Prefix");
   });
 
+  it("get_dataset_readiness blocks sf-lidar reconstruction on missing calibration", async () => {
+    avala.transport.requestSingle.mockResolvedValue({
+      datasetUid: "ds-1",
+      datasetSlug: "sf-lidar",
+      datasetStatus: "created",
+      itemCount: 3120,
+      sequenceCount: 39,
+      totalFrames: 3120,
+      ingestOk: true,
+      issues: [],
+      sequences: Array.from({ length: 39 }, (_, index) => ({
+        uid: `seq-${index + 1}`,
+        key: `full-scene-${index}`,
+        status: "completed",
+        frameCount: 80,
+        hasLidarCalibration: false,
+        hasCameraCalibration: false,
+      })),
+    });
+
+    const result = await server.getHandler("get_dataset_readiness")!({
+      owner: "thirddimension",
+      slug: "sf-lidar",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/datasets/thirddimension/sf-lidar/health/",
+    );
+    expect(parsed).not.toHaveProperty("ready");
+    expect(parsed).not.toHaveProperty("score");
+    expect(parsed).not.toHaveProperty("ingestOk");
+    expect(parsed.purpose).toBe("reconstruction");
+    expect(parsed.blockingReasons).toEqual([
+      "lidar_calibration",
+      "camera_calibration",
+    ]);
+    expect(parsed.unmeasured).toEqual([]);
+    expect(parsed.summary).toMatch(/blocked/i);
+    expect(parsed.summary).toMatch(/LiDAR/i);
+    expect(parsed.summary).toMatch(/camera/i);
+
+    const byKey = Object.fromEntries(
+      parsed.checks.map((check: { key: string }) => [check.key, check]),
+    );
+    expect(byKey.ingest.status).toBe("pass");
+    expect(byKey.has_sequences.status).toBe("pass");
+    expect(byKey.has_frames.status).toBe("pass");
+    expect(byKey.lidar_calibration).toMatchObject({
+      status: "fail",
+      severity: "blocking",
+    });
+    expect(byKey.camera_calibration).toMatchObject({
+      status: "fail",
+      severity: "blocking",
+    });
+    expect(byKey.lidar_calibration.evidence).not.toHaveProperty(
+      "missingSequenceUids",
+    );
+  });
+
+  it("get_dataset_readiness detail=full lists the uncalibrated sequences", async () => {
+    avala.transport.requestSingle.mockResolvedValue({
+      datasetUid: "ds-1",
+      datasetSlug: "sf-lidar",
+      ingestOk: true,
+      issues: [],
+      sequenceCount: 2,
+      frameCount: 160,
+      sequences: [
+        {
+          uid: "seq-1",
+          hasLidarCalibration: false,
+          hasCameraCalibration: false,
+        },
+        {
+          uid: "seq-2",
+          hasLidarCalibration: true,
+          hasCameraCalibration: false,
+        },
+      ],
+    });
+
+    const result = await server.getHandler("get_dataset_readiness")!({
+      owner: "thirddimension",
+      slug: "sf-lidar",
+      detail: "full",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    const lidar = parsed.checks.find(
+      (check: { key: string }) => check.key === "lidar_calibration",
+    );
+    expect(lidar.evidence.missingSequenceUids).toEqual(["seq-1"]);
+    expect(parsed.blockingReasons).toEqual([
+      "lidar_calibration",
+      "camera_calibration",
+    ]);
+  });
+
+  it("get_dataset_readiness marks omitted calibration flags as insufficient_evidence", async () => {
+    avala.transport.requestSingle.mockResolvedValue({
+      datasetUid: "ds-1",
+      datasetSlug: "mystery",
+      ingestOk: true,
+      issues: [],
+      sequenceCount: 3,
+      frameCount: 90,
+    });
+
+    const result = await server.getHandler("get_dataset_readiness")!({
+      owner: "org",
+      slug: "mystery",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.blockingReasons).toEqual([]);
+    expect(parsed.unmeasured).toEqual([
+      "lidar_calibration",
+      "camera_calibration",
+    ]);
+    expect(parsed.summary).toMatch(/could not be measured/);
+    expect(parsed).not.toHaveProperty("ready");
+  });
+
   it("list_capture_submissions strips signed URLs on detail=full", async () => {
     avala.transport.requestPage.mockResolvedValue({
       items: [
@@ -606,7 +729,7 @@ describe("dataset tools", () => {
   });
 
   it("registers read-only + mutation tools when allowMutations is true", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(11);
+    expect(server.registerTool).toHaveBeenCalledTimes(12);
     expect(server.getHandler("list_datasets")).toBeDefined();
     expect(server.getHandler("create_dataset")).toBeDefined();
   });
