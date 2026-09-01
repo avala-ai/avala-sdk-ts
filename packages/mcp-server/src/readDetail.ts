@@ -8,7 +8,7 @@ export const DEFAULT_PAGE_LIMIT = 25;
 
 /**
  * Identity, status, owner, timestamps, and the unit-bearing count fields.
- * Labels, nested projects, media URLs, frame blobs, and instruction text
+ * Labels, nested projects, opaque media handles, frame blobs, and instruction text
  * stay out of concise responses — they belong on `detail: "full"` or a
  * dedicated get tool.
  */
@@ -83,7 +83,7 @@ export const detailInputField = z
   .enum(READ_DETAIL_VALUES)
   .optional()
   .describe(
-    'Response detail. Defaults to "concise": identity, status, owner, timestamps, and unit-bearing counts only. Use "full" for labels, nested projects, media URLs, and frame payloads.',
+    'Response detail. Defaults to "concise": identity, status, owner, timestamps, and unit-bearing counts only. Use "full" for labels, nested projects, opaque media handles, and frame payloads.',
   );
 
 export function resolveReadDetail(args: Record<string, unknown>): ReadDetail {

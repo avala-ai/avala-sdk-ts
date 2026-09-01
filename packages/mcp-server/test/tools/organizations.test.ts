@@ -36,7 +36,8 @@ const MOCK_ORGANIZATION_LIST_ITEM = {
   slug: "acme",
   name: "Acme Corp",
   handle: null,
-  logo: null,
+  logo:
+    "https://bucket.example/logo.png?X-Amz-Credential=AKIAEXAMPLE&X-Amz-Signature=signature-value",
   industry: "robotics",
   visibility: "private",
   plan: "enterprise",
@@ -138,6 +139,20 @@ describe("organization tools", () => {
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.slug).toBe("acme");
     expect(parsed.memberCount).toBe(5);
+  });
+
+  it("detail=full returns an opaque logo handle instead of a signed URL", async () => {
+    avala.transport.requestSingle.mockResolvedValue(MOCK_ORGANIZATION_DETAIL);
+
+    const result = await server.getHandler("get_organization")!({
+      slug: "acme",
+      detail: "full",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed).not.toHaveProperty("logo");
+    expect(parsed.logoAsset.handle).toMatch(/^ah_/);
+    expect(result.content[0].text).not.toContain("X-Amz-");
   });
 
   it("registers both list_organizations and get_organization tools", () => {

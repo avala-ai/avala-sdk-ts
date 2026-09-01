@@ -1,6 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
 import {
+  assetReferenceSchema,
+  createAssetHandleService,
+  identityBoundAssetReferenceFor,
+  type AssetHandleService,
+} from "../assetHandles.js";
+import {
   definePageOutputSchema,
   defineReadCatalogTool,
   registerReadCatalogTool,
@@ -17,7 +23,7 @@ const exportOutputSchema = z
     filterQueryString: z.string().nullable(),
     totalTaskCount: z.number().int().nonnegative().nullable(),
     exportedTaskCount: z.number().int().nonnegative().nullable(),
-    downloadUrl: z.string().nullable(),
+    downloadAsset: assetReferenceSchema.nullable(),
     status: z.string(),
     datasets: z.array(z.string()),
     slices: z.array(z.string()),
@@ -37,11 +43,46 @@ const EXPORT_CONCISE_KEYS = [
   "createdAt",
 ] as const;
 
+function assetizeExport(
+  value: unknown,
+  handles: AssetHandleService,
+): unknown {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  const { downloadUrl, ...rest } = record;
+  if (typeof record.uid !== "string") return rest;
+  const uid = record.uid;
+  return {
+    ...rest,
+    downloadAsset: identityBoundAssetReferenceFor(
+      downloadUrl,
+      (identity) => ({ kind: "export_download", uid, identity }),
+      handles,
+    ),
+  };
+}
+
+function assetizeExportResult(
+  value: unknown,
+  _args: Readonly<Record<string, unknown>>,
+  handles: AssetHandleService,
+): unknown {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  return Array.isArray(record.items)
+    ? { ...record, items: record.items.map((item) => assetizeExport(item, handles)) }
+    : assetizeExport(record, handles);
+}
+
 const listExportsTool = defineReadCatalogTool({
   name: "list_exports",
   title: "List exports",
   description:
-    "List exports. Default detail is identity, format, status, and counts. Download URLs require detail=full.",
+    "List exports. Default detail is identity, format, status, and counts. Opaque download-asset handles require detail=full; resolve one explicitly only when the artifact is needed.",
   inputSchema: z.object({
     limit: z
       .number()
@@ -57,6 +98,7 @@ const listExportsTool = defineReadCatalogTool({
       .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(exportOutputSchema),
+  assetize: assetizeExportResult,
   conciseKeys: EXPORT_CONCISE_KEYS,
   route: {
     name: "export-list",
@@ -73,11 +115,12 @@ const getExportStatusTool = defineReadCatalogTool({
   name: "get_export_status",
   title: "Get export status",
   description:
-    "Check whether an export is still processing, completed, or failed. Download URL requires detail=full.",
+    "Check whether an export is still processing, completed, or failed. A completed export's opaque download-asset handle requires detail=full; resolve it explicitly only when the artifact is needed.",
   inputSchema: z.object({
     uid: z.string().describe("The unique identifier (UUID) of the export"),
   }),
   outputSchema: exportOutputSchema,
+  assetize: assetizeExportResult,
   conciseKeys: EXPORT_CONCISE_KEYS,
   route: {
     name: "export-detail",
@@ -98,6 +141,7 @@ export function registerExportTools(
   server: McpServer,
   getClient: GetClient,
   allowMutations = false,
+  assetHandles: AssetHandleService = createAssetHandleService(),
 ): void {
   if (allowMutations) {
     server.registerTool(
@@ -124,6 +168,6 @@ export function registerExportTools(
     );
   }
 
-  registerReadCatalogTool(server, getClient, listExportsTool);
-  registerReadCatalogTool(server, getClient, getExportStatusTool);
+  registerReadCatalogTool(server, getClient, listExportsTool, assetHandles);
+  registerReadCatalogTool(server, getClient, getExportStatusTool, assetHandles);
 }

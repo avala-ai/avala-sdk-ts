@@ -21,7 +21,7 @@ Set your API key:
 export AVALA_API_KEY="avk_your_api_key"
 ```
 
-MCP is read-only unless you explicitly enable mutation tools:
+Local stdio MCP exposes only reads unless you explicitly enable its legacy mutation catalog:
 
 ```bash
 export AVALA_MCP_ENABLE_MUTATIONS=true
@@ -72,10 +72,11 @@ node dist/http.js
 - **Dual protocol**: current clients use the stateless 2026-07-28 request
   envelope and `Mcp-Method` / `Mcp-Name` routing headers. The same factory
   retains the SDK's stateless 2025 compatibility path for existing clients.
-- **Read-only**: the hosted transport always serves the read-only catalog. Write/delete tools are stdio-only until durable confirmation, idempotency, and audit-intent controls exist; `AVALA_MCP_ENABLE_MUTATIONS` is ignored here by design.
+- **Read-first with an exact action allowlist**: hosted MCP ignores `AVALA_MCP_ENABLE_MUTATIONS`. Its reviewed writes are `create_workforce_batch`, `set_workforce_batch_priority`, `set_workforce_batch_status`, `set_workforce_sequence_status`, `assign_workforce_work_unit`, and `deassign_workforce_work_unit`, visible only to a staff-privileged credential carrying `workforce.write`. Each action requires MCP elicitation, encrypted confirmation state bound to the exact tool, arguments, credential, expiry and idempotency key, exact expected state, and provider-side MCP audit provenance. Batch creation accepts only a bounded sequence-scoped unit plan and always starts unavailable; the server derives coworker routes and rejects arbitrary URLs or configuration. Sequence inspection returns only opaque IDs, workflow state, observation tokens, and authorized next edges—never sequence contents or workflow definitions. Unit inspection and deassignment never expose coworker identity; write-scoped group discovery returns stable group UIDs, internal labels, and aggregate membership readiness without member rows or live-capacity claims; candidate discovery exposes opaque coworker UUIDs plus raw recent outcome counts scoped to the target organization, task, and workflow role—never a ranking, composite score, profile, or pay data.
+- **Asset handles**: reads return short-lived opaque handles instead of provider-signed media and export URLs. `resolve_asset_handle` uses MCP elicitation, verifies a short-lived server-issued confirmation challenge bound to the exact handle, then re-fetches the resource with the current credential. Unsupported, declined, forged, or cross-handle replayed confirmation releases no URL.
 - Browser `Origin` validation applies to `/mcp`; public liveness and discovery routes contain no credentialed functionality.
 
-Hosted operators must configure `AVALA_MCP_INTERNAL_CLIENT_SECRET`, `AVALA_MCP_OAUTH_RESOURCE`, `AVALA_MCP_OAUTH_ISSUER`, `AVALA_MCP_OAUTH_API_AUDIENCE`, `AVALA_MCP_OAUTH_CLIENT_ID`, `AVALA_MCP_OAUTH_CLIENT_SECRET`, and the space-separated `AVALA_MCP_OAUTH_SCOPES`. `PORT`, `AVALA_BASE_URL`, and the comma-separated `ALLOWED_ORIGINS` remain optional. Confidential values belong in the deployment secret store, never environment templates or source control.
+Hosted operators must configure `AVALA_MCP_INTERNAL_CLIENT_SECRET`, `AVALA_MCP_OAUTH_RESOURCE`, `AVALA_MCP_OAUTH_ISSUER`, `AVALA_MCP_OAUTH_API_AUDIENCE`, `AVALA_MCP_OAUTH_CLIENT_ID`, `AVALA_MCP_OAUTH_CLIENT_SECRET`, and the space-separated `AVALA_MCP_OAUTH_SCOPES`. Include `workforce.write` only for deployments whose staff operators should discover internal workforce groups and opaque assignment candidates and see the reviewed batch-creation, batch-priority, batch-lifecycle, sequence-lifecycle, assignment, and deassignment actions. `PORT`, `AVALA_BASE_URL`, and the comma-separated `ALLOWED_ORIGINS` remain optional. Confidential values belong in the deployment secret store, never environment templates or source control.
 
 Unlike stdio mode, no `AVALA_API_KEY` environment variable is read — the server is multi-tenant, one credential per request.
 
@@ -94,10 +95,11 @@ Unlike stdio mode, no `AVALA_API_KEY` environment variable is read — the serve
 | Annotation Issues | List and manage annotation issue data                                                                                                                  |
 | Organizations     | List organizations and members                                                                                                                         |
 | Slices            | List and inspect data slices                                                                                                                           |
+| Assets            | Resolve an opaque media or export handle after confirmation and a current-credential access check                                                     |
 | Stats             | Get overview statistics for your account                                                                                                               |
 | **Workflows**     | **Composite tools: fleet health overview, project quality summary, workspace overview, annotation pipeline creation**                                  |
-| Staff             | Avala staff only: read-only proxies to the staff SQL sandbox (`staff_query`, `staff_aggregate`, `staff_describe_table`)                                |
-| Note              | Write/delete tools (`create_*`, `delete_*`, `test_storage_config`, `evaluate_quality`, `compute_consensus`) require `AVALA_MCP_ENABLE_MUTATIONS=true`. |
+| Staff             | Avala staff only: SQL sandbox proxies, aggregate production monitoring, bounded production-line inventory, internal group discovery, batch/unit attention, signal-backed opaque assignment candidates, and confirmed queue controls |
+| Note              | Local stdio legacy writes (`create_*`, `delete_*`, `test_storage_config`, `evaluate_quality`, `compute_consensus`) require `AVALA_MCP_ENABLE_MUTATIONS=true`; hosted MCP ignores that flag. |
 
 ## Documentation
 

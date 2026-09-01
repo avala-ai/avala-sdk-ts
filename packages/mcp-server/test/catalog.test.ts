@@ -60,11 +60,17 @@ import {
   WEBHOOK_READ_CATALOG_TOOLS,
 } from "../src/tools/webhooks.js";
 import { WORKFLOW_COMPOSITE_READ_CATALOG_TOOLS } from "../src/tools/workflows.js";
+import {
+  registerWorkforceTools,
+  WORKFORCE_MUTATION_CATALOG_TOOLS,
+  WORKFORCE_READ_CATALOG_TOOLS,
+} from "../src/tools/workforce.js";
 
 interface ManifestRoute {
   app: string;
   declares_scope?: string[];
   methods: string[];
+  mcp_idempotent_mutation_methods?: string[];
   name: string;
   path: string;
   scope_enforced_domain?: string | null;
@@ -100,6 +106,13 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
     sequenceUid: "00000000-0000-0000-0000-000000000002",
   },
   get_dataset_health: { owner: "robotics-team", slug: "warehouse-bags" },
+  preview_curation_candidates: {
+    datasetUid: "00000000-0000-0000-0000-000000000001",
+    unit: "sequence",
+    qcDimension: "sequence_workflow",
+    requiredState: "customer_approved",
+    limit: 10,
+  },
   list_capture_submissions: {
     datasetUid: "00000000-0000-0000-0000-000000000020",
     status: "pending",
@@ -177,6 +190,46 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
   list_qc_tools: { datasetType: "lidar" },
   list_exports: { limit: 10, cursor: "next-page" },
   get_export_status: { uid: "00000000-0000-0000-0000-000000000018" },
+  get_workforce_operations_overview: {
+    windowDays: 14,
+    attentionLimit: 5,
+  },
+  get_workforce_batch_attention: {
+    batchUid: "00000000000000000000000000000001",
+  },
+  list_workforce_batches: {
+    organizationUid: "00000000000000000000000000000002",
+    projectUid: "00000000000000000000000000000003",
+    datasetUid: "00000000000000000000000000000004",
+    sequenceUid: "00000000000000000000000000000005",
+    status: "available",
+    priority: "high",
+    limit: 25,
+    cursor: "00000000000000000000000000000006",
+  },
+  list_workforce_groups: {
+    search: "lidar",
+    hasActiveApprovedCoworkers: true,
+    limit: 25,
+    cursor: "00000000000000000000000000000006",
+  },
+  list_workforce_batch_units: {
+    batchUid: "00000000000000000000000000000001",
+    status: "in_progress",
+    assigned: true,
+    workflowRole: "review",
+    limit: 25,
+    cursor: "00000000000000000000000000000002",
+  },
+  get_workforce_sequence_status: {
+    sequenceUid: "00000000000000000000000000000005",
+  },
+  list_workforce_assignment_candidates: {
+    workUnitUid: "00000000000000000000000000000006",
+    windowDays: 14,
+    limit: 25,
+    cursor: "00000000000000000000000000000007",
+  },
 };
 
 const READ_CATALOG_TOOLS = [
@@ -192,6 +245,7 @@ const READ_CATALOG_TOOLS = [
   ...FLEET_READ_CATALOG_TOOLS,
   ...ANNOTATION_ISSUE_READ_CATALOG_TOOLS,
   ...EXPORT_READ_CATALOG_TOOLS,
+  ...WORKFORCE_READ_CATALOG_TOOLS,
 ] as const;
 
 const SCOPE_BY_DOMAIN: Record<string, string> = {
@@ -205,6 +259,7 @@ const SCOPE_BY_DOMAIN: Record<string, string> = {
   quality_control: "qc.read",
   fleet: "fleet.read",
   export: "exports.read",
+  workforce: "workforce.read",
 };
 
 const TOOLSET_BY_DOMAIN: Record<string, string> = {
@@ -218,12 +273,14 @@ const TOOLSET_BY_DOMAIN: Record<string, string> = {
   quality_control: "quality",
   fleet: "fleet",
   export: "exports",
+  workforce: "staff",
 };
 
 function expectedToolsetForRoute(
   route: ManifestRoute,
   scopeDomain: string | null | undefined,
 ): string | undefined {
+  if (route.name.startsWith("workforce-")) return "staff";
   if (route.path.includes("/consensus/")) return "consensus";
   if (route.app === "quality_control") return "quality";
   if (route.path.includes("/sequences/")) return "sequences";
@@ -353,12 +410,18 @@ describe("declarative MCP catalog", () => {
       customUuid: null,
       key: "sequence-key",
       status: "created",
+      statusLabel: "Created",
+      observedAt: "2026-08-24T00:00:00Z",
+      workflowRevisionUid: null,
+      transitionMode: "sequence",
+      availableTransitions: [],
       featuredImage: null,
       numberOfFrames: 1,
       predefinedLabels: [],
       frames: [],
       metrics: null,
-      datasetUid: "result",
+      datasetUid: "00000000000000000000000000000020",
+      sequenceUid: "00000000000000000000000000000011",
       allowLidarCalibration: false,
       lidarCalibrationEnabled: false,
       cameraCalibrationEnabled: false,
@@ -611,6 +674,253 @@ describe("declarative MCP catalog", () => {
         },
       ],
     };
+    const curationPreview = {
+      datasetUid: "00000000000000000000000000000001",
+      unit: "sequence",
+      criterion: {
+        dimension: "sequence_workflow",
+        requiredState: "customer_approved",
+        minimumConsensus: null,
+        projectUid: null,
+        taskName: null,
+        deliverableId: null,
+        deliverableStateField: null,
+        evidenceStatus: "available",
+      },
+      candidateUids: [],
+      counts: {
+        selected: 0,
+        excludedByMembership: 0,
+        missingQcEvidence: 0,
+        rejectedByThreshold: 0,
+      },
+      hasMore: false,
+      nextCursor: null,
+      limitations: [],
+    };
+    const workforceOperationsOverview = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      window: { days: 14, startsAt: "2026-08-15T20:00:00Z" },
+      coworkers: {
+        total: 3,
+        accountStatus: { active: 2, inactive: 1 },
+        onboarding: {
+          joinedInWindow: 1,
+          loggedInInWindow: 2,
+          neverLoggedIn: 1,
+          phoneVerified: 2,
+          phoneUnverified: 1,
+          missingProfile: 0,
+        },
+        workRoles: { assignee: 2, reviewer: 1, dataCollection: 1 },
+      },
+      sessions: {
+        createdInWindow: 4,
+        workersInWindow: 2,
+        byStatus: {
+          pending: 0,
+          ready: 0,
+          assigned: 1,
+          finished: 3,
+          abandoned: 0,
+        },
+        expiredAssigned: 1,
+      },
+      workQueues: {
+        batchesByStatus: { available: 1, unavailable: 1, archived: 0 },
+        unitsByStatus: {
+          unavailable: 0,
+          backlog: 2,
+          inProgress: 1,
+          inReview: 1,
+          completed: 10,
+          error: 1,
+        },
+        unassignedBacklog: 2,
+        attentionBatches: [
+          {
+            batchUid: "00000000000000000000000000000001",
+            batchStatus: "available",
+            priority: "high",
+            errorUnits: 1,
+            inReviewUnits: 1,
+          },
+        ],
+      },
+      attention: [
+        {
+          code: "errored_work_units",
+          severity: "blocking",
+          count: 1,
+          remediation: "Inspect the affected batches.",
+        },
+      ],
+    };
+    const workforceBatchAttention = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      batchUid: "00000000000000000000000000000001",
+      batchStatus: "available",
+      priority: "high",
+      unitsByStatus: {
+        unavailable: 0,
+        backlog: 2,
+        inProgress: 1,
+        inReview: 0,
+        completed: 10,
+        error: 1,
+      },
+      unitsByRole: {
+        firstPass: {
+          unavailable: 0,
+          backlog: 1,
+          inProgress: 1,
+          inReview: 0,
+          completed: 10,
+          error: 0,
+        },
+        review: {
+          unavailable: 0,
+          backlog: 1,
+          inProgress: 0,
+          inReview: 0,
+          completed: 0,
+          error: 0,
+        },
+        escalation: {
+          unavailable: 0,
+          backlog: 0,
+          inProgress: 0,
+          inReview: 0,
+          completed: 0,
+          error: 0,
+        },
+        unspecified: {
+          unavailable: 0,
+          backlog: 0,
+          inProgress: 0,
+          inReview: 0,
+          completed: 0,
+          error: 1,
+        },
+      },
+      queueAge: {
+        oldestBacklogUpdatedAt: {
+          firstPass: "2026-08-29T18:00:00Z",
+          review: "2026-08-29T19:00:00Z",
+          escalation: null,
+          unspecified: null,
+        },
+        oldestErrorUpdatedAt: "2026-08-29T17:00:00Z",
+      },
+      attention: {
+        errorUnits: 1,
+        reviewBacklogUnits: 1,
+        escalationBacklogUnits: 0,
+      },
+    };
+    const workforceBatchInventory = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      batches: [
+        {
+          batchUid: "00000000000000000000000000000001",
+          batchStatus: "available",
+          priority: "high",
+          lineContext: {
+            organizationUid: "00000000000000000000000000000002",
+            projectUid: "00000000000000000000000000000003",
+            datasetUid: "00000000000000000000000000000004",
+            sequenceUid: "00000000000000000000000000000005",
+          },
+          unitsByStatus: {
+            unavailable: 0,
+            backlog: 2,
+            inProgress: 1,
+            inReview: 0,
+            completed: 10,
+            error: 1,
+          },
+          createdAt: "2026-08-28T20:00:00Z",
+          updatedAt: "2026-08-29T19:58:00Z",
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    };
+    const workforceGroupCatalog = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      groups: [
+        {
+          groupUid: "00000000000000000000000000000006",
+          name: "first-pass-lidar",
+          memberCounts: {
+            coworkers: 12,
+            activeCoworkers: 10,
+            activeApprovedCoworkers: 8,
+          },
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    };
+    const workforceBatchUnits = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      batchUid: "00000000000000000000000000000001",
+      batchStatus: "available",
+      lineContext: {
+        organizationUid: "00000000000000000000000000000002",
+        projectUid: "00000000000000000000000000000003",
+        datasetUid: "00000000000000000000000000000004",
+        sequenceUid: "00000000000000000000000000000005",
+      },
+      units: [
+        {
+          workUnitUid: "00000000000000000000000000000006",
+          status: "in_progress",
+          taskName: "cuboid",
+          workflowRole: "review",
+          assigned: true,
+          updatedAt: "2026-08-29T19:58:00Z",
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    };
+    const workforceAssignmentCandidates = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      batchUid: "00000000000000000000000000000001",
+      batchStatus: "available",
+      lineContext: {
+        organizationUid: "00000000000000000000000000000002",
+        projectUid: "00000000000000000000000000000003",
+        datasetUid: "00000000000000000000000000000004",
+        sequenceUid: "00000000000000000000000000000005",
+      },
+      workUnitUid: "00000000000000000000000000000006",
+      workUnitStatus: "backlog",
+      assigned: false,
+      updatedAt: "2026-08-29T19:58:00Z",
+      signalWindow: {
+        days: 14,
+        startsAt: "2026-08-15T20:00:00.000Z",
+      },
+      signalScope: {
+        taskName: "cuboid",
+        workflowRole: "review",
+      },
+      candidates: [
+        {
+          coworkerUid: "00000000000000000000000000000007",
+          operationalSignals: {
+            completedWorkUnits: 12,
+            abandonedWorkUnits: 2,
+            erroredWorkUnits: 1,
+            lastCompletedAt: "2026-08-29T18:00:00Z",
+          },
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    };
     const transport = {
       requestPage: vi.fn(
         async (path: string, query?: Record<string, string>) => {
@@ -638,6 +948,28 @@ describe("declarative MCP catalog", () => {
           if (path.endsWith("/acceptance/summary/")) return acceptanceSummary;
           if (path.endsWith("/acceptance/coverage/")) return acceptanceCoverage;
           if (path.endsWith("/capture-campaigns/")) return captureCampaigns;
+          if (path.endsWith("/curation-preview/")) return curationPreview;
+          if (path === "/admin/workforce/overview/")
+            return workforceOperationsOverview;
+          if (path === "/admin/workforce/batches/")
+            return workforceBatchInventory;
+          if (path === "/admin/workforce/groups/")
+            return workforceGroupCatalog;
+          if (
+            path ===
+            "/admin/workforce/batches/00000000000000000000000000000001/attention/"
+          )
+            return workforceBatchAttention;
+          if (
+            path ===
+            "/admin/workforce/batches/00000000000000000000000000000001/units/"
+          )
+            return workforceBatchUnits;
+          if (
+            path ===
+            "/admin/workforce/work-units/00000000000000000000000000000006/assignment-candidates/"
+          )
+            return workforceAssignmentCandidates;
           if (path.startsWith("/exports/")) return exportItem;
           return sampleEntity;
         },
@@ -685,6 +1017,7 @@ describe("declarative MCP catalog", () => {
       (() => ({ transport })) as never,
     );
     registerExportTools(server as never, (() => ({ transport })) as never);
+    registerWorkforceTools(server as never, (() => ({ transport })) as never);
 
     for (const definition of READ_CATALOG_TOOLS) {
       const manifestRoute = routeManifest.find(
@@ -764,6 +1097,41 @@ describe("declarative MCP catalog", () => {
       );
     }
   });
+
+  it.skipIf(!monorepoAvailable)(
+    "pins every reviewed mutation to an idempotent enforcing route",
+    () => {
+      for (const definition of WORKFORCE_MUTATION_CATALOG_TOOLS) {
+        const manifestRoute = routeManifest.find(
+          (candidate) => candidate.name === definition.route.name,
+        );
+        expect(
+          manifestRoute,
+          `${definition.name} route is absent from the server manifest`,
+        ).toBeDefined();
+        expect(manifestRoute!.methods).toContain(
+          definition.route.method.toLowerCase(),
+        );
+        expect(manifestRoute!.mcp_idempotent_mutation_methods).toContain(
+          definition.route.method.toLowerCase(),
+        );
+        expect(manifestRoute!.declares_scope).toEqual([
+          definition.route.scope,
+        ]);
+        expect(definition.route.scope).toMatch(/\.write$/);
+        expect(definition.route.toolset).toBe("staff");
+        expect(
+          manifestPathPattern(manifestRoute!.path).test(
+            renderCatalogPath(definition.route.path, {
+              batchUid: "00000000000000000000000000000001",
+              workUnitUid: "00000000000000000000000000000002",
+              sequenceUid: "00000000000000000000000000000003",
+            }),
+          ),
+        ).toBe(true);
+      }
+    },
+  );
 
   it.skipIf(!monorepoAvailable)(
     "pins every composite dependency to the route manifest",

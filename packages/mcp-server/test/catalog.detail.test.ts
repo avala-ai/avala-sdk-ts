@@ -10,12 +10,25 @@ import { DEFAULT_PAGE_LIMIT } from "../src/readDetail.js";
 import { DATASET_READ_CATALOG_TOOLS } from "../src/tools/datasets.js";
 
 describe("catalog detail plumbing", () => {
-  it("adds detail to every catalog input schema that omitted it", () => {
+  it("adds detail by default and preserves fixed-shape catalog inputs", () => {
     for (const tool of DATASET_READ_CATALOG_TOOLS) {
-      const input = withReadDetailInput(tool.inputSchema);
+      const supportsDetail =
+        "supportsDetail" in tool ? tool.supportsDetail : undefined;
+      const input = withReadDetailInput(tool.inputSchema, supportsDetail);
       const shape = input.shape as Record<string, z.ZodType>;
-      expect(shape.detail).toBeDefined();
+      if (tool.name === "preview_curation_candidates") {
+        expect(supportsDetail).toBe(false);
+        expect(shape.detail).toBeUndefined();
+      } else {
+        expect(shape.detail).toBeDefined();
+      }
     }
+  });
+
+  it("preserves fixed-shape catalog inputs without a no-op detail field", () => {
+    const input = withReadDetailInput(z.object({ limit: z.number() }), false);
+
+    expect(input.shape.detail).toBeUndefined();
   });
 
   it("defaults limit to 25 only when the route maps limit", () => {

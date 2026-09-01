@@ -7,10 +7,11 @@ export {
   HttpTransport,
   validateAccessToken,
   validateForwardedClientIp,
+  validateIdempotencyKey,
   validateInternalClientContext,
   validateInternalClientSecret,
 } from "./http.js";
-export type { HttpConfig } from "./http.js";
+export type { HttpConfig, HttpRequestOptions } from "./http.js";
 export type {
   Agent,
   AgentExecution,

@@ -34,6 +34,11 @@ const VALID_INTERNAL_CLIENT_SECRET = "s".repeat(32);
 const JWT_LOOKALIKE = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln";
 const DOWNSTREAM_ACCESS_TOKEN = "downstream.api.token";
 const SUBJECT_ISSUED_AT = 1_788_000_000;
+const SIGNED_HTTP_EXPORT_URL =
+  "https://bucket.s3.amazonaws.com/http-export.zip" +
+  "?X-Amz-Date=20260829T080000Z&X-Amz-Expires=3600" +
+  "&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20260829%2Fus-west-2%2Fs3%2Faws4_request" +
+  "&X-Amz-Signature=abcdef0123456789abcdef0123456789";
 const TEST_OAUTH: HostedOAuthConfig = {
   resource: "https://mcp.avala.ai/mcp",
   authorizationServer: "https://identity.example.com/",
@@ -66,7 +71,11 @@ interface MockAvala {
   apiKey: string;
   clientName: string;
   permissions: { get: ReturnType<typeof vi.fn> };
-  transport: { requestPage: ReturnType<typeof vi.fn> };
+  transport: {
+    requestPage: ReturnType<typeof vi.fn>;
+    requestSingle: ReturnType<typeof vi.fn>;
+    requestCreate: ReturnType<typeof vi.fn>;
+  };
 }
 
 function makeMockAvala(
@@ -85,9 +94,32 @@ function makeMockAvala(
       }),
     },
     transport: {
-      requestPage: vi.fn(async () => {
+      requestPage: vi.fn(async (path: string) => {
         if (listDelayMs > 0)
           await new Promise((resolve) => setTimeout(resolve, listDelayMs));
+        if (path === "/exports/") {
+          return {
+            items: [
+              {
+                uid: "export-http-1",
+                name: "HTTP export",
+                format: "json",
+                filterQueryString: null,
+                totalTaskCount: 1,
+                exportedTaskCount: 1,
+                downloadUrl: SIGNED_HTTP_EXPORT_URL,
+                status: "completed",
+                datasets: ["dataset-1"],
+                slices: [],
+                projects: [],
+                createdAt: "2026-08-29T08:00:00Z",
+              },
+            ],
+            nextCursor: null,
+            previousCursor: null,
+            hasMore: false,
+          };
+        }
         return {
           items: [
             {
@@ -103,6 +135,33 @@ function makeMockAvala(
           hasMore: false,
         };
       }),
+      requestSingle: vi.fn(async (path: string) => {
+        if (path !== "/exports/export-http-1/") {
+          throw new Error(`Unexpected single-resource path: ${path}`);
+        }
+        return {
+          uid: "export-http-1",
+          downloadUrl: SIGNED_HTTP_EXPORT_URL,
+        };
+      }),
+      requestCreate: vi.fn(
+        async (
+          path: string,
+          body: Record<string, unknown>,
+          _options: { idempotencyKey: string },
+        ) => {
+          if (path !== `/admin/workforce/batches/${"12".repeat(16)}/priority/`) {
+            throw new Error(`Unexpected mutation path: ${path}`);
+          }
+          return {
+            batchUid: "12".repeat(16),
+            batchStatus: "available",
+            previousPriority: body.expected_priority,
+            priority: body.priority,
+            reason: body.reason,
+          };
+        },
+      ),
     },
   };
 }
@@ -467,6 +526,7 @@ describe("Streamable HTTP transport", () => {
     id: number,
     method: string,
     params: Record<string, unknown> = {},
+    clientCapabilities: Record<string, unknown> = {},
   ) {
     return rpc(id, method, {
       ...params,
@@ -476,7 +536,7 @@ describe("Streamable HTTP transport", () => {
           name: "test-client",
           version: "0.0.0",
         },
-        "io.modelcontextprotocol/clientCapabilities": {},
+        "io.modelcontextprotocol/clientCapabilities": clientCapabilities,
       },
     });
   }
@@ -656,10 +716,9 @@ describe("Streamable HTTP transport", () => {
     const list = await mcpResult<{
       result: { tools: { name: string }[] };
     }>(listRes);
-    // The hosted transport serves the read-only subset of the stdio catalog
-    // (45 of 65) — mutations are stdio-only for now (§5.5-4); full-catalog
-    // parity via the shared registerTools is pinned in server.test.ts.
-    expect(list.result.tools).toHaveLength(45);
+    // This ordinary customer grant sees the hosted read catalog only. The
+    // reviewed staff action requires both staff privilege and workforce.write.
+    expect(list.result.tools).toHaveLength(47);
     expect(list.result.tools.map((t) => t.name)).toContain("list_datasets");
     expect(createdClients).toHaveLength(2);
     expect(
@@ -727,10 +786,350 @@ describe("Streamable HTTP transport", () => {
       result: { resultType: string; tools: { name: string }[] };
     }>(listRes);
     expect(list.result.resultType).toBe("complete");
-    expect(list.result.tools).toHaveLength(45);
+    expect(list.result.tools).toHaveLength(47);
     expect(list.result.tools.map((tool) => tool.name)).toContain(
       "list_datasets",
     );
+  });
+
+  it("requires and verifies modern elicitation before releasing an asset URL", async () => {
+    const capabilities = { elicitation: { form: {} } };
+    const headers = {
+      "Mcp-Protocol-Version": "2026-07-28",
+      "Mcp-Method": "tools/call",
+      "X-Avala-Api-Key": KEY_A,
+    };
+    const listedResponse = await mcpPost(
+      modernRpc(
+        32,
+        "tools/call",
+        { name: "list_exports", arguments: { detail: "full" } },
+        capabilities,
+      ),
+      { ...headers, "Mcp-Name": "list_exports" },
+    );
+    const listed = await mcpResult<{
+      result: {
+        structuredContent: {
+          items: { downloadAsset: { handle: string } }[];
+        };
+      };
+    }>(listedResponse);
+    const handle = listed.result.structuredContent.items[0]!.downloadAsset.handle;
+
+    const unsupportedResponse = await mcpPost(
+      modernRpc(33, "tools/call", {
+        name: "resolve_asset_handle",
+        arguments: { handle },
+      }),
+      { ...headers, "Mcp-Name": "resolve_asset_handle" },
+    );
+    const unsupported = await mcpResult<{
+      error: { code: number; message: string };
+    }>(unsupportedResponse);
+    expect(unsupported.error.code).toBe(-32021);
+    expect(unsupported.error.message).toContain("elicitation");
+    expect(
+      createdClients.some(
+        (client) =>
+          client.clientName === "resolve_asset_handle" &&
+          client.transport.requestSingle.mock.calls.length > 0,
+      ),
+    ).toBe(false);
+
+    const pendingResponse = await mcpPost(
+      modernRpc(
+        34,
+        "tools/call",
+        { name: "resolve_asset_handle", arguments: { handle } },
+        capabilities,
+      ),
+      { ...headers, "Mcp-Name": "resolve_asset_handle" },
+    );
+    const pending = await mcpResult<{
+      result: {
+        resultType: string;
+        requestState: string;
+        inputRequests: Record<string, unknown>;
+      };
+    }>(pendingResponse);
+    expect(pending.result.resultType).toBe("input_required");
+    expect(pending.result.requestState).toMatch(/^ac_/);
+    expect(pending.result.inputRequests).toHaveProperty(
+      "confirmAssetUrlRelease",
+    );
+    expect(
+      createdClients.some(
+        (client) =>
+          client.clientName === "resolve_asset_handle" &&
+          client.transport.requestSingle.mock.calls.length > 0,
+      ),
+    ).toBe(false);
+
+    const resolvedResponse = await mcpPost(
+      modernRpc(
+        35,
+        "tools/call",
+        {
+          name: "resolve_asset_handle",
+          arguments: { handle },
+          inputResponses: {
+            confirmAssetUrlRelease: {
+              action: "accept",
+              content: { confirm: true },
+            },
+          },
+          requestState: pending.result.requestState,
+        },
+        capabilities,
+      ),
+      { ...headers, "Mcp-Name": "resolve_asset_handle" },
+    );
+    const resolved = await mcpResult<{
+      result: { structuredContent: { url: string; expiresAt: string } };
+    }>(resolvedResponse);
+    expect(resolved.result.structuredContent).toEqual({
+      url: SIGNED_HTTP_EXPORT_URL,
+      expiresAt: "2026-08-29T09:00:00.000Z",
+    });
+  });
+
+  it("binds a hosted staff mutation approval to the exact operator credential", async () => {
+    permissionsForKey = () => ({
+      type: "customer",
+      isStaffPrivileged: true,
+      scopes: ["mcp.query", "workforce.read", "workforce.write"],
+      capabilities: [],
+      toolsets: ["docs", "public", "staff"],
+    });
+    const capabilities = { elicitation: { form: {} } };
+    const batchUid = "12".repeat(16);
+    const args = {
+      batchUid,
+      expectedPriority: "medium",
+      priority: "high",
+      reason: "Escalate a blocked production labeling batch",
+    };
+    const mutationHeaders = {
+      "Mcp-Protocol-Version": "2026-07-28",
+      "Mcp-Method": "tools/call",
+      "Mcp-Name": "set_workforce_batch_priority",
+    };
+
+    const pendingResponse = await mcpPost(
+      modernRpc(
+        36,
+        "tools/call",
+        {
+          name: "set_workforce_batch_priority",
+          arguments: args,
+        },
+        capabilities,
+      ),
+      { ...mutationHeaders, "X-Avala-Api-Key": KEY_A },
+    );
+    const pending = await mcpResult<{
+      result: {
+        resultType: string;
+        requestState: string;
+        inputRequests: Record<string, unknown>;
+      };
+    }>(pendingResponse);
+    expect(pending.result.resultType).toBe("input_required");
+    expect(pending.result.requestState).toMatch(/^mc_/);
+    expect(pending.result.inputRequests).toHaveProperty(
+      "confirmAvalaMutation",
+    );
+    expect(
+      createdClients.some(
+        (client) =>
+          client.clientName === "set_workforce_batch_priority" ||
+          client.transport.requestCreate.mock.calls.length > 0,
+      ),
+    ).toBe(false);
+
+    const acceptedArguments = {
+      name: "set_workforce_batch_priority",
+      arguments: args,
+      inputResponses: {
+        confirmAvalaMutation: {
+          action: "accept",
+          content: { confirm: true },
+        },
+      },
+      requestState: pending.result.requestState,
+    };
+    const crossCredentialResponse = await mcpPost(
+      modernRpc(37, "tools/call", acceptedArguments, capabilities),
+      { ...mutationHeaders, "X-Avala-Api-Key": KEY_B },
+    );
+    const crossCredential = await mcpResult<{
+      result: {
+        resultType: string;
+        isError: boolean;
+        content: { type: string; text: string }[];
+      };
+    }>(crossCredentialResponse);
+    expect(crossCredential.result.resultType).toBe("complete");
+    expect(crossCredential.result.isError).toBe(true);
+    expect(crossCredential.result.content[0]!.text).toContain(
+      "Invalid or expired mutation confirmation",
+    );
+    expect(
+      createdClients.some(
+        (client) =>
+          client.clientName === "set_workforce_batch_priority" ||
+          client.transport.requestCreate.mock.calls.length > 0,
+      ),
+    ).toBe(false);
+
+    const completedResponse = await mcpPost(
+      modernRpc(38, "tools/call", acceptedArguments, capabilities),
+      { ...mutationHeaders, "X-Avala-Api-Key": KEY_A },
+    );
+    const completed = await mcpResult<{
+      result: {
+        resultType: string;
+        structuredContent: Record<string, unknown>;
+      };
+    }>(completedResponse);
+    expect(completed.result.resultType).toBe("complete");
+    expect(completed.result.structuredContent).toMatchObject({
+      batchUid,
+      batchStatus: "available",
+      previousPriority: "medium",
+      priority: "high",
+      reason: args.reason,
+      reversalGuidance: expect.stringContaining("priority=medium"),
+    });
+    const mutationClient = createdClients.find(
+      (client) => client.clientName === "set_workforce_batch_priority",
+    );
+    expect(mutationClient?.apiKey).toBe(KEY_A);
+    expect(mutationClient?.transport.requestCreate).toHaveBeenCalledWith(
+      `/admin/workforce/batches/${batchUid}/priority/`,
+      {
+        expected_priority: "medium",
+        priority: "high",
+        reason: args.reason,
+      },
+      {
+        idempotencyKey: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+        ),
+      },
+    );
+  });
+
+  it("rejects an OAuth mutation approval replayed by a different token for the same subject", async () => {
+    permissionsForKey = () => ({
+      type: "customer",
+      isStaffPrivileged: true,
+      scopes: ["mcp.query", "workforce.read", "workforce.write"],
+      capabilities: [],
+      toolsets: ["docs", "public", "staff"],
+    });
+    const oauthTokenA = "oauth-subject-token-a";
+    const oauthTokenB = "oauth-subject-token-b";
+    const sameSubjectExchange = {
+      accessToken: DOWNSTREAM_ACCESS_TOKEN,
+      subject: "same-operator-subject",
+      subjectIssuedAt: SUBJECT_ISSUED_AT,
+      scopes: ["workforce.write"],
+      expiresAt: Date.now() + 60_000,
+    };
+    oauthExchange
+      .mockImplementationOnce(async () => sameSubjectExchange)
+      .mockImplementationOnce(async () => sameSubjectExchange)
+      .mockImplementationOnce(async () => sameSubjectExchange);
+
+    const capabilities = { elicitation: { form: {} } };
+    const batchUid = "12".repeat(16);
+    const args = {
+      batchUid,
+      expectedPriority: "medium",
+      priority: "high",
+      reason: "Escalate a production labeling batch",
+    };
+    const mutationHeaders = {
+      "Mcp-Protocol-Version": "2026-07-28",
+      "Mcp-Method": "tools/call",
+      "Mcp-Name": "set_workforce_batch_priority",
+    };
+    const pendingResponse = await mcpPost(
+      modernRpc(
+        39,
+        "tools/call",
+        {
+          name: "set_workforce_batch_priority",
+          arguments: args,
+        },
+        capabilities,
+      ),
+      { ...mutationHeaders, Authorization: `Bearer ${oauthTokenA}` },
+    );
+    const pending = await mcpResult<{
+      result: { resultType: string; requestState: string };
+    }>(pendingResponse);
+    expect(pending.result.resultType).toBe("input_required");
+
+    const acceptedArguments = {
+      name: "set_workforce_batch_priority",
+      arguments: args,
+      inputResponses: {
+        confirmAvalaMutation: {
+          action: "accept",
+          content: { confirm: true },
+        },
+      },
+      requestState: pending.result.requestState,
+    };
+    const crossTokenResponse = await mcpPost(
+      modernRpc(40, "tools/call", acceptedArguments, capabilities),
+      { ...mutationHeaders, Authorization: `Bearer ${oauthTokenB}` },
+    );
+    const crossToken = await mcpResult<{
+      result: {
+        resultType: string;
+        isError: boolean;
+        content: { type: string; text: string }[];
+      };
+    }>(crossTokenResponse);
+    expect(crossToken.result.resultType).toBe("complete");
+    expect(crossToken.result.isError).toBe(true);
+    expect(crossToken.result.content[0]!.text).toContain(
+      "Invalid or expired mutation confirmation",
+    );
+    expect(
+      createdClients.some(
+        (client) =>
+          client.clientName === "set_workforce_batch_priority" ||
+          client.transport.requestCreate.mock.calls.length > 0,
+      ),
+    ).toBe(false);
+
+    const completedResponse = await mcpPost(
+      modernRpc(41, "tools/call", acceptedArguments, capabilities),
+      { ...mutationHeaders, Authorization: `Bearer ${oauthTokenA}` },
+    );
+    const completed = await mcpResult<{
+      result: {
+        resultType: string;
+        structuredContent: Record<string, unknown>;
+      };
+    }>(completedResponse);
+    expect(completed.result.resultType).toBe("complete");
+    expect(completed.result.structuredContent).toMatchObject({
+      batchUid,
+      previousPriority: "medium",
+      priority: "high",
+      reason: args.reason,
+    });
+    const mutationClient = createdClients.find(
+      (client) => client.clientName === "set_workforce_batch_priority",
+    );
+    expect(mutationClient?.apiKey).toBe(DOWNSTREAM_ACCESS_TOKEN);
+    expect(mutationClient?.transport.requestCreate).toHaveBeenCalledTimes(1);
   });
 
   it("discovers once and lists only tools allowed by the credential grant", async () => {
@@ -825,7 +1224,7 @@ describe("Streamable HTTP transport", () => {
     permissionsForKey = () => ({
       type: "customer",
       isStaffPrivileged: true,
-      scopes: ["datasets.read", "mcp.query"],
+      scopes: ["datasets.read", "mcp.query", "workforce.read"],
       capabilities: [],
       toolsets: ["datasets", "docs", "public", "staff"],
     });
@@ -840,13 +1239,56 @@ describe("Streamable HTTP transport", () => {
     expect(names).toContain("staff_query");
     expect(names).toContain("staff_aggregate");
     expect(names).toContain("staff_describe_table");
+    expect(names).toContain("get_workforce_operations_overview");
+    expect(names).toContain("list_workforce_batches");
+    expect(names).not.toContain("list_workforce_groups");
+    expect(names).toContain("get_workforce_batch_attention");
+    expect(names).toContain("list_workforce_batch_units");
+    expect(names).toContain("get_workforce_sequence_status");
+    expect(names).not.toContain("list_workforce_assignment_candidates");
+    expect(names).not.toContain("assign_workforce_work_unit");
+    expect(names).not.toContain("create_workforce_batch");
+    expect(names).not.toContain("set_workforce_batch_status");
+    expect(names).not.toContain("set_workforce_sequence_status");
+  });
+
+  it("lists candidate discovery and reviewed actions only for staff with workforce write", async () => {
+    permissionsForKey = () => ({
+      type: "customer",
+      isStaffPrivileged: true,
+      scopes: ["workforce.write"],
+      capabilities: [],
+      toolsets: ["docs", "public", "staff"],
+    });
+
+    const res = await mcpPost(rpc(4, "tools/list"), {
+      "X-Avala-Api-Key": KEY_A,
+    });
+    expect(res.status).toBe(200);
+    const names = (
+      await mcpResult<{ result: { tools: { name: string }[] } }>(res)
+    ).result.tools.map((tool) => tool.name);
+    expect(names).toContain("list_workforce_assignment_candidates");
+    expect(names).toContain("list_workforce_groups");
+    expect(names).toContain("assign_workforce_work_unit");
+    expect(names).toContain("create_workforce_batch");
+    expect(names).toContain("deassign_workforce_work_unit");
+    expect(names).toContain("set_workforce_batch_priority");
+    expect(names).toContain("set_workforce_batch_status");
+    expect(names).toContain("set_workforce_sequence_status");
+    expect(names).not.toContain("get_workforce_operations_overview");
+    expect(names).not.toContain("list_workforce_batches");
+    expect(names).not.toContain("get_workforce_batch_attention");
+    expect(names).not.toContain("list_workforce_batch_units");
+    expect(names).not.toContain("get_workforce_sequence_status");
+    expect(names).not.toContain("staff_query");
   });
 
   it("hides the staff sandbox proxies from a non-staff grant even if discovery names the toolset", async () => {
     permissionsForKey = () => ({
       type: "customer",
       isStaffPrivileged: false,
-      scopes: ["datasets.read", "mcp.query"],
+      scopes: ["datasets.read", "mcp.query", "workforce.read"],
       capabilities: [],
       toolsets: ["datasets", "docs", "public", "staff"],
     });
@@ -861,6 +1303,17 @@ describe("Streamable HTTP transport", () => {
     expect(names).not.toContain("staff_query");
     expect(names).not.toContain("staff_aggregate");
     expect(names).not.toContain("staff_describe_table");
+    expect(names).not.toContain("get_workforce_operations_overview");
+    expect(names).not.toContain("list_workforce_batches");
+    expect(names).not.toContain("list_workforce_groups");
+    expect(names).not.toContain("get_workforce_batch_attention");
+    expect(names).not.toContain("list_workforce_batch_units");
+    expect(names).not.toContain("get_workforce_sequence_status");
+    expect(names).not.toContain("list_workforce_assignment_candidates");
+    expect(names).not.toContain("assign_workforce_work_unit");
+    expect(names).not.toContain("create_workforce_batch");
+    expect(names).not.toContain("set_workforce_batch_status");
+    expect(names).not.toContain("set_workforce_sequence_status");
   });
 
   it("fails closed on a malformed staff-privilege grant", async () => {
@@ -1190,10 +1643,9 @@ describe("Streamable HTTP transport", () => {
     expect(res.status).toBe(405);
   });
 
-  it("the hosted catalog is read-only even with AVALA_MCP_ENABLE_MUTATIONS=true in the environment", async () => {
-    // §5.5-4: hosted v1 has NO destructive tools — the factory has no
-    // mutations option and the entry reads no env var, so there is no
-    // configuration under which these tools become remotely reachable.
+  it("the hosted catalog ignores the broad mutation environment flag", async () => {
+    // Hosted actions are a code-reviewed exact allowlist. This local-process
+    // environment flag cannot remotely expose the legacy broad write catalog.
     const previous = process.env.AVALA_MCP_ENABLE_MUTATIONS;
     process.env.AVALA_MCP_ENABLE_MUTATIONS = "true";
     const roServer = createAvalaMcpHttpServer({
@@ -1220,7 +1672,13 @@ describe("Streamable HTTP transport", () => {
       const names = (
         await mcpResult<{ result: { tools: { name: string }[] } }>(res)
       ).result.tools.map((t) => t.name);
-      expect(names).toHaveLength(45);
+      expect(names).toHaveLength(47);
+      expect(names).not.toContain("assign_workforce_work_unit");
+      expect(names).not.toContain("create_workforce_batch");
+      expect(names).not.toContain("deassign_workforce_work_unit");
+      expect(names).not.toContain("set_workforce_batch_priority");
+      expect(names).not.toContain("set_workforce_batch_status");
+      expect(names).not.toContain("set_workforce_sequence_status");
       // The full mutation-gated set, esp. the four destructive delete-by-id
       // tools the finding named.
       const gated = [

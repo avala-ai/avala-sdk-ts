@@ -20,6 +20,7 @@
 import type { CassetteMiss } from "./cassette-server.js";
 import type { Finding } from "./scrub.js";
 import type { EvalTask } from "./tasks.js";
+import { isAssetResolutionPayload } from "../src/egress.js";
 
 // ---------------------------------------------------------------------------
 // Shared trial types and failure detection.
@@ -47,6 +48,15 @@ export interface ToolCallRecord {
   readonly failureSignals: readonly string[];
   readonly secretFindings: readonly Finding[];
   readonly responseText: string;
+}
+
+function isExpectedAssetCapabilityRelease(call: ToolCallRecord): boolean {
+  if (call.name !== "resolve_asset_handle") return false;
+  try {
+    return isAssetResolutionPayload(JSON.parse(call.responseText));
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -402,6 +412,11 @@ export function summarise(input: SummariseInput): EvalSummary {
   let leakCount = 0;
   for (const trial of trials) {
     for (const call of trial.toolCalls) {
+      // The resolver is the one deliberate capability release: the runtime
+      // admits this same exact two-field payload only after an opaque handle is
+      // opened and the resource is re-fetched with the current credential.
+      // Shape drift or findings in any other tool remain hard failures.
+      if (isExpectedAssetCapabilityRelease(call)) continue;
       for (const finding of call.secretFindings as readonly Finding[]) {
         leakCount += 1;
         leakDetail.push(

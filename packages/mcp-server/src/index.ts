@@ -39,7 +39,17 @@ const getClient = (clientName: string): Avala => {
   return client;
 };
 
-serveStdio(() => createAvalaMcpServer(getClient, { allowMutations }), {
-  legacy: "serve",
-  onerror: () => console.error("avala-mcp-stdio: protocol request failed."),
-});
+serveStdio(
+  () =>
+    createAvalaMcpServer(getClient, {
+      allowMutations,
+      // The local process is long-lived. Derive a separate handle key from the
+      // configured credential so handles remain valid for that process without
+      // retaining signed URLs in a side table.
+      assetHandleKeyMaterial: apiKey,
+    }),
+  {
+    legacy: "serve",
+    onerror: () => console.error("avala-mcp-stdio: protocol request failed."),
+  },
+);

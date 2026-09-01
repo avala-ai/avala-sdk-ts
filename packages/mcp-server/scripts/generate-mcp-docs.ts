@@ -33,6 +33,7 @@ interface Tool {
   description: string;
   params: ToolParam[];
   isMutation: boolean;
+  requiresProtocolConfirmation: boolean;
   category: string;
 }
 
@@ -47,6 +48,7 @@ const CATEGORY_ORDER: Record<string, string> = {
   agents: "Agents",
   organizations: "Organizations & Slices",
   slices: "Organizations & Slices",
+  assets: "Assets",
   webhooks: "Webhooks",
   storage: "Storage",
   quality: "Quality & Consensus",
@@ -54,6 +56,7 @@ const CATEGORY_ORDER: Record<string, string> = {
   annotationIssues: "Annotation Issues & QC",
   fleet: "Fleet",
   workflows: "Workflows",
+  workforce: "Staff",
   staff: "Staff",
 };
 
@@ -76,6 +79,7 @@ interface RegisteredTool {
   description: string;
   inputSchema: unknown;
   name: string;
+  requiresProtocolConfirmation: boolean;
 }
 
 function inputShape(inputSchema: unknown): Record<string, ZodLike> {
@@ -140,6 +144,7 @@ function collectRegisteredTools(
       name: string,
       description: string,
       inputSchema: unknown,
+      requiresProtocolConfirmation = false,
     ): void => {
       if (registrations.has(name))
         throw new Error(`Duplicate MCP tool registration: ${name}`);
@@ -148,6 +153,7 @@ function collectRegisteredTools(
         description,
         inputSchema,
         name,
+        requiresProtocolConfirmation,
       });
     };
     const server = {
@@ -155,8 +161,18 @@ function collectRegisteredTools(
         capture(name, description, inputSchema),
       registerTool: (
         name: string,
-        config: { description?: string; inputSchema?: unknown },
-      ): void => capture(name, config.description ?? "", config.inputSchema),
+        config: {
+          description?: string;
+          inputSchema?: unknown;
+          _meta?: Record<string, unknown>;
+        },
+      ): void =>
+        capture(
+          name,
+          config.description ?? "",
+          config.inputSchema,
+          config._meta?.["avala.ai/requires-confirmation"] === true,
+        ),
     };
     const getClient = (): never => {
       throw new Error(
@@ -177,10 +193,19 @@ function registeredTools(): Tool[] {
     isMutation: !readOnlyNames.has(tool.name),
     name: tool.name,
     params: extractParams(tool.inputSchema),
+    requiresProtocolConfirmation: tool.requiresProtocolConfirmation,
   }));
 }
 
 // ── Generator ──────────────────────────────────────────────────────────────
+
+function mutationAvailability(tool: Tool): string {
+  if (!tool.isMutation) return "";
+  if (tool.requiresProtocolConfirmation) {
+    return " *(hosted: requires an eligible credential and human approval; local stdio: requires `AVALA_MCP_ENABLE_MUTATIONS=true`)*";
+  }
+  return " *(requires `AVALA_MCP_ENABLE_MUTATIONS=true`)*";
+}
 
 function generateToolTable(tools: Tool[]): string {
   const lines: string[] = [];
@@ -199,10 +224,9 @@ function generateToolTable(tools: Tool[]): string {
     lines.push("| Tool | Description |");
     lines.push("|---|---|");
     for (const tool of categoryTools) {
-      const mutation = tool.isMutation
-        ? " *(requires `AVALA_MCP_ENABLE_MUTATIONS=true`)*"
-        : "";
-      lines.push(`| \`${tool.name}\` | ${tool.description}${mutation} |`);
+      lines.push(
+        `| \`${tool.name}\` | ${tool.description}${mutationAvailability(tool)} |`,
+      );
     }
     lines.push("");
   }
@@ -214,12 +238,9 @@ function generateToolDefinitions(tools: Tool[]): string {
   const lines: string[] = [];
 
   for (const tool of tools) {
-    const mutation = tool.isMutation
-      ? " *(requires `AVALA_MCP_ENABLE_MUTATIONS=true`)*"
-      : "";
     lines.push(`### ${tool.name}`);
     lines.push("");
-    lines.push(`${tool.description}${mutation}`);
+    lines.push(`${tool.description}${mutationAvailability(tool)}`);
     lines.push("");
 
     if (tool.params.length === 0) {

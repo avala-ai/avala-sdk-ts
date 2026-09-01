@@ -41,7 +41,8 @@ const EXPORT = {
   filterQueryString: null,
   totalTaskCount: 20,
   exportedTaskCount: 20,
-  downloadUrl: "https://downloads.example.com/export.json",
+  downloadUrl:
+    "https://downloads.example.com/export.json?X-Amz-Credential=AKIAEXAMPLE&X-Amz-Signature=signature-value",
   status: "exported",
   datasets: ["ds-1"],
   slices: [],
@@ -157,6 +158,10 @@ describe("export tools", () => {
     });
 
     expect(result.structuredContent).not.toHaveProperty("unexpected");
+    expect(result.structuredContent).not.toHaveProperty("downloadUrl");
+    expect(
+      (result.structuredContent?.downloadAsset as { handle: string }).handle,
+    ).toMatch(/^ah_/);
     expect(result.structuredContent?.organization).toEqual({
       uid: "org-1",
       apiKey: "[redacted]",
@@ -193,12 +198,15 @@ describe("export tools", () => {
     ).items[0]!;
 
     expect(item).not.toHaveProperty("unexpected");
+    expect(item).not.toHaveProperty("downloadUrl");
+    expect((item.downloadAsset as { handle: string }).handle).toMatch(/^ah_/);
     expect(item.organization).toEqual({
       uid: "org-1",
       name: "Robotics",
       apiKey: "[redacted]",
     });
     expect(result.content[0]!.text).not.toContain("FAKE-not-a-real-api-key");
+    expect(result.content[0]!.text).not.toContain("X-Amz-");
   });
 
   it("registers create_export, list_exports, and get_export_status tools", () => {

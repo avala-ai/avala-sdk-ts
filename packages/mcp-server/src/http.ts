@@ -42,12 +42,13 @@ if (!Number.isInteger(port) || port <= 0 || port > 65535) {
   process.exit(1);
 }
 
-// The hosted entry deliberately does NOT read AVALA_MCP_ENABLE_MUTATIONS:
-// hosted v1 serves the read-only catalog unconditionally (decision record
-// §5.5-4 — see the registerTools call in httpServer.ts). The flag remains a
+// The hosted entry deliberately does NOT read AVALA_MCP_ENABLE_MUTATIONS.
+// Hosted writes are an exact reviewed allowlist, independently gated by the
+// caller's staff toolset and write scope, protocol elicitation, credential-bound
+// confirmation state, and provider idempotency. The broad flag remains a local
 // stdio-only convenience.
 console.warn(
-  "Avala MCP hosted transport serves the read-only tool catalog (mutations are stdio-only for now).",
+  "Avala MCP hosted transport serves the read catalog plus exact reviewed, confirmation-gated staff actions.",
 );
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "")

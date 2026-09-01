@@ -5,6 +5,7 @@ import type {
 } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import type { GetClient } from "./client.js";
+import type { AssetHandleService } from "./assetHandles.js";
 import { sanitizeForOutput } from "./redact.js";
 import {
   DEFAULT_PAGE_LIMIT,
@@ -27,7 +28,8 @@ export type ReadToolset =
   | "quality"
   | "consensus"
   | "fleet"
-  | "exports";
+  | "exports"
+  | "staff";
 
 export interface ReadRouteDefinition<InputSchema extends AnyZodObject> {
   /** Stable Django URL name from server/api_route_manifest.json. */
@@ -61,6 +63,23 @@ export interface ReadCatalogToolDefinition<
    */
   normalize?: (value: unknown) => unknown;
   /**
+   * Replace upstream media URLs with credential-free asset handles before the
+   * public output schema validates the result. The callback receives validated
+   * request arguments so every handle can name a resource that the resolver
+   * will re-fetch under the caller's current credential.
+   */
+  assetize?: (
+    value: unknown,
+    args: Readonly<Record<string, unknown>>,
+    handles: AssetHandleService,
+  ) => unknown;
+  /**
+   * Whether callers may choose concise/full MCP projection. Defaults to true.
+   * Set false for fixed-shape provider contracts so discovery does not
+   * advertise a `detail` argument that cannot change the response.
+   */
+  supportsDetail?: boolean;
+  /**
    * Keys kept when `detail` is omitted or `concise`.
    * TODO(payload-lane): fleet.ts and workflows.ts receive `detail` via
    * withReadDetailInput but do not set conciseKeys (other lane owns those
@@ -68,7 +87,11 @@ export interface ReadCatalogToolDefinition<
    */
   conciseKeys?: readonly string[];
   /** Override concise/full presentation after normalize. */
-  project?: (value: unknown, detail: "concise" | "full") => unknown;
+  project?: (
+    value: unknown,
+    detail: "concise" | "full",
+    args: Readonly<Record<string, unknown>>,
+  ) => unknown;
 }
 
 export type CompositeRouteReader = (routeName: string) => Promise<unknown>;
@@ -91,8 +114,19 @@ export interface CompositeReadCatalogToolDefinition<
     read: CompositeRouteReader,
   ) => Promise<unknown>;
   normalize?: (value: unknown) => unknown;
+  assetize?: (
+    value: unknown,
+    args: Readonly<Record<string, unknown>>,
+    handles: AssetHandleService,
+  ) => unknown;
+  /** See ReadCatalogToolDefinition.supportsDetail. */
+  supportsDetail?: boolean;
   conciseKeys?: readonly string[];
-  project?: (value: unknown, detail: "concise" | "full") => unknown;
+  project?: (
+    value: unknown,
+    detail: "concise" | "full",
+    args: Readonly<Record<string, unknown>>,
+  ) => unknown;
 }
 
 export function defineReadCatalogTool<
@@ -148,7 +182,9 @@ export function defineListOutputSchema<ItemSchema extends AnyZodObject>(
  */
 export function withReadDetailInput<InputSchema extends AnyZodObject>(
   inputSchema: InputSchema,
+  supportsDetail = true,
 ): InputSchema {
+  if (!supportsDetail) return inputSchema;
   const shape = inputSchema.shape as Record<string, unknown>;
   if (shape.detail) return inputSchema;
   return inputSchema.extend({
@@ -174,13 +210,38 @@ function presentCatalogResult(
   definition: {
     normalize?: (value: unknown) => unknown;
     conciseKeys?: readonly string[];
-    project?: (value: unknown, detail: "concise" | "full") => unknown;
+    project?: (
+      value: unknown,
+      detail: "concise" | "full",
+      args: Readonly<Record<string, unknown>>,
+    ) => unknown;
   },
 ): unknown {
   const normalized = definition.normalize ? definition.normalize(value) : value;
   const detail = resolveReadDetail(args);
-  if (definition.project) return definition.project(normalized, detail);
+  if (definition.project) {
+    return definition.project(normalized, detail, args);
+  }
   return presentReadDetail(normalized, args, definition.conciseKeys);
+}
+
+function assetizeCatalogResult(
+  value: unknown,
+  args: Record<string, unknown>,
+  definition: {
+    assetize?: (
+      value: unknown,
+      args: Readonly<Record<string, unknown>>,
+      handles: AssetHandleService,
+    ) => unknown;
+  },
+  handles: AssetHandleService | undefined,
+): unknown {
+  if (!definition.assetize) return value;
+  if (!handles) {
+    throw new Error("Asset handle service is unavailable.");
+  }
+  return definition.assetize(value, args, handles);
 }
 
 function encodePathSegment(value: unknown, key: string): string {
@@ -308,8 +369,12 @@ export function registerReadCatalogTool<
   server: McpServer,
   getClient: GetClient,
   definition: ReadCatalogToolDefinition<InputSchema, OutputSchema>,
+  assetHandles?: AssetHandleService,
 ): void {
-  const inputSchema = withReadDetailInput(definition.inputSchema);
+  const inputSchema = withReadDetailInput(
+    definition.inputSchema,
+    definition.supportsDetail,
+  );
   const handler = async (
     args: z.infer<InputSchema>,
   ): Promise<CallToolResult> => {
@@ -324,7 +389,12 @@ export function registerReadCatalogTool<
     );
     const structuredContent = parseSafeStructuredContent(
       definition.outputSchema,
-      definition.route.response === "list" ? { items: raw } : raw,
+      assetizeCatalogResult(
+        definition.route.response === "list" ? { items: raw } : raw,
+        requestArgs,
+        definition,
+        assetHandles,
+      ),
     );
     const presented = presentCatalogResult(
       structuredContent,
@@ -383,8 +453,12 @@ export function registerCompositeReadCatalogTool<
   server: McpServer,
   getClient: GetClient,
   definition: CompositeReadCatalogToolDefinition<InputSchema, OutputSchema>,
+  assetHandles?: AssetHandleService,
 ): void {
-  const inputSchema = withReadDetailInput(definition.inputSchema);
+  const inputSchema = withReadDetailInput(
+    definition.inputSchema,
+    definition.supportsDetail,
+  );
   const routes = new Map<string, ReadRouteDefinition<InputSchema>>();
   for (const route of definition.routes) {
     if (routes.has(route.name)) {
@@ -414,7 +488,12 @@ export function registerCompositeReadCatalogTool<
     };
     const structuredContent = parseSafeStructuredContent(
       definition.outputSchema,
-      await definition.execute(requestArgs as z.infer<InputSchema>, read),
+      assetizeCatalogResult(
+        await definition.execute(requestArgs as z.infer<InputSchema>, read),
+        requestArgs,
+        definition,
+        assetHandles,
+      ),
     );
     const presented = presentCatalogResult(
       structuredContent,

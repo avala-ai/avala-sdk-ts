@@ -112,6 +112,12 @@ describe("scrub.ts covers what src/redact.ts cannot", () => {
       email: { k: "reviewer.name@avala.ai" },
       phone: { k: "+254712345678" },
       signedParam: { k: "https://x/y?Signature=aVeryLongOpaqueSignatureValue123456" },
+      gcsV4: {
+        k:
+          "https://storage.googleapis.com/bucket/object" +
+          "?X-Goog-Credential=service-account%40example.iam.gserviceaccount.com%2F20260829%2Fauto%2Fstorage%2Fgoog4_request" +
+          "&X-Goog-Signature=abcdef0123456789abcdef0123456789",
+      },
     };
     for (const [name, payload] of Object.entries(cases)) {
       expect(findSecrets(payload).length, `${name} was not detected`).toBeGreaterThan(0);

@@ -31,6 +31,26 @@ const INTERNAL_CLIENT_SECRET_PATTERN = /^[A-Za-z0-9_-]{32,512}$/;
 const ACCESS_TOKEN_PATTERN = /^[A-Za-z0-9\-._~+/]+=*$/;
 const MAX_ACCESS_TOKEN_BYTES = 16 * 1024;
 const MAX_FORWARDED_CLIENT_IP_LENGTH = 64;
+const IDEMPOTENCY_KEY_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const SAFE_HTTP_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
+
+export interface HttpRequestOptions {
+  json?: unknown;
+  params?: Record<string, string>;
+  /** Canonical UUIDv4 for one reviewed retry-safe mutation. */
+  idempotencyKey?: string;
+}
+
+/** Validate the exact key format enforced by Django's hosted-MCP boundary. */
+export function validateIdempotencyKey(
+  value: unknown,
+): asserts value is string | undefined {
+  if (value === undefined) return;
+  if (typeof value !== "string" || !IDEMPOTENCY_KEY_PATTERN.test(value)) {
+    throw new Error("idempotencyKey must be a canonical lowercase UUIDv4.");
+  }
+}
 
 /** Validate a JWT NumericDate that can be rendered as one canonical header. */
 export function validateMcpSubjectTokenIssuedAt(value: unknown): asserts value is number | undefined {
@@ -201,7 +221,18 @@ export class HttpTransport {
     };
   }
 
-  async request<T>(method: string, path: string, options?: { json?: unknown; params?: Record<string, string> }): Promise<T> {
+  async request<T>(
+    method: string,
+    path: string,
+    options?: HttpRequestOptions,
+  ): Promise<T> {
+    validateIdempotencyKey(options?.idempotencyKey);
+    if (
+      options?.idempotencyKey !== undefined &&
+      SAFE_HTTP_METHODS.has(method.toUpperCase())
+    ) {
+      throw new Error("idempotencyKey is valid only for mutation requests.");
+    }
     const url = this.buildUrl(path, options?.params);
 
     const controller = new AbortController();
@@ -221,6 +252,9 @@ export class HttpTransport {
             : {}),
           ...(this.config.mcpSubjectTokenIssuedAt !== undefined
             ? { "X-Avala-OAuth-Subject-Iat": String(this.config.mcpSubjectTokenIssuedAt) }
+            : {}),
+          ...(options?.idempotencyKey
+            ? { "Idempotency-Key": options.idempotencyKey }
             : {}),
           "Accept": "application/json",
           ...(options?.json ? { "Content-Type": "application/json" } : {}),
@@ -318,8 +352,15 @@ export class HttpTransport {
     return snakeToCamel(raw) as T;
   }
 
-  async requestCreate<T>(path: string, json: unknown): Promise<T> {
-    const raw = await this.request<Record<string, unknown>>("POST", path, { json });
+  async requestCreate<T>(
+    path: string,
+    json: unknown,
+    options?: Pick<HttpRequestOptions, "idempotencyKey">,
+  ): Promise<T> {
+    const raw = await this.request<Record<string, unknown>>("POST", path, {
+      json,
+      ...options,
+    });
     return snakeToCamel(raw) as T;
   }
 

@@ -1,6 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
 import {
+  assetReferenceSchema,
+  createAssetHandleService,
+  identityBoundAssetReferenceFor,
+  type AssetHandleService,
+} from "../assetHandles.js";
+import {
   definePageOutputSchema,
   defineReadCatalogTool,
   registerReadCatalogTool,
@@ -12,7 +18,7 @@ const organizationIdentitySchema = {
   name: z.string(),
   slug: z.string(),
   handle: z.string().nullable(),
-  logo: z.string().nullable(),
+  logoAsset: assetReferenceSchema.nullable(),
   industry: z.string().nullable(),
   visibility: z.string().nullable(),
   plan: z.string().nullable(),
@@ -61,11 +67,56 @@ const ORGANIZATION_CONCISE_KEYS = [
   "updatedAt",
 ] as const;
 
+function assetizeOrganization(
+  value: unknown,
+  handles: AssetHandleService,
+): unknown {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  const { logo, ...rest } = record;
+  if (typeof record.slug !== "string") return rest;
+  const slug = record.slug;
+  return {
+    ...rest,
+    logoAsset: identityBoundAssetReferenceFor(
+      logo,
+      (identity) => ({
+        kind: "organization_asset",
+        slug,
+        identity,
+        path: ["logo"],
+      }),
+      handles,
+    ),
+  };
+}
+
+function assetizeOrganizationResult(
+  value: unknown,
+  _args: Readonly<Record<string, unknown>>,
+  handles: AssetHandleService,
+): unknown {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  return Array.isArray(record.items)
+    ? {
+        ...record,
+        items: record.items.map((item) =>
+          assetizeOrganization(item, handles),
+        ),
+      }
+    : assetizeOrganization(record, handles);
+}
+
 const listOrganizationsTool = defineReadCatalogTool({
   name: "list_organizations",
   title: "List organizations",
   description:
-    "List organizations you are a member of. Default detail is identity, plan, and membership. Logos and contact fields require detail=full.",
+    "List organizations you are a member of. Default detail is identity, plan, and membership. Opaque logo-asset handles and contact fields require detail=full.",
   inputSchema: z.object({
     limit: z
       .number()
@@ -81,6 +132,7 @@ const listOrganizationsTool = defineReadCatalogTool({
       .describe("Pagination cursor from a previous request"),
   }),
   outputSchema: definePageOutputSchema(organizationListOutputSchema),
+  assetize: assetizeOrganizationResult,
   conciseKeys: ORGANIZATION_CONCISE_KEYS,
   route: {
     name: "organization-list-create",
@@ -97,11 +149,12 @@ const getOrganizationTool = defineReadCatalogTool({
   name: "get_organization",
   title: "Get organization",
   description:
-    "Get an organization. Default detail is identity and counts. Use detail=full for contact fields, domains, and the logo URL.",
+    "Get an organization. Default detail is identity and counts. Use detail=full for contact fields, domains, and an opaque logo-asset handle.",
   inputSchema: z.object({
     slug: z.string().describe("The slug identifier of the organization"),
   }),
   outputSchema: organizationDetailOutputSchema,
+  assetize: assetizeOrganizationResult,
   conciseKeys: ORGANIZATION_CONCISE_KEYS,
   route: {
     name: "organization-detail",
@@ -121,7 +174,18 @@ export const ORGANIZATION_READ_CATALOG_TOOLS = [
 export function registerOrganizationTools(
   server: McpServer,
   getClient: GetClient,
+  assetHandles: AssetHandleService = createAssetHandleService(),
 ): void {
-  registerReadCatalogTool(server, getClient, listOrganizationsTool);
-  registerReadCatalogTool(server, getClient, getOrganizationTool);
+  registerReadCatalogTool(
+    server,
+    getClient,
+    listOrganizationsTool,
+    assetHandles,
+  );
+  registerReadCatalogTool(
+    server,
+    getClient,
+    getOrganizationTool,
+    assetHandles,
+  );
 }

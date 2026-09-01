@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createAssetHandleService } from "../../src/assetHandles.js";
 import { registerSliceTools } from "../../src/tools/slices.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<{
@@ -42,17 +43,25 @@ const MOCK_SLICE = {
   itemCount: 100,
   subSlices: [],
   sourceData: [],
-  featuredSliceItemUrls: [],
+  featuredSliceItemUrls: [
+    "https://bucket.example/item.jpg?X-Amz-Credential=AKIAEXAMPLE&X-Amz-Signature=signature-value",
+  ],
 };
 
 describe("slice tools", () => {
   let server: ReturnType<typeof createMockServer>;
   let avala: ReturnType<typeof createMockAvala>;
+  let assetHandles: ReturnType<typeof createAssetHandleService>;
 
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerSliceTools(server as never, (() => avala) as never);
+    assetHandles = createAssetHandleService("slice-tools-test-key");
+    registerSliceTools(
+      server as never,
+      (() => avala) as never,
+      assetHandles,
+    );
   });
 
   it("list_slices dispatches its declared route with pagination", async () => {
@@ -127,6 +136,28 @@ describe("slice tools", () => {
     });
     expect(parsed).not.toHaveProperty("featuredSliceItemUrls");
     expect(parsed).not.toHaveProperty("sourceData");
+  });
+
+  it("detail=full returns opaque featured-item handles instead of URLs", async () => {
+    avala.transport.requestSingle.mockResolvedValue(MOCK_SLICE);
+
+    const result = await server.getHandler("get_slice")!({
+      owner: "acme",
+      slug: "training-set",
+      detail: "full",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed).not.toHaveProperty("featuredSliceItemUrls");
+    expect(parsed.featuredSliceItemAssets[0].handle).toMatch(/^ah_/);
+    expect(
+      assetHandles.open(parsed.featuredSliceItemAssets[0].handle),
+    ).toMatchObject({
+      kind: "slice_featured_asset",
+      owner: "acme",
+      slug: "training-set",
+    });
+    expect(result.content[0].text).not.toContain("X-Amz-");
   });
 
   it("registers both list_slices and get_slice tools", () => {

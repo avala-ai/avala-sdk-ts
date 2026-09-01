@@ -200,6 +200,46 @@ describe("gate: secret / PII leakage", () => {
   it("passes on a clean run", () => {
     expect(run([trial()]).gates.secretLeakage.pass).toBe(true);
   });
+
+  it("permits only the resolver's exact asset-capability payload", () => {
+    const url =
+      "https://s3/x?AWSAccessKeyId=AKIAIOSFODNN7EXAMPLE&Signature=abcdefghijklmnop";
+    const responseText = JSON.stringify({ url, expiresAt: null });
+    const summary = run([
+      trial({
+        toolCalls: [
+          call({
+            name: "resolve_asset_handle",
+            responseText,
+            secretFindings: findSecrets(responseText),
+          }),
+        ],
+      }),
+    ]);
+    expect(summary.gates.secretLeakage.pass).toBe(true);
+  });
+
+  it("fails resolver responses that contain any field outside the asset payload", () => {
+    const url =
+      "https://s3/x?AWSAccessKeyId=AKIAIOSFODNN7EXAMPLE&Signature=abcdefghijklmnop";
+    const responseText = JSON.stringify({
+      url,
+      expiresAt: null,
+      reviewer: "reviewer@example.com",
+    });
+    const summary = run([
+      trial({
+        toolCalls: [
+          call({
+            name: "resolve_asset_handle",
+            responseText,
+            secretFindings: findSecrets(responseText),
+          }),
+        ],
+      }),
+    ]);
+    expect(summary.gates.secretLeakage.pass).toBe(false);
+  });
 });
 
 describe("gate: silent failure AND fabrication share one detector", () => {

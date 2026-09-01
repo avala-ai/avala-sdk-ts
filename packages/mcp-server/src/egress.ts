@@ -15,7 +15,8 @@
  * helper. So this wraps the server itself: every `registerTool` handler is
  * decorated on its way in, and a tool added tomorrow by someone who has never
  * read this file is covered without doing anything. There is no opt-in and no
- * opt-out.
+ * ordinary-tool opt-out. The one capability-release tool is admitted only
+ * when its complete result matches the exact shape checked below.
  *
  * ## Why key-name redaction was not enough
  *
@@ -60,6 +61,86 @@ export type EgressObserver = (event: {
 
 let observer: EgressObserver | undefined;
 
+/**
+ * Validate the only payload shape allowed to carry a deliberately released
+ * asset URL. Exported so the eval leakage gate applies the identical rule to
+ * the text content it observes rather than growing a second, weaker exception.
+ */
+export function isAssetResolutionPayload(value: unknown): boolean {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value)
+  ) {
+    return false;
+  }
+  const payload = value as Record<string, unknown>;
+  if (
+    Object.keys(payload).some(
+      (key) => key !== "url" && key !== "expiresAt",
+    ) ||
+    typeof payload.url !== "string" ||
+    (payload.expiresAt !== null && typeof payload.expiresAt !== "string")
+  ) {
+    return false;
+  }
+  try {
+    const parsed = new URL(payload.url);
+    const localFile = parsed.protocol === "file:";
+    const localHttp =
+      parsed.protocol === "http:" &&
+      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
+    if (
+      (!localFile && !localHttp && parsed.protocol !== "https:") ||
+      parsed.username !== "" ||
+      parsed.password !== ""
+    ) {
+      return false;
+    }
+    return !(
+      typeof payload.expiresAt === "string" &&
+      new Date(payload.expiresAt).toISOString() !== payload.expiresAt
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isExplicitAssetResolution(tool: string, result: unknown): boolean {
+  if (
+    tool !== "resolve_asset_handle" ||
+    typeof result !== "object" ||
+    result === null ||
+    Array.isArray(result)
+  ) {
+    return false;
+  }
+  const record = result as Record<string, unknown>;
+  if (
+    Object.keys(record).some(
+      (key) => key !== "structuredContent" && key !== "content",
+    ) ||
+    typeof record.structuredContent !== "object" ||
+    record.structuredContent === null ||
+    Array.isArray(record.structuredContent) ||
+    !Array.isArray(record.content) ||
+    record.content.length !== 1
+  ) {
+    return false;
+  }
+  const structured = record.structuredContent as Record<string, unknown>;
+  if (!isAssetResolutionPayload(structured)) return false;
+  const content = record.content[0] as Record<string, unknown> | undefined;
+  return (
+    typeof content === "object" &&
+    content !== null &&
+    !Array.isArray(content) &&
+    Object.keys(content).every((key) => key === "type" || key === "text") &&
+    content.type === "text" &&
+    content.text === JSON.stringify(structured, null, 2)
+  );
+}
+
 /** Register a sink for egress findings. Never receives raw secret material. */
 export function setEgressObserver(next: EgressObserver | undefined): void {
   observer = next;
@@ -73,6 +154,12 @@ export function setEgressObserver(next: EgressObserver | undefined): void {
  * will be.
  */
 export function scrubToolResult<T>(tool: string, result: T): T {
+  // This is the one deliberate capability release in the catalog. The tool's
+  // encrypted handle has already been opened and its original REST resource
+  // re-fetched under the current credential. Permit only its exact two-field
+  // result shape; any extra field or serialization drift falls back to the
+  // universal scrubber below. All ordinary tools remain unable to opt out.
+  if (isExplicitAssetResolution(tool, result)) return result;
   const findings = findSecrets(result);
   if (findings.length > 0) {
     // Fire-and-forget and never throw: an observer must not be able to fail a

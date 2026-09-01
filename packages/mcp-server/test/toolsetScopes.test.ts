@@ -39,11 +39,12 @@ function stringArray(value: unknown): string[] | null {
  * whose scope set intersects the credential's, and then adds `staff` only for
  * `is_staff_privileged` credentials — putting it in the manifest would list
  * the staff sandbox for any customer credential carrying `mcp.query`. The
- * scopes here mirror `HasScope(SCOPE_MCP_QUERY)` on the Django endpoint the
- * `staff_*` proxies forward to.
+ * scopes here mirror the exact `HasScope` gates on the Django endpoints in
+ * the privileged toolset: the SQL sandbox, workforce operations overview,
+ * and reviewed workforce mutations.
  */
 const PRIVILEGED_TOOLSET_SCOPES: Record<string, readonly string[]> = {
-  staff: ["mcp.query"],
+  staff: ["mcp.query", "workforce.read", "workforce.write"],
 };
 
 describe("credential toolset scope contract", () => {
@@ -82,16 +83,21 @@ describe("credential toolset scope contract", () => {
       const scopes =
         stringArray(meta?.["avala.ai/required-scopes"]) ??
         (typeof singleScope === "string" ? [singleScope] : null);
+      const anyScopes =
+        stringArray(meta?.["avala.ai/required-any-scopes"]) ??
+        (typeof meta?.["avala.ai/required-any-scope"] === "string"
+          ? [meta["avala.ai/required-any-scope"] as string]
+          : null);
       const toolsets =
         stringArray(meta?.["avala.ai/toolsets"]) ??
         (typeof singleToolset === "string" ? [singleToolset] : null);
 
       expect(
-        scopes,
+        scopes !== null || anyScopes !== null,
         `${name} must declare required scope metadata`,
-      ).not.toBeNull();
+      ).toBe(true);
       expect(toolsets, `${name} must declare toolset metadata`).not.toBeNull();
-      expect(scopes).not.toHaveLength(0);
+      expect([...(scopes ?? []), ...(anyScopes ?? [])]).not.toHaveLength(0);
       expect(toolsets).not.toHaveLength(0);
 
       for (const toolset of toolsets!) {
@@ -101,11 +107,19 @@ describe("credential toolset scope contract", () => {
             (toolsetScopes as Record<string, string[]>)[toolset],
             `privileged toolset '${toolset}' must stay out of the scope-discovery manifest`,
           ).toBeUndefined();
-          for (const scope of scopes!) {
+          for (const scope of scopes ?? []) {
             expect(
               privilegedScopes,
               `${name} requires '${scope}' but the privileged toolset '${toolset}' does not carry it`,
             ).toContain(scope);
+          }
+          if ((anyScopes ?? []).length > 0) {
+            expect(
+              (anyScopes ?? []).some((scope) =>
+                privilegedScopes.includes(scope),
+              ),
+              `${name} has no alternative scope carried by privileged toolset '${toolset}'`,
+            ).toBe(true);
           }
           continue;
         }
@@ -116,12 +130,33 @@ describe("credential toolset scope contract", () => {
           discoverableScopes,
           `${name} uses unknown toolset '${toolset}'`,
         ).toBeDefined();
-        for (const scope of scopes!) {
+        for (const scope of scopes ?? []) {
           expect(
             discoverableScopes,
             `${name} requires '${scope}' but discovery omits it from '${toolset}'`,
           ).toContain(scope);
         }
+        if ((anyScopes ?? []).length > 0) {
+          expect(
+            (anyScopes ?? []).some((scope) =>
+              discoverableScopes.includes(scope),
+            ),
+            `${name} has no alternative scope carried by '${toolset}'`,
+          ).toBe(true);
+        }
+      }
+
+      for (const scope of anyScopes ?? []) {
+        expect(
+          toolsets!.some((toolset) =>
+            (
+              PRIVILEGED_TOOLSET_SCOPES[toolset] ??
+              (toolsetScopes as Record<string, string[]>)[toolset] ??
+              []
+            ).includes(scope),
+          ),
+          `${name} alternative scope '${scope}' is not carried by any declared toolset`,
+        ).toBe(true);
       }
     }
   });

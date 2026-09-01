@@ -66,14 +66,16 @@ const PLACEHOLDER_PATTERN = /\[scrubbed:[a-z0-9-]+:[0-9a-f]{8}\]/g;
 
 /**
  * Query parameters whose value is a credential or a signature. Matched
- * case-insensitively because S3 presigned URLs and SDKs disagree on casing
- * (`AWSAccessKeyId` vs `X-Amz-Credential` vs `x-amz-security-token`).
+ * case-insensitively because storage providers and SDKs disagree on casing
+ * (`AWSAccessKeyId`, `X-Amz-Credential`, `x-goog-signature`, and others).
  */
 const CREDENTIAL_PARAM_NAMES = [
   "awsaccesskeyid",
   "x-amz-security-token",
   "x-amz-credential",
   "x-amz-signature",
+  "x-goog-credential",
+  "x-goog-signature",
   "signature",
   "sig",
   "token",
@@ -100,6 +102,8 @@ const ALWAYS_CREDENTIAL_PARAMS = new Set([
   "x-amz-security-token",
   "x-amz-credential",
   "x-amz-signature",
+  "x-goog-credential",
+  "x-goog-signature",
   "signature",
   "access_token",
   "accesstoken",

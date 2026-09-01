@@ -16,7 +16,7 @@
  * snake_case / camelCase / kebab-case all match the same canonical name.
  */
 
-const REDACTED = "[redacted]";
+export const REDACTED_OUTPUT_VALUE = "[redacted]";
 
 const SENSITIVE_KEY_NAMES: ReadonlySet<string> = new Set([
   "devicetoken",
@@ -82,7 +82,7 @@ function keyWords(key: string): string[] {
     .filter(Boolean);
 }
 
-function hasSensitiveKeyName(key: string): boolean {
+export function isSensitiveOutputKey(key: string): boolean {
   if (SENSITIVE_KEY_NAMES.has(normaliseKey(key))) return true;
   const words = keyWords(key);
   return SENSITIVE_KEY_SUFFIXES.some(
@@ -107,8 +107,8 @@ export function sanitizeForOutput(value: unknown): unknown {
     const out: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
       out[key] =
-        hasSensitiveKeyName(key) && val !== null && val !== undefined
-          ? REDACTED
+        isSensitiveOutputKey(key) && val !== null && val !== undefined
+          ? REDACTED_OUTPUT_VALUE
           : sanitizeForOutput(val);
     }
     return out;

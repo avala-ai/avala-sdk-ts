@@ -20,6 +20,7 @@ import {
   type Server,
   type ServerResponse,
 } from "node:http";
+import { createHmac } from "node:crypto";
 import { toNodeHandler } from "@modelcontextprotocol/node";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import {
@@ -41,7 +42,10 @@ import {
   type HostedOAuthConfig,
   type OAuthTokenBroker,
 } from "./oauth.js";
-import { createAvalaMcpServer } from "./server.js";
+import {
+  createAvalaMcpServer,
+  REVIEWED_HOSTED_MUTATION_TOOLS,
+} from "./server.js";
 import type { CredentialToolGrant } from "./visibility.js";
 
 /** Path serving the MCP Streamable HTTP endpoint. */
@@ -109,6 +113,26 @@ type Credential =
 type ClientIp =
   | { ok: true; forwardedClientIp: string }
   | { ok: false; status: 400; message: string };
+
+function mutationCredentialBinding(
+  internalClientSecret: string,
+  credential:
+    | { kind: "api_key"; value: string }
+    | { kind: "oauth"; subjectToken: string },
+): string {
+  return createHmac("sha256", internalClientSecret)
+    .update("avala-mcp:mutation-credential:v1", "utf8")
+    .update("\0", "utf8")
+    .update(credential.kind, "utf8")
+    .update("\0", "utf8")
+    .update(
+      credential.kind === "api_key"
+        ? credential.value
+        : credential.subjectToken,
+      "utf8",
+    )
+    .digest("base64url");
+}
 
 /**
  * The header fields extractCredential reads. `rawHeaders` preserves every
@@ -436,6 +460,7 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
   validateInternalClientSecret(options.internalClientSecret, {
     required: true,
   });
+  const internalClientSecret = options.internalClientSecret as string;
   const oauthConfig = validateHostedOAuthConfig(options.oauth);
   const oauthMetadata = protectedResourceMetadata(oauthConfig);
   const oauthMetadataUrl = protectedResourceMetadataUrl(oauthConfig.resource);
@@ -548,7 +573,12 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
 
     let downstreamCredential:
       | { kind: "api_key"; value: string }
-      | { kind: "oauth"; value: string; subjectIssuedAt: number };
+      | {
+          kind: "oauth";
+          value: string;
+          subjectToken: string;
+          subjectIssuedAt: number;
+        };
     if (credential.kind === "api_key") {
       downstreamCredential = { kind: "api_key", value: credential.apiKey };
     } else {
@@ -557,6 +587,7 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
         downstreamCredential = {
           kind: "oauth",
           value: exchange.accessToken,
+          subjectToken: credential.subjectToken,
           subjectIssuedAt: exchange.subjectIssuedAt,
         };
       } catch (error) {
@@ -612,20 +643,32 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
       return;
     }
 
-    // Hosted v1 is read-only BY CONSTRUCTION — no option, no env var, nothing
-    // to misconfigure (decision record §5.5-4 / known gap (d)): a stateless
-    // transport cannot run the elicitation/confirm flow destructive tools
-    // require. Server-side scopes are necessary but not sufficient for a
-    // remotely callable destructive action: confirmation, idempotency, and a
-    // durable audit intent must land before this catalog can expand.
-    // AVALA_MCP_ENABLE_MUTATIONS is honored only by the stdio entry, where
-    // the user owns the process and the flag is documented as client-side
-    // convenience, not a control.
+    // Hosted mutations are an exact reviewed allowlist, never the stdio-wide
+    // AVALA_MCP_ENABLE_MUTATIONS switch. Visibility still requires the current
+    // credential's staff privilege + exact write scope; Django then repeats
+    // both checks and enforces expected state, audit provenance and exactly-once
+    // execution. The request-local credential binding prevents a confirmation
+    // issued for one operator/key from being replayed by another.
     const handler = createMcpHandler(
       () =>
         createAvalaMcpServer(getClient, {
           allowMutations: false,
+          allowedMutationTools: REVIEWED_HOSTED_MUTATION_TOOLS,
           credentialGrant,
+          credentialBinding: mutationCredentialBinding(
+            internalClientSecret,
+            downstreamCredential.kind === "api_key"
+              ? downstreamCredential
+              : {
+                  kind: "oauth",
+                  subjectToken: downstreamCredential.subjectToken,
+                },
+          ),
+          // Hosted transport is stateless and may be load-balanced across
+          // replicas. HKDF domain-separates this existing secret inside the
+          // handle codec so an opaque locator issued by one request can be
+          // opened by the next without storing a signed URL anywhere.
+          assetHandleKeyMaterial: internalClientSecret,
         }),
       {
         // One factory serves the current stateless protocol and the 2025-era

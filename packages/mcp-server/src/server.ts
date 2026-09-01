@@ -1,6 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import packageJson from "../package.json" with { type: "json" };
 import type { GetClient } from "./client.js";
+import {
+  createAssetHandleService,
+  registerAssetResolverTool,
+  type AssetHandleService,
+} from "./assetHandles.js";
 import { registerAgentTools } from "./tools/agents.js";
 import { registerAnnotationIssueTools } from "./tools/annotationIssues.js";
 import { registerConsensusTools } from "./tools/consensus.js";
@@ -17,7 +22,12 @@ import { registerStorageTools } from "./tools/storage.js";
 import { registerTaskTools } from "./tools/tasks.js";
 import { registerWebhookTools } from "./tools/webhooks.js";
 import { registerWorkflowTools } from "./tools/workflows.js";
+import { registerWorkforceTools } from "./tools/workforce.js";
 import { enforceEgressScrubbing } from "./egress.js";
+import {
+  createMutationConfirmationService,
+  type MutationConfirmationService,
+} from "./mutations.js";
 import {
   scopeServerForCredential,
   type CredentialToolGrant,
@@ -25,9 +35,28 @@ import {
 
 export interface McpServerOptions {
   allowMutations: boolean;
+  /** Exact reviewed mutation names for credential-scoped hosted MCP. */
+  allowedMutationTools?: ReadonlySet<string>;
   /** Omit for local stdio; hosted HTTP always supplies the discovered grant. */
   credentialGrant?: CredentialToolGrant;
+  /** Non-secret keyed digest of the current API key or OAuth subject. */
+  credentialBinding?: string;
+  /** Stable secret material for stateless handles; never included in a handle. */
+  assetHandleKeyMaterial?: string | Uint8Array;
+  /** Internal injection point used to share one codec across all registrars. */
+  assetHandles?: AssetHandleService;
+  /** Internal injection point for deterministic confirmation tests. */
+  mutationConfirmation?: MutationConfirmationService;
 }
+
+export const REVIEWED_HOSTED_MUTATION_TOOLS: ReadonlySet<string> = new Set([
+  "assign_workforce_work_unit",
+  "create_workforce_batch",
+  "deassign_workforce_work_unit",
+  "set_workforce_batch_priority",
+  "set_workforce_batch_status",
+  "set_workforce_sequence_status",
+]);
 
 export interface ToolRegistrar {
   readonly category: string;
@@ -43,6 +72,7 @@ export type { GetClient } from "./client.js";
 const SERVER_INSTRUCTIONS = [
   "Manage the Avala Physical AI data loop through tenant-safe REST-backed tools.",
   "Inspect resources before changing them, use the narrowest available tool, and preserve returned identifiers for follow-up calls.",
+  "Media and export reads return opaque asset handles instead of bearer URLs; resolve_asset_handle uses protocol elicitation and releases a URL only after confirmation.",
   "The product MCP at mcp.avala.ai is distinct from the public documentation MCP at avala.ai/docs/mcp.",
 ].join(" ");
 
@@ -69,7 +99,12 @@ export const TOOL_REGISTRARS: readonly ToolRegistrar[] = [
   {
     category: "datasets",
     register: (server, getClient, options): void =>
-      registerDatasetTools(server, getClient, options.allowMutations),
+      registerDatasetTools(
+        server,
+        getClient,
+        options.allowMutations,
+        options.assetHandles,
+      ),
   },
   {
     category: "projects",
@@ -108,7 +143,12 @@ export const TOOL_REGISTRARS: readonly ToolRegistrar[] = [
   {
     category: "exports",
     register: (server, getClient, options): void =>
-      registerExportTools(server, getClient, options.allowMutations),
+      registerExportTools(
+        server,
+        getClient,
+        options.allowMutations,
+        options.assetHandles,
+      ),
   },
   {
     category: "quality",
@@ -127,18 +167,62 @@ export const TOOL_REGISTRARS: readonly ToolRegistrar[] = [
   },
   {
     category: "organizations",
-    register: (server, getClient): void =>
-      registerOrganizationTools(server, getClient),
+    register: (server, getClient, options): void =>
+      registerOrganizationTools(server, getClient, options.assetHandles),
   },
   {
     category: "slices",
-    register: (server, getClient): void =>
-      registerSliceTools(server, getClient),
+    register: (server, getClient, options): void =>
+      registerSliceTools(server, getClient, options.assetHandles),
+  },
+  {
+    category: "assets",
+    register: (server, getClient, options): void =>
+      registerAssetResolverTool(
+        server,
+        getClient,
+        options.assetHandles ?? createAssetHandleService(),
+        options.credentialGrant,
+      ),
   },
   {
     category: "workflows",
     register: (server, getClient, options): void =>
       registerWorkflowTools(server, getClient, options.allowMutations),
+  },
+  {
+    category: "workforce",
+    register: (server, getClient, options): void => {
+      const enabled =
+        options.allowMutations ||
+        options.allowedMutationTools?.has("assign_workforce_work_unit") ===
+          true ||
+        options.allowedMutationTools?.has("create_workforce_batch") === true ||
+        options.allowedMutationTools?.has("deassign_workforce_work_unit") ===
+          true ||
+        options.allowedMutationTools?.has("set_workforce_batch_priority") ===
+          true ||
+        options.allowedMutationTools?.has("set_workforce_batch_status") ===
+          true ||
+        options.allowedMutationTools?.has("set_workforce_sequence_status") ===
+          true;
+      registerWorkforceTools(
+        server,
+        getClient,
+        enabled
+          ? {
+              confirmation:
+                options.mutationConfirmation ??
+                createMutationConfirmationService(
+                  options.assetHandleKeyMaterial,
+                ),
+              credentialBinding:
+                options.credentialBinding ?? "local-stdio",
+            }
+          : undefined,
+        options.allowMutations ? undefined : options.allowedMutationTools,
+      );
+    },
   },
   {
     category: "staff",
@@ -162,18 +246,53 @@ export function registerTools(
 ): void {
   if (options.allowMutations && options.credentialGrant) {
     throw new Error(
-      "Credential-scoped MCP registration cannot expose mutations before confirmation support exists.",
+      "Credential-scoped MCP registration must use the reviewed mutation allowlist.",
+    );
+  }
+  for (const toolName of options.allowedMutationTools ?? []) {
+    if (!REVIEWED_HOSTED_MUTATION_TOOLS.has(toolName)) {
+      throw new Error(
+        `Credential-scoped MCP mutation '${toolName}' is not reviewed.`,
+      );
+    }
+  }
+  if (
+    options.credentialGrant &&
+    (options.allowedMutationTools?.size ?? 0) > 0 &&
+    !options.credentialBinding
+  ) {
+    throw new Error(
+      "Credential-scoped MCP mutations require a caller binding.",
     );
   }
   // Egress scrubbing is applied to the RAW server first, so every later
   // wrapper registers through it. A tool added by a future contributor who has
   // never read `egress.ts` is covered without opting in — which is the whole
   // point, since the 24 tools that leaked did so by forgetting to opt in.
+  const assetHandles =
+    options.assetHandles ??
+    createAssetHandleService(options.assetHandleKeyMaterial);
+  const runtimeOptions: McpServerOptions = {
+    allowMutations: options.allowMutations,
+    ...(options.credentialGrant
+      ? { credentialGrant: options.credentialGrant }
+      : {}),
+    ...(options.allowedMutationTools
+      ? { allowedMutationTools: options.allowedMutationTools }
+      : {}),
+    ...(options.credentialBinding
+      ? { credentialBinding: options.credentialBinding }
+      : {}),
+    assetHandles,
+    mutationConfirmation:
+      options.mutationConfirmation ??
+      createMutationConfirmationService(options.assetHandleKeyMaterial),
+  };
   const scrubbedServer = enforceEgressScrubbing(server);
   const registrationServer = options.credentialGrant
     ? scopeServerForCredential(scrubbedServer, options.credentialGrant)
     : scrubbedServer;
   for (const registrar of TOOL_REGISTRARS) {
-    registrar.register(registrationServer, getClient, options);
+    registrar.register(registrationServer, getClient, runtimeOptions);
   }
 }

@@ -220,11 +220,13 @@ describe("annotation issue tools", () => {
     ).items[0]!;
 
     expect(item).not.toHaveProperty("unexpected");
+    expect(item).not.toHaveProperty("reporter");
     expect(item.queryParams).toEqual({
       api_key: "[redacted]",
       camera: "front",
     });
     expect(result.content[0]!.text).not.toContain("FAKE-not-a-real-api-key");
+    expect(result.content[0]!.text).not.toContain("Avala Reviewer");
   });
 
   it("dispatches annotation issue metrics with its sequence filter", async () => {

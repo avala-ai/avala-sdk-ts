@@ -16,6 +16,7 @@ export interface CredentialToolGrant {
 
 interface ToolRequirement {
   readonly scopes: readonly string[];
+  readonly anyScopes: readonly string[];
   readonly toolsets: readonly string[];
 }
 
@@ -24,7 +25,7 @@ function stringRequirements(
   meta: Record<string, unknown>,
   singularKey: string,
   pluralKey: string,
-  options: { allowEmpty: boolean },
+  options: { allowEmpty: boolean; allowMissing?: boolean },
 ): readonly string[] {
   const singular = meta[singularKey];
   const plural = meta[pluralKey];
@@ -49,6 +50,7 @@ function stringRequirements(
     );
   }
   if (singular === undefined && plural === undefined) {
+    if (options.allowMissing) return [];
     throw new Error(
       `Hosted MCP tool '${toolName}' is missing authorization metadata.`,
     );
@@ -89,14 +91,28 @@ function declarativeRequirement(
     );
   }
   const record = meta as Record<string, unknown>;
+  const scopes = stringRequirements(
+    toolName,
+    record,
+    "avala.ai/required-scope",
+    "avala.ai/required-scopes",
+    { allowEmpty: true, allowMissing: true },
+  );
+  const anyScopes = stringRequirements(
+    toolName,
+    record,
+    "avala.ai/required-any-scope",
+    "avala.ai/required-any-scopes",
+    { allowEmpty: false, allowMissing: true },
+  );
+  if (scopes.length === 0 && anyScopes.length === 0) {
+    throw new Error(
+      `Hosted MCP tool '${toolName}' is missing authorization scope metadata.`,
+    );
+  }
   return {
-    scopes: stringRequirements(
-      toolName,
-      record,
-      "avala.ai/required-scope",
-      "avala.ai/required-scopes",
-      { allowEmpty: true },
-    ),
+    scopes,
+    anyScopes,
     toolsets: stringRequirements(
       toolName,
       record,
@@ -124,6 +140,8 @@ function isVisible(
 ): boolean {
   return (
     requirement.scopes.every((scope) => grant.scopes.has(scope)) &&
+    (requirement.anyScopes.length === 0 ||
+      requirement.anyScopes.some((scope) => grant.scopes.has(scope))) &&
     requirement.toolsets.some(
       (toolset) =>
         grant.toolsets.has(toolset) &&

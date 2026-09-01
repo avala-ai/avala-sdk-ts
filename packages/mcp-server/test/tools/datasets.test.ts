@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  assetIdentityForUrl,
+  createAssetHandleService,
+} from "../../src/assetHandles.js";
 import { registerDatasetTools } from "../../src/tools/datasets.js";
+
+const SIGNED_FRAME_URL =
+  "https://bucket.example/frame.jpg" +
+  "?X-Amz-Credential=AKIAEXAMPLE&X-Amz-Signature=signature-value";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<{
   content: { type: string; text: string }[];
@@ -50,11 +58,18 @@ function createMockAvala() {
 describe("dataset tools", () => {
   let server: ReturnType<typeof createMockServer>;
   let avala: ReturnType<typeof createMockAvala>;
+  let assetHandles: ReturnType<typeof createAssetHandleService>;
 
   beforeEach(() => {
     server = createMockServer();
     avala = createMockAvala();
-    registerDatasetTools(server as never, (() => avala) as never, true);
+    assetHandles = createAssetHandleService("dataset-tools-test-key");
+    registerDatasetTools(
+      server as never,
+      (() => avala) as never,
+      true,
+      assetHandles,
+    );
   });
 
   it("list_datasets defaults to concise detail and aliases sequence counts", async () => {
@@ -111,6 +126,11 @@ describe("dataset tools", () => {
           itemCount: 39,
           dataType: "lidar",
           predefinedLabels: [{ name: "car" }],
+          featuredItemsUrl: [
+            "https://bucket.example/featured.jpg?X-Amz-Credential=AKIAEXAMPLE&X-Amz-Signature=featured-signature",
+          ],
+          logo:
+            "https://bucket.example/logo.png?X-Amz-Credential=AKIAEXAMPLE&X-Amz-Signature=signature-value",
         },
       ],
       nextCursor: "page-2",
@@ -122,6 +142,17 @@ describe("dataset tools", () => {
     const result = await handler({ detail: "full", limit: 5 });
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0].predefinedLabels).toEqual([{ name: "car" }]);
+    expect(parsed.items[0]).not.toHaveProperty("logo");
+    expect(parsed.items[0].logoAsset.handle).toMatch(/^ah_/);
+    expect(parsed.items[0]).not.toHaveProperty("featuredItemsUrl");
+    expect(parsed.items[0].featuredItemsAsset[0].handle).toMatch(/^ah_/);
+    expect(
+      assetHandles.open(parsed.items[0].featuredItemsAsset[0].handle),
+    ).toMatchObject({
+      kind: "dataset_featured_asset",
+      uid: "ds-1",
+    });
+    expect(result.content[0].text).not.toContain("X-Amz-");
     expect(parsed.items[0].sequenceCount).toBe(39);
     expect(parsed.next_cursor).toBe("page-2");
     expect(avala.transport.requestPage).toHaveBeenCalledWith("/datasets/", {
@@ -166,6 +197,179 @@ describe("dataset tools", () => {
     expect(parsed.assetCount).toBe(100);
     expect(parsed.itemCount).toBe(100);
     expect(parsed).not.toHaveProperty("predefinedLabels");
+  });
+
+  it("preview_curation_candidates sends one bounded request and strips undeclared fields", async () => {
+    avala.transport.requestSingle.mockResolvedValue({
+      datasetUid: "00000000000000000000000000000001",
+      unit: "dataset_item",
+      criterion: {
+        dimension: "result_status",
+        requiredState: "accepted",
+        minimumConsensus: null,
+        projectUid: "00000000000000000000000000000002",
+        taskName: "box",
+        deliverableId: null,
+        deliverableStateField: null,
+        evidenceStatus: "available",
+        operatorIdentity: { username: "must-not-leak" },
+      },
+      candidateUids: ["00000000000000000000000000000003"],
+      counts: {
+        selected: 1,
+        excludedByMembership: 2,
+        missingQcEvidence: 3,
+        rejectedByThreshold: 4,
+        userUids: ["must-not-leak"],
+      },
+      hasMore: true,
+      nextCursor: "signed-cursor",
+      limitations: [],
+      coworkerAttribution: { username: "must-not-leak" },
+    });
+
+    const result = await server.getHandler("preview_curation_candidates")!({
+      datasetUid: "00000000-0000-0000-0000-000000000001",
+      unit: "dataset_item",
+      qcDimension: "result_status",
+      requiredState: "accepted",
+      projectUid: "00000000-0000-0000-0000-000000000002",
+      taskName: "box",
+      excludeSliceUid: "00000000-0000-0000-0000-000000000004",
+      limit: 10,
+      cursor: "previous-cursor",
+    });
+
+    expect(avala.transport.requestSingle).toHaveBeenCalledTimes(1);
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/datasets/00000000-0000-0000-0000-000000000001/curation-preview/",
+      {
+        unit: "dataset_item",
+        qc_dimension: "result_status",
+        required_state: "accepted",
+        project_uid: "00000000-0000-0000-0000-000000000002",
+        task_name: "box",
+        exclude_slice_uid: "00000000-0000-0000-0000-000000000004",
+        limit: "10",
+        cursor: "previous-cursor",
+      },
+    );
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed).toEqual({
+      datasetUid: "00000000000000000000000000000001",
+      unit: "dataset_item",
+      criterion: {
+        dimension: "result_status",
+        requiredState: "accepted",
+        minimumConsensus: null,
+        projectUid: "00000000000000000000000000000002",
+        taskName: "box",
+        deliverableId: null,
+        deliverableStateField: null,
+        evidenceStatus: "available",
+      },
+      candidateUids: ["00000000000000000000000000000003"],
+      counts: {
+        selected: 1,
+        excludedByMembership: 2,
+        missingQcEvidence: 3,
+        rejectedByThreshold: 4,
+      },
+      hasMore: true,
+      nextCursor: "signed-cursor",
+      limitations: [],
+    });
+    expect(result.structuredContent).toEqual(parsed);
+    expect(result.content[0].text).not.toContain("username");
+  });
+
+  it("preview_curation_candidates defaults the bounded page and rejects malformed evidence", async () => {
+    avala.transport.requestSingle.mockResolvedValue({
+      datasetUid: "00000000000000000000000000000001",
+      unit: "sequence",
+      criterion: {
+        dimension: "sequence_workflow",
+        requiredState: "customer_approved",
+        minimumConsensus: null,
+        projectUid: null,
+        taskName: null,
+        deliverableId: null,
+        deliverableStateField: null,
+        evidenceStatus: "available",
+      },
+      candidateUids: [],
+      counts: {
+        selected: -1,
+        excludedByMembership: 0,
+        missingQcEvidence: 0,
+        rejectedByThreshold: 0,
+      },
+      hasMore: false,
+      nextCursor: null,
+      limitations: [],
+    });
+
+    await expect(
+      server.getHandler("preview_curation_candidates")!({
+        datasetUid: "00000000-0000-0000-0000-000000000001",
+        unit: "sequence",
+        qcDimension: "sequence_workflow",
+        requiredState: "customer_approved",
+      }),
+    ).rejects.toThrow();
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/datasets/00000000-0000-0000-0000-000000000001/curation-preview/",
+      {
+        unit: "sequence",
+        qc_dimension: "sequence_workflow",
+        required_state: "customer_approved",
+        limit: "25",
+      },
+    );
+  });
+
+  it.each([
+    ["a non-UUID candidate", ["not-a-uuid"]],
+    [
+      "more than 100 candidates",
+      Array.from({ length: 101 }, (_, index) =>
+        index.toString(16).padStart(32, "0"),
+      ),
+    ],
+  ])("preview_curation_candidates rejects %s", async (_case, candidateUids) => {
+    avala.transport.requestSingle.mockResolvedValue({
+      datasetUid: "00000000000000000000000000000001",
+      unit: "sequence",
+      criterion: {
+        dimension: "sequence_workflow",
+        requiredState: "customer_approved",
+        minimumConsensus: null,
+        projectUid: null,
+        taskName: null,
+        deliverableId: null,
+        deliverableStateField: null,
+        evidenceStatus: "available",
+      },
+      candidateUids,
+      counts: {
+        selected: candidateUids.length,
+        excludedByMembership: 0,
+        missingQcEvidence: 0,
+        rejectedByThreshold: 0,
+      },
+      hasMore: false,
+      nextCursor: null,
+      limitations: [],
+    });
+
+    await expect(
+      server.getHandler("preview_curation_candidates")!({
+        datasetUid: "00000000-0000-0000-0000-000000000001",
+        unit: "sequence",
+        qcDimension: "sequence_workflow",
+        requiredState: "customer_approved",
+      }),
+    ).rejects.toThrow();
   });
 
   it("create_dataset calls avala.datasets.create and returns JSON", async () => {
@@ -254,6 +458,26 @@ describe("dataset tools", () => {
       numberOfFrames: 569,
     });
     expect(parsed.items[0]).not.toHaveProperty("featuredImage");
+
+    const full = await server.getHandler("list_sequences")!({
+      owner: "thirddimension",
+      slug: "third-dimension-095940-full-scene",
+      detail: "full",
+    });
+    const fullPayload = JSON.parse(full.content[0].text);
+    expect(fullPayload.items[0]).not.toHaveProperty("featuredImage");
+    expect(fullPayload.items[0].featuredImageAsset.handle).toMatch(/^ah_/);
+    expect(
+      assetHandles.open(fullPayload.items[0].featuredImageAsset.handle),
+    ).toEqual({
+      kind: "sequence_featured_asset",
+      owner: "thirddimension",
+      slug: "third-dimension-095940-full-scene",
+      sequenceUid: "seq-1",
+      limit: 25,
+      identity: assetIdentityForUrl("https://cdn.example/feat.png"),
+    });
+    expect(full.content[0].text).not.toContain("https://cdn.example/feat.png");
   });
 
   it("get_sequence omits frames and labels unless detail=full", async () => {
@@ -262,7 +486,33 @@ describe("dataset tools", () => {
       key: "full-scene-569",
       status: "completed",
       predefinedLabels: [{ name: "car" }],
-      frames: [{ idx: 0 }],
+      frames: [
+        {
+          uid: "frame-uid-0",
+          idx: 0,
+          images: [
+            {
+              imageUrl: SIGNED_FRAME_URL,
+            },
+          ],
+          exportSnippet: {
+            results: [
+              {
+                items: [
+                  {
+                    object: "car",
+                    data: {
+                      Annotator: "customer-defined annotation field",
+                    },
+                    Annotator: { name: "Jane Operator", userId: "user-1" },
+                    Reviewer: { name: "Rae Reviewer", userId: "reviewer-1" },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
       metrics: null,
       datasetUid: "ds-1",
       allowLidarCalibration: false,
@@ -284,16 +534,93 @@ describe("dataset tools", () => {
       sequenceUid: "seq-1",
       detail: "full",
     });
-    expect(JSON.parse(full.content[0].text).frames).toEqual([{ idx: 0 }]);
+    expect(JSON.parse(full.content[0].text).frames).toEqual([
+      {
+        uid: "frame-uid-0",
+        idx: 0,
+        images: [
+          {
+            imageAsset: {
+              handle: expect.stringMatching(/^ah_/),
+            },
+          },
+        ],
+        exportSnippet: {
+          results: [
+            {
+              items: [
+                {
+                  object: "car",
+                  data: {
+                    Annotator: "customer-defined annotation field",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+    expect(full.content[0].text).not.toContain("Jane Operator");
+    expect(full.content[0].text).not.toContain("Rae Reviewer");
+    expect(full.content[0].text).not.toContain("X-Amz-");
+    expect(
+      assetHandles.open(
+        JSON.parse(full.content[0].text).frames[0].images[0].imageAsset.handle,
+      ),
+    ).toEqual({
+      kind: "sequence_frame_asset",
+      owner: "thirddimension",
+      slug: "third-dimension-095940-full-scene",
+      sequenceUid: "seq-1",
+      frameUid: "frame-uid-0",
+      identity: assetIdentityForUrl(SIGNED_FRAME_URL),
+      path: ["images", 0, "imageUrl"],
+    });
   });
 
-  it("get_frame defaults to concise identity fields", async () => {
+  it("get_frame minimizes detail and gates export attribution", async () => {
     avala.datasets.getFrame.mockResolvedValue({
       frameIndex: 0,
       model: "pinhole",
       key: "frame-0.json",
-      images: [{ fx: 824.74, fy: 834.49 }],
-      raw: {},
+      images: [
+        {
+          imageUrl: SIGNED_FRAME_URL,
+          fx: 824.74,
+          fy: 834.49,
+        },
+      ],
+      raw: {
+        uid: "frame-uid-0",
+        exportSnippet: {
+          annotator: "Frame Annotator",
+          reviewerEmail: "reviewer@example.com",
+          username: "+254700000001",
+          results: [
+            {
+              items: [
+                {
+                  object: "car",
+                  data: {
+                    Annotator: "customer-defined annotation field",
+                  },
+                  Annotator: {
+                    name: "Jane Operator",
+                    userId: "user-1",
+                    userName: "+254700000001",
+                  },
+                  Reviewer: {
+                    name: "Rae Reviewer",
+                    userId: "reviewer-1",
+                    userName: "+254700000002",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
     });
 
     const concise = await server.getHandler("get_frame")!({
@@ -315,7 +642,46 @@ describe("dataset tools", () => {
       frameIdx: 0,
       detail: "full",
     });
-    expect(JSON.parse(full.content[0].text).images[0].fx).toBe(824.74);
+    const fullPayload = JSON.parse(full.content[0].text);
+    expect(fullPayload.images[0].fx).toBe(824.74);
+    expect(fullPayload.images[0]).not.toHaveProperty("imageUrl");
+    expect(fullPayload.images[0].imageAsset.handle).toMatch(/^ah_/);
+    expect(assetHandles.open(fullPayload.images[0].imageAsset.handle)).toEqual({
+      kind: "frame_asset",
+      owner: "thirddimension",
+      slug: "third-dimension-095940-full-scene",
+      sequenceUid: "seq-1",
+      frameUid: "frame-uid-0",
+      identity: assetIdentityForUrl(SIGNED_FRAME_URL),
+      path: ["images", 0, "imageUrl"],
+    });
+    expect(full.content[0].text).not.toContain("X-Amz-");
+    expect(fullPayload.raw.exportSnippet.results[0].items[0]).toEqual({
+      object: "car",
+      data: { Annotator: "customer-defined annotation field" },
+    });
+    expect(fullPayload.raw.exportSnippet).not.toHaveProperty("username");
+    expect(full.content[0].text).not.toContain("Jane Operator");
+    expect(full.content[0].text).not.toContain("Rae Reviewer");
+
+    const attributed = await server.getHandler("get_frame")!({
+      owner: "thirddimension",
+      slug: "third-dimension-095940-full-scene",
+      sequenceUid: "seq-1",
+      frameIdx: 0,
+      include_attribution: true,
+      detail: "full",
+    });
+    const attributedPayload = JSON.parse(attributed.content[0].text);
+    expect(
+      attributedPayload.raw.exportSnippet.results[0].items[0].Annotator,
+    ).toMatchObject({ name: "Jane Operator", userId: "user-1" });
+    expect(
+      attributedPayload.raw.exportSnippet.results[0].items[0].Reviewer,
+    ).toMatchObject({ name: "Rae Reviewer", userId: "reviewer-1" });
+    expect(attributedPayload.raw.exportSnippet.annotator).toBe(
+      "Frame Annotator",
+    );
   });
 
   it("get_calibration defaults to sequenceUid", async () => {
@@ -600,7 +966,7 @@ describe("dataset tools", () => {
     expect(byKey).not.toHaveProperty("has_frames");
   });
 
-  it("list_capture_submissions strips signed URLs on detail=full", async () => {
+  it("list_capture_submissions replaces signed URLs and strips attribution on detail=full", async () => {
     avala.transport.requestPage.mockResolvedValue({
       items: [
         {
@@ -681,7 +1047,17 @@ describe("dataset tools", () => {
     };
     expect(structured.items[0]).not.toHaveProperty("playbackUrl");
     expect(structured.items[0]).not.toHaveProperty("thumbnailUrl");
+    expect(
+      (structured.items[0].playbackAsset as { handle: string }).handle,
+    ).toMatch(/^ah_/);
+    expect(
+      (structured.items[0].thumbnailAsset as { handle: string }).handle,
+    ).toMatch(/^ah_/);
+    expect(structured.items[0]).not.toHaveProperty("submitter");
+    expect(structured.items[0]).not.toHaveProperty("reviewedBy");
     expect(result.content[0].text).not.toContain("X-Amz-Credential");
+    expect(result.content[0].text).not.toContain("operator");
+    expect(result.content[0].text).not.toContain("reviewer");
     expect(JSON.parse(result.content[0].text).items[0].campaign.taskDescription.spec).toBe(
       "front-view",
     );
@@ -721,7 +1097,63 @@ describe("dataset tools", () => {
       "/results/result-1/capture-submission/",
     );
     expect(result.structuredContent).not.toHaveProperty("playbackUrl");
+    expect(
+      (result.structuredContent?.playbackAsset as { handle: string }).handle,
+    ).toMatch(/^ah_/);
+    expect(
+      (result.structuredContent?.thumbnailAsset as { handle: string }).handle,
+    ).toMatch(/^ah_/);
+    expect(result.structuredContent).not.toHaveProperty("submitter");
+    expect(result.structuredContent).not.toHaveProperty("reviewedBy");
     expect(result.content[0].text).not.toContain("X-Amz-");
+    expect(result.content[0].text).not.toContain("operator");
+  });
+
+  it("get_capture_submission returns attribution only when explicitly requested", async () => {
+    avala.transport.requestSingle.mockResolvedValue({
+      resultUid: "result-1",
+      itemUid: "item-1",
+      status: "accepted",
+      mediaWidth: 1920,
+      mediaHeight: 1080,
+      durationS: 12.5,
+      audio: true,
+      submitter: {
+        uid: "user-1",
+        username: "+254700000001",
+        email: "operator@example.com",
+      },
+      submittedAt: "2026-08-24T00:00:00Z",
+      rejectReason: null,
+      rejectNote: null,
+      reviewedBy: { uid: "reviewer-1", username: "+254700000002" },
+      reviewedAt: "2026-08-24T00:05:00Z",
+      episodeUid: null,
+      extractionStatus: null,
+      channels: null,
+      acceptance: null,
+      campaign: null,
+    });
+
+    const result = await server.getHandler("get_capture_submission")!({
+      resultUid: "result-1",
+      include_attribution: true,
+    });
+
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/results/result-1/capture-submission/",
+    );
+    expect(result.structuredContent).toMatchObject({ resultUid: "result-1" });
+    expect(
+      (result.structuredContent as { submitter: Record<string, unknown> })
+        .submitter,
+    ).toEqual({ uid: "user-1", username: "+254700000001" });
+    expect(
+      (result.structuredContent as { reviewedBy: Record<string, unknown> })
+        .reviewedBy,
+    ).toEqual({ uid: "reviewer-1", username: "+254700000002" });
+    expect(result.structuredContent).not.toHaveProperty("mediaWidth");
+    expect(result.content[0].text).toContain("+254700000001");
   });
 
   it("list_capture_campaigns slims config unless detail=full", async () => {
@@ -834,7 +1266,7 @@ describe("dataset tools", () => {
   });
 
   it("registers read-only + mutation tools when allowMutations is true", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(12);
+    expect(server.registerTool).toHaveBeenCalledTimes(13);
     expect(server.getHandler("list_datasets")).toBeDefined();
     expect(server.getHandler("create_dataset")).toBeDefined();
   });

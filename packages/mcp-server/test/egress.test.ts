@@ -90,6 +90,86 @@ describe("scrubToolResult", () => {
     const clean = { uid: "ds_1", name: "sf-lidar", sequenceCount: 39 };
     expect(scrubToolResult("list_datasets", clean)).toEqual(clean);
   });
+
+  it("permits only the resolver's exact, deliberately released URL shape", () => {
+    const structuredContent = { url: SIGNED_URL, expiresAt: null };
+    const result = {
+      structuredContent,
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(structuredContent, null, 2),
+        },
+      ],
+    };
+
+    expect(scrubToolResult("resolve_asset_handle", result)).toEqual(result);
+    expect(JSON.stringify(scrubToolResult("get_frame", result))).not.toContain(
+      "AKIAIOSFODNN7EXAMPLE",
+    );
+  });
+
+  it("falls back to universal scrubbing if resolver output grows any extra field", () => {
+    const structuredContent = {
+      url: SIGNED_URL,
+      expiresAt: null,
+      accidental: "reviewer@example.com",
+    };
+    const result = {
+      structuredContent,
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(structuredContent, null, 2),
+        },
+      ],
+    };
+
+    const scrubbed = scrubToolResult("resolve_asset_handle", result);
+    expect(findSecrets(scrubbed)).toEqual([]);
+    expect(JSON.stringify(scrubbed)).not.toContain("AKIAIOSFODNN7EXAMPLE");
+    expect(JSON.stringify(scrubbed)).not.toContain("reviewer@example.com");
+  });
+
+  it("falls back to universal scrubbing for an unsafe resolver URL", () => {
+    const structuredContent = {
+      url: "https://AKIAIOSFODNN7EXAMPLE:secret@example.com/export.zip",
+      expiresAt: null,
+    };
+    const result = {
+      structuredContent,
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(structuredContent, null, 2),
+        },
+      ],
+    };
+
+    const scrubbed = scrubToolResult("resolve_asset_handle", result);
+    expect(findSecrets(scrubbed)).toEqual([]);
+    expect(JSON.stringify(scrubbed)).not.toContain("AKIAIOSFODNN7EXAMPLE");
+  });
+
+  it("falls back to universal scrubbing for a non-canonical expiry", () => {
+    const structuredContent = {
+      url: SIGNED_URL,
+      expiresAt: "August 29, 2026 09:00 UTC",
+    };
+    const result = {
+      structuredContent,
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(structuredContent, null, 2),
+        },
+      ],
+    };
+
+    const scrubbed = scrubToolResult("resolve_asset_handle", result);
+    expect(findSecrets(scrubbed)).toEqual([]);
+    expect(JSON.stringify(scrubbed)).not.toContain("AKIAIOSFODNN7EXAMPLE");
+  });
 });
 
 describe("enforceEgressScrubbing", () => {

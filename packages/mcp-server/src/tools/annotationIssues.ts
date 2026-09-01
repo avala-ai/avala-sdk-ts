@@ -28,16 +28,6 @@ const annotationIssueOutputSchema = z
       })
       .strip()
       .nullable(),
-    reporter: z
-      .object({
-        username: z.string(),
-        picture: z.string().nullable(),
-        fullName: z.string().nullable(),
-        type: z.string().nullable(),
-        isStaff: z.boolean().nullable(),
-      })
-      .strip()
-      .nullable(),
     priority: z.string().nullable(),
     severity: z.string().nullable(),
     description: z.string().nullable(),
@@ -103,7 +93,7 @@ const listAnnotationIssuesBySequenceTool = defineReadCatalogTool({
   name: "list_annotation_issues_by_sequence",
   title: "List annotation issues by sequence",
   description:
-    "List annotation issues for a specific sequence. Default detail is identity and status. Coordinates, reporter, and class-correction fields require detail=full. Upstream is an unpaginated list — no cursor is invented client-side.",
+    "List annotation issues for a specific sequence. Default detail is identity and status. Coordinates and class-correction fields require detail=full. Reporter identity is never returned by this list tool. Upstream is an unpaginated list — no cursor is invented client-side.",
   inputSchema: z.object({
     sequenceUid: z.string().describe("The UID of the sequence"),
     datasetItemUid: z
@@ -129,7 +119,7 @@ const listAnnotationIssuesByDatasetTool = defineReadCatalogTool({
   name: "list_annotation_issues_by_dataset",
   title: "List annotation issues by dataset",
   description:
-    "List annotation issues for a specific dataset. Default detail is identity and status. Upstream is an unpaginated list — no cursor is invented client-side.",
+    "List annotation issues for a specific dataset. Default detail is identity and status. Reporter identity is never returned by this list tool. Upstream is an unpaginated list — no cursor is invented client-side.",
   inputSchema: z.object({
     owner: z.string().describe("The dataset owner"),
     datasetSlug: z.string().describe("The dataset slug"),
