@@ -213,6 +213,21 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
     limit: 25,
     cursor: "00000000000000000000000000000006",
   },
+  list_workforce_group_members: {
+    groupUid: "00000000000000000000000000000006",
+    active: true,
+    approved: true,
+    hasActiveWork: false,
+    limit: 25,
+    cursor: "00000000000000000000000000000007",
+  },
+  preview_workforce_group_membership_impact: {
+    groupUid: "00000000000000000000000000000006",
+    coworkerUid: "00000000000000000000000000000007",
+    operation: "remove",
+    limit: 25,
+    cursor: "00000000000000000000000000000008",
+  },
   list_workforce_batch_units: {
     batchUid: "00000000000000000000000000000001",
     status: "in_progress",
@@ -862,6 +877,78 @@ describe("declarative MCP catalog", () => {
       hasMore: false,
       nextCursor: null,
     };
+    const workforceGroupMembers = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      groupUid: "00000000000000000000000000000006",
+      members: [
+        {
+          coworkerUid: "00000000000000000000000000000007",
+          displayName: "Ari",
+          readiness: {
+            active: true,
+            approved: true,
+            hasActiveWork: false,
+          },
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    };
+    const workforceGroupMembershipImpact = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      operation: "remove",
+      groupUid: "00000000000000000000000000000006",
+      coworkerUid: "00000000000000000000000000000007",
+      currentMembership: true,
+      readiness: {
+        active: true,
+        approved: true,
+        hasActiveWork: false,
+      },
+      effect: {
+        scope: "global_group",
+        mayAffectPlatformCapabilities: true,
+        wouldChangeMembership: true,
+        coworkerReadyForNewWork: true,
+        assignedInProgressGroupWorkUnits: 0,
+        removalBlockedByActiveGroupWork: false,
+      },
+      affectedBatchesByStatus: {
+        available: 1,
+        unavailable: 0,
+        archived: 0,
+      },
+      affectedGroupUnitsByStatus: {
+        unavailable: 0,
+        backlog: 2,
+        inProgress: 0,
+        inReview: 0,
+        completed: 10,
+        error: 0,
+      },
+      affectedBatches: [
+        {
+          batchUid: "00000000000000000000000000000008",
+          batchStatus: "available",
+          lineContext: {
+            organizationUid: "00000000000000000000000000000002",
+            projectUid: "00000000000000000000000000000003",
+            datasetUid: "00000000000000000000000000000004",
+            sequenceUid: "00000000000000000000000000000005",
+          },
+          groupUnitsByStatus: {
+            unavailable: 0,
+            backlog: 2,
+            inProgress: 0,
+            inReview: 0,
+            completed: 10,
+            error: 0,
+          },
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    };
     const workforceBatchUnits = {
       generatedAt: "2026-08-29T20:00:00Z",
       batchUid: "00000000000000000000000000000001",
@@ -955,6 +1042,16 @@ describe("declarative MCP catalog", () => {
             return workforceBatchInventory;
           if (path === "/admin/workforce/groups/")
             return workforceGroupCatalog;
+          if (
+            path ===
+            "/admin/workforce/groups/00000000000000000000000000000006/members/"
+          )
+            return workforceGroupMembers;
+          if (
+            path ===
+            "/admin/workforce/groups/00000000000000000000000000000006/members/00000000000000000000000000000007/impact/"
+          )
+            return workforceGroupMembershipImpact;
           if (
             path ===
             "/admin/workforce/batches/00000000000000000000000000000001/attention/"
@@ -1124,6 +1221,8 @@ describe("declarative MCP catalog", () => {
           manifestPathPattern(manifestRoute!.path).test(
             renderCatalogPath(definition.route.path, {
               batchUid: "00000000000000000000000000000001",
+              groupUid: "00000000000000000000000000000004",
+              coworkerUid: "00000000000000000000000000000005",
               workUnitUid: "00000000000000000000000000000002",
               sequenceUid: "00000000000000000000000000000003",
             }),

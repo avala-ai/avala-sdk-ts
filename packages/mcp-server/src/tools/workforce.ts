@@ -297,6 +297,115 @@ const workforceGroupCatalogOutputSchema = z
   })
   .strip();
 
+const workforceGroupMemberReadinessOutputSchema = z
+  .object({
+    active: z.boolean(),
+    approved: z.boolean(),
+    hasActiveWork: z.boolean(),
+  })
+  .strip();
+
+const workforceGroupMembersOutputSchema = z
+  .object({
+    generatedAt: z.string().datetime({ offset: true }),
+    groupUid: compactUuidOutputSchema,
+    members: z
+      .array(
+        z
+          .object({
+            coworkerUid: compactUuidOutputSchema,
+            displayName: z.string().min(1).max(150),
+            readiness: workforceGroupMemberReadinessOutputSchema,
+          })
+          .strip(),
+      )
+      .max(100),
+    hasMore: z.boolean(),
+    nextCursor: compactUuidOutputSchema.nullable(),
+  })
+  .strip();
+
+const workforceGroupMembershipImpactOutputSchema = z
+  .object({
+    generatedAt: z.string().datetime({ offset: true }),
+    operation: z.enum(["add", "remove"]),
+    groupUid: compactUuidOutputSchema,
+    coworkerUid: compactUuidOutputSchema,
+    currentMembership: z.boolean(),
+    readiness: workforceGroupMemberReadinessOutputSchema,
+    effect: z
+      .object({
+        scope: z.literal("global_group"),
+        mayAffectPlatformCapabilities: z.literal(true),
+        wouldChangeMembership: z.boolean(),
+        coworkerReadyForNewWork: z.boolean(),
+        assignedInProgressGroupWorkUnits: nonnegativeCount,
+        removalBlockedByActiveGroupWork: z.boolean(),
+      })
+      .strip(),
+    affectedBatchesByStatus: z
+      .object({
+        available: nonnegativeCount,
+        unavailable: nonnegativeCount,
+        archived: nonnegativeCount,
+      })
+      .strip(),
+    affectedGroupUnitsByStatus: workUnitStatusOutputSchema,
+    affectedBatches: z
+      .array(
+        z
+          .object({
+            batchUid: compactUuidOutputSchema,
+            batchStatus: z.enum(["available", "unavailable", "archived"]),
+            lineContext: workforceLineContextOutputSchema,
+            groupUnitsByStatus: workUnitStatusOutputSchema,
+          })
+          .strip(),
+      )
+      .max(100),
+    hasMore: z.boolean(),
+    nextCursor: compactUuidOutputSchema.nullable(),
+  })
+  .strip();
+
+const workforceGroupMembershipExpectedReadinessInputSchema = z
+  .object({
+    active: z.boolean(),
+    approved: z.boolean(),
+    hasActiveWork: z.boolean(),
+  })
+  .strict();
+
+const workforceGroupMembershipExpectedEffectInputSchema = z
+  .object({
+    scope: z.literal("global_group"),
+    mayAffectPlatformCapabilities: z.literal(true),
+    wouldChangeMembership: z.literal(true),
+    coworkerReadyForNewWork: z.boolean(),
+    assignedInProgressGroupWorkUnits: nonnegativeCount,
+    removalBlockedByActiveGroupWork: z.literal(false),
+  })
+  .strict();
+
+const workforceGroupMembershipExpectedBatchStatusInputSchema = z
+  .object({
+    available: nonnegativeCount,
+    unavailable: nonnegativeCount,
+    archived: nonnegativeCount,
+  })
+  .strict();
+
+const workforceGroupMembershipExpectedUnitStatusInputSchema = z
+  .object({
+    unavailable: nonnegativeCount,
+    backlog: nonnegativeCount,
+    inProgress: nonnegativeCount,
+    inReview: nonnegativeCount,
+    completed: nonnegativeCount,
+    error: nonnegativeCount,
+  })
+  .strict();
+
 const workforceBatchUnitsOutputSchema = z
   .object({
     generatedAt: z.string().datetime({ offset: true }),
@@ -565,6 +674,129 @@ const listWorkforceGroupsTool = defineReadCatalogTool({
   },
 });
 
+const listWorkforceGroupMembersTool = defineReadCatalogTool({
+  name: "list_workforce_group_members",
+  title: "List workforce group members",
+  description:
+    "Staff only: inspect a bounded, privacy-preserving coworker readiness roster for one operational group before reviewed Physical AI production-line staffing changes. Requires workforce.write and returns only stable coworker UIDs, safe first-name/fallback labels, and active, approved, and active-work booleans; it excludes contact/profile data, last names, permissions, pay, performance, customer payloads, and work details.",
+  inputSchema: z
+    .object({
+      groupUid: batchUidInputSchema.describe(
+        "Opaque group UID returned by list_workforce_groups.",
+      ),
+      active: z
+        .boolean()
+        .optional()
+        .describe("Optional exact account-active filter."),
+      approved: z
+        .boolean()
+        .optional()
+        .describe(
+          "Optional approval filter under the current coworker waitlist policy.",
+        ),
+      hasActiveWork: z
+        .boolean()
+        .optional()
+        .describe(
+          "Optional filter for an in-progress assignment in an available production line; no work details are returned.",
+        ),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe("Maximum members to return (server default 50, max 100)."),
+      cursor: batchUidInputSchema
+        .optional()
+        .describe("Opaque nextCursor from the previous member page."),
+    })
+    .strict(),
+  outputSchema: workforceGroupMembersOutputSchema,
+  supportsDetail: false,
+  route: {
+    name: "workforce-group-members",
+    method: "GET",
+    path: "/admin/workforce/groups/{groupUid}/members/",
+    query: {
+      active: "active",
+      approved: "approved",
+      hasActiveWork: "has_active_work",
+      limit: "limit",
+      cursor: "cursor",
+    },
+    response: "single",
+    scope: "workforce.write",
+    toolset: "staff",
+  },
+});
+
+const previewWorkforceGroupMembershipImpactTool = defineReadCatalogTool({
+  name: "preview_workforce_group_membership_impact",
+  title: "Preview workforce group membership impact",
+  description:
+    "Staff only: preview the global production-line blast radius of adding or removing one coworker from one operational group before any reviewed staffing mutation. Requires workforce.write. This is not batch-scoped allocation: the same global group may affect work eligibility across many organizations and projects and may also affect platform capabilities beyond the listed batches. Returns only opaque line-context UIDs, fixed status counts, readiness, and guardrail booleans; never permissions, customer payloads, work details, contacts, pay, or performance.",
+  inputSchema: z
+    .object({
+      groupUid: batchUidInputSchema.describe(
+        "Opaque group UID returned by list_workforce_groups.",
+      ),
+      coworkerUid: batchUidInputSchema.describe(
+        "Opaque coworker UID returned by list_workforce_group_members.",
+      ),
+      operation: z
+        .enum(["add", "remove"])
+        .describe("Explicit membership change to preview; no change is applied."),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe(
+          "Maximum affected production lines to return (server default 50, max 100); complete status totals remain global.",
+        ),
+      cursor: batchUidInputSchema
+        .optional()
+        .describe("Opaque nextCursor from the previous impact page."),
+    })
+    .strict(),
+  outputSchema: workforceGroupMembershipImpactOutputSchema,
+  supportsDetail: false,
+  project: (value, _detail, args) => {
+    const impact = value as {
+      operation: string;
+      groupUid: string;
+      coworkerUid: string;
+    };
+    const requestedGroupUid = String(args.groupUid).replaceAll("-", "");
+    const requestedCoworkerUid = String(args.coworkerUid).replaceAll("-", "");
+    if (
+      impact.operation !== args.operation ||
+      impact.groupUid !== requestedGroupUid ||
+      impact.coworkerUid !== requestedCoworkerUid
+    ) {
+      throw new Error(
+        "Workforce group membership impact response did not match the requested group, coworker, and operation.",
+      );
+    }
+    return value;
+  },
+  route: {
+    name: "workforce-group-membership-impact",
+    method: "GET",
+    path: "/admin/workforce/groups/{groupUid}/members/{coworkerUid}/impact/",
+    query: {
+      operation: "operation",
+      limit: "limit",
+      cursor: "cursor",
+    },
+    response: "single",
+    scope: "workforce.write",
+    toolset: "staff",
+  },
+});
+
 const listWorkforceBatchUnitsTool = defineReadCatalogTool({
   name: "list_workforce_batch_units",
   title: "List workforce batch units",
@@ -685,6 +917,210 @@ const listWorkforceAssignmentCandidatesTool = defineReadCatalogTool({
     response: "single",
     scope: "workforce.write",
     toolset: "staff",
+  },
+});
+
+const changeWorkforceGroupMembershipTool = defineMutationCatalogTool({
+  name: "change_workforce_group_membership",
+  title: "Change workforce group membership",
+  description:
+    "Staff only: add or remove one coworker from one global operational group after an exact impact preview and explicit human approval. Requires workforce.write, both global-scope acknowledgements, and every current-membership, readiness, effect, batch-count, and group-unit-count field returned by preview_workforce_group_membership_impact. This is not batch-scoped allocation and may affect platform capabilities and work eligibility across many organizations and projects. Known no-ops and removals blocked by active target-group work are refused before approval.",
+  inputSchema: z
+    .object({
+      groupUid: batchUidInputSchema.describe(
+        "Exact opaque group UID from preview_workforce_group_membership_impact.",
+      ),
+      coworkerUid: batchUidInputSchema.describe(
+        "Exact opaque coworker UID from preview_workforce_group_membership_impact.",
+      ),
+      operation: z
+        .enum(["add", "remove"])
+        .describe("Exact operation used for the reviewed impact preview."),
+      expectedCurrentMembership: z
+        .boolean()
+        .describe("Exact currentMembership returned by the impact preview."),
+      expectedReadiness: workforceGroupMembershipExpectedReadinessInputSchema.describe(
+        "Exact active, approved, and hasActiveWork state returned by the impact preview.",
+      ),
+      expectedEffect: workforceGroupMembershipExpectedEffectInputSchema.describe(
+        "Exact global-scope effect returned by an actionable impact preview; blocked removals and no-ops are not accepted.",
+      ),
+      expectedAffectedBatchesByStatus:
+        workforceGroupMembershipExpectedBatchStatusInputSchema.describe(
+          "Exact complete affectedBatchesByStatus totals returned by the impact preview.",
+        ),
+      expectedAffectedGroupUnitsByStatus:
+        workforceGroupMembershipExpectedUnitStatusInputSchema.describe(
+          "Exact complete affectedGroupUnitsByStatus totals returned by the impact preview.",
+        ),
+      acknowledgeGlobalGroupScope: z
+        .literal(true)
+        .describe(
+          "Must be true: this changes global group membership, not allocation within one batch.",
+        ),
+      acknowledgePlatformCapabilityImpact: z
+        .literal(true)
+        .describe(
+          "Must be true: this group change may alter platform capabilities beyond listed production lines.",
+        ),
+      reason: z
+        .string()
+        .trim()
+        .min(8)
+        .max(500)
+        .describe("Operational reason recorded in the immutable audit ledger."),
+    })
+    .strict()
+    .superRefine((value, context) => {
+      if (value.expectedCurrentMembership !== (value.operation === "remove")) {
+        context.addIssue({
+          code: "custom",
+          path: ["expectedCurrentMembership"],
+          message:
+            "Add requires an observed non-member; remove requires an observed member.",
+        });
+      }
+      const expectedReadyForNewWork =
+        value.expectedReadiness.active &&
+        value.expectedReadiness.approved &&
+        !value.expectedReadiness.hasActiveWork;
+      if (
+        value.expectedEffect.coworkerReadyForNewWork !==
+        expectedReadyForNewWork
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["expectedEffect", "coworkerReadyForNewWork"],
+          message: "Readiness and effect fields must come from one exact preview.",
+        });
+      }
+      if (
+        value.operation === "remove" &&
+        value.expectedEffect.assignedInProgressGroupWorkUnits !== 0
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["expectedEffect", "assignedInProgressGroupWorkUnits"],
+          message:
+            "Deassign active target-group work before removing membership.",
+        });
+      }
+    }),
+  outputSchema: z
+    .object({
+      operationEventUid: compactUuidOutputSchema,
+      operation: z.enum(["add", "remove"]),
+      groupUid: compactUuidOutputSchema,
+      coworkerUid: compactUuidOutputSchema,
+      previousMembership: z.boolean(),
+      currentMembership: z.boolean(),
+      effect: z
+        .object({
+          scope: z.literal("global_group"),
+          mayAffectPlatformCapabilities: z.literal(true),
+          membershipChanged: z.literal(true),
+        })
+        .strip(),
+      reason: z.string().min(1).max(500),
+      reversalGuidance: z.string().min(1).max(1000),
+    })
+    .strip(),
+  route: {
+    name: "workforce-group-membership",
+    method: "POST",
+    path: "/admin/workforce/groups/{groupUid}/members/{coworkerUid}/membership/",
+    scope: "workforce.write",
+    toolset: "staff",
+    body: ({
+      operation,
+      expectedCurrentMembership,
+      expectedReadiness,
+      expectedEffect,
+      expectedAffectedBatchesByStatus,
+      expectedAffectedGroupUnitsByStatus,
+      acknowledgeGlobalGroupScope,
+      acknowledgePlatformCapabilityImpact,
+      reason,
+    }) => ({
+      operation,
+      expected_current_membership: expectedCurrentMembership,
+      expected_readiness: {
+        active: expectedReadiness.active,
+        approved: expectedReadiness.approved,
+        has_active_work: expectedReadiness.hasActiveWork,
+      },
+      expected_effect: {
+        scope: expectedEffect.scope,
+        may_affect_platform_capabilities:
+          expectedEffect.mayAffectPlatformCapabilities,
+        would_change_membership: expectedEffect.wouldChangeMembership,
+        coworker_ready_for_new_work:
+          expectedEffect.coworkerReadyForNewWork,
+        assigned_in_progress_group_work_units:
+          expectedEffect.assignedInProgressGroupWorkUnits,
+        removal_blocked_by_active_group_work:
+          expectedEffect.removalBlockedByActiveGroupWork,
+      },
+      expected_affected_batches_by_status: {
+        available: expectedAffectedBatchesByStatus.available,
+        unavailable: expectedAffectedBatchesByStatus.unavailable,
+        archived: expectedAffectedBatchesByStatus.archived,
+      },
+      expected_affected_group_units_by_status: {
+        unavailable: expectedAffectedGroupUnitsByStatus.unavailable,
+        backlog: expectedAffectedGroupUnitsByStatus.backlog,
+        in_progress: expectedAffectedGroupUnitsByStatus.inProgress,
+        in_review: expectedAffectedGroupUnitsByStatus.inReview,
+        completed: expectedAffectedGroupUnitsByStatus.completed,
+        error: expectedAffectedGroupUnitsByStatus.error,
+      },
+      acknowledge_global_group_scope: acknowledgeGlobalGroupScope,
+      acknowledge_platform_capability_impact:
+        acknowledgePlatformCapabilityImpact,
+      reason,
+    }),
+  },
+  project: (value, args) => {
+    const expectedGroupUid = args.groupUid.replaceAll("-", "");
+    const expectedCoworkerUid = args.coworkerUid.replaceAll("-", "");
+    const expectedNewMembership = args.operation === "add";
+    if (
+      value.operation !== args.operation ||
+      value.groupUid !== expectedGroupUid ||
+      value.coworkerUid !== expectedCoworkerUid ||
+      value.previousMembership !== args.expectedCurrentMembership ||
+      value.currentMembership !== expectedNewMembership ||
+      value.reason !== args.reason
+    ) {
+      throw new Error(
+        "Workforce group membership mutation response did not match the approved operation.",
+      );
+    }
+    return value;
+  },
+  preview: ({
+    groupUid,
+    coworkerUid,
+    operation,
+    expectedCurrentMembership,
+    expectedReadiness,
+    expectedEffect,
+    expectedAffectedBatchesByStatus,
+    expectedAffectedGroupUnitsByStatus,
+    reason,
+  }) => ({
+    message:
+      `${operation === "add" ? "Add" : "Remove"} coworker ${coworkerUid} ${operation === "add" ? "to" : "from"} global group ${groupUid}? ` +
+      `This is GLOBAL group membership, not batch-scoped allocation, and may change platform capabilities and work eligibility across organizations and projects. ` +
+      `Reviewed membership=${expectedCurrentMembership}; readiness active=${expectedReadiness.active}, approved=${expectedReadiness.approved}, hasActiveWork=${expectedReadiness.hasActiveWork}; ` +
+      `readyForNewWork=${expectedEffect.coworkerReadyForNewWork}, activeTargetGroupUnits=${expectedEffect.assignedInProgressGroupWorkUnits}. ` +
+      `Affected batches: available=${expectedAffectedBatchesByStatus.available}, unavailable=${expectedAffectedBatchesByStatus.unavailable}, archived=${expectedAffectedBatchesByStatus.archived}. ` +
+      `Affected group units: unavailable=${expectedAffectedGroupUnitsByStatus.unavailable}, backlog=${expectedAffectedGroupUnitsByStatus.backlog}, in_progress=${expectedAffectedGroupUnitsByStatus.inProgress}, in_review=${expectedAffectedGroupUnitsByStatus.inReview}, completed=${expectedAffectedGroupUnitsByStatus.completed}, error=${expectedAffectedGroupUnitsByStatus.error}. ` +
+      `Both global scope and potential platform-capability impact are acknowledged. Reason: ${reason}`,
+  }),
+  reversalGuidance: ({ groupUid, coworkerUid, operation }) => {
+    const reverseOperation = operation === "add" ? "remove" : "add";
+    return `Run preview_workforce_group_membership_impact again for group ${groupUid}, coworker ${coworkerUid}, operation=${reverseOperation}. If the fresh preview is actionable, call change_workforce_group_membership with every newly observed field and obtain separate human approval. Reversal changes membership only; it does not undo work or capability use that occurred meanwhile.`;
   },
 });
 
@@ -1241,6 +1677,8 @@ export const WORKFORCE_READ_CATALOG_TOOLS = [
   getWorkforceOperationsOverviewTool,
   listWorkforceBatchesTool,
   listWorkforceGroupsTool,
+  listWorkforceGroupMembersTool,
+  previewWorkforceGroupMembershipImpactTool,
   getWorkforceBatchAttentionTool,
   listWorkforceBatchUnitsTool,
   getWorkforceSequenceStatusTool,
@@ -1248,6 +1686,7 @@ export const WORKFORCE_READ_CATALOG_TOOLS = [
 ] as const;
 
 export const WORKFORCE_MUTATION_CATALOG_TOOLS = [
+  changeWorkforceGroupMembershipTool,
   createWorkforceBatchTool,
   setWorkforceBatchPriorityTool,
   setWorkforceBatchStatusTool,
@@ -1265,6 +1704,12 @@ export function registerWorkforceTools(
   registerReadCatalogTool(server, getClient, getWorkforceOperationsOverviewTool);
   registerReadCatalogTool(server, getClient, listWorkforceBatchesTool);
   registerReadCatalogTool(server, getClient, listWorkforceGroupsTool);
+  registerReadCatalogTool(server, getClient, listWorkforceGroupMembersTool);
+  registerReadCatalogTool(
+    server,
+    getClient,
+    previewWorkforceGroupMembershipImpactTool,
+  );
   registerReadCatalogTool(server, getClient, getWorkforceBatchAttentionTool);
   registerReadCatalogTool(server, getClient, listWorkforceBatchUnitsTool);
   registerReadCatalogTool(server, getClient, getWorkforceSequenceStatusTool);
@@ -1274,6 +1719,17 @@ export function registerWorkforceTools(
     listWorkforceAssignmentCandidatesTool,
   );
   if (mutationOptions) {
+    if (
+      allowedMutationTools === undefined ||
+      allowedMutationTools.has(changeWorkforceGroupMembershipTool.name)
+    ) {
+      registerMutationCatalogTool(
+        server,
+        getClient,
+        changeWorkforceGroupMembershipTool,
+        mutationOptions,
+      );
+    }
     if (
       allowedMutationTools === undefined ||
       allowedMutationTools.has(createWorkforceBatchTool.name)

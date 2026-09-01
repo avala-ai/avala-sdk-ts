@@ -234,6 +234,11 @@ export interface MutationCatalogToolDefinition<
   inputSchema: InputSchema;
   outputSchema: OutputSchema;
   route: MutationRouteDefinition<InputSchema>;
+  /** Validate or narrow the provider response against the approved arguments. */
+  project?: (
+    value: Record<string, unknown>,
+    args: z.infer<InputSchema>,
+  ) => Record<string, unknown>;
   preview: (args: z.infer<InputSchema>) => MutationPreview;
   reversalGuidance: (args: z.infer<InputSchema>) => string;
 }
@@ -371,8 +376,9 @@ export function registerMutationCatalogTool<
       const raw = await getClient(definition.name).transport.requestCreate<
         Record<string, unknown>
       >(path, definition.route.body(args), { idempotencyKey });
+      const projected = definition.project?.(raw, args) ?? raw;
       const structuredContent = safeStructuredContent(definition.outputSchema, {
-        ...raw,
+        ...projected,
         reversalGuidance: definition.reversalGuidance(args),
       });
       return {

@@ -218,6 +218,133 @@ function workforceGroupCatalog() {
   };
 }
 
+function workforceGroupMembers() {
+  return {
+    generatedAt: "2026-08-31T20:00:00Z",
+    groupUid: "00000000000000000000000000000006",
+    members: [
+      {
+        coworkerUid: "00000000000000000000000000000007",
+        displayName: "Ari",
+        readiness: {
+          active: true,
+          approved: true,
+          hasActiveWork: false,
+          currentWorkUnitUid: "must be stripped",
+        },
+        username: "+15550000000",
+        email: "private@example.com",
+        lastName: "Private",
+        picture: "https://private.example/profile.png",
+        permissions: ["private"],
+        pay: { rate: "private" },
+        performance: { score: 0.99 },
+        currentWork: { batchName: "private", url: "https://private.example/work" },
+      },
+    ],
+    hasMore: true,
+    nextCursor: "00000000000000000000000000000007",
+    groupName: "private-group-label",
+    permissionTopology: ["private"],
+    customerPayload: { name: "private" },
+  };
+}
+
+function workforceGroupMembershipImpact() {
+  const groupUnitsByStatus = {
+    unavailable: 1,
+    backlog: 7,
+    inProgress: 2,
+    inReview: 3,
+    completed: 40,
+    error: 1,
+    workUnitUids: ["must be stripped"],
+  };
+  return {
+    generatedAt: "2026-08-31T20:00:00Z",
+    operation: "remove" as "add" | "remove",
+    groupUid: "00000000000000000000000000000006",
+    coworkerUid: "00000000000000000000000000000007",
+    currentMembership: true,
+    readiness: {
+      active: true,
+      approved: true,
+      hasActiveWork: true,
+      currentWorkUnitUid: "must be stripped",
+    },
+    effect: {
+      scope: "global_group" as const,
+      mayAffectPlatformCapabilities: true as boolean,
+      wouldChangeMembership: true,
+      coworkerReadyForNewWork: false,
+      assignedInProgressGroupWorkUnits: 2,
+      removalBlockedByActiveGroupWork: true,
+      permissions: ["must be stripped"],
+      hourlyRate: "must be stripped",
+    },
+    affectedBatchesByStatus: {
+      available: 2,
+      unavailable: 1,
+      archived: 1,
+      batchNames: ["must be stripped"],
+    },
+    affectedGroupUnitsByStatus: { ...groupUnitsByStatus },
+    affectedBatches: [
+      {
+        batchUid: "00000000000000000000000000000008",
+        batchStatus: "available" as const,
+        lineContext: {
+          organizationUid: "00000000000000000000000000000002",
+          projectUid: "00000000000000000000000000000003",
+          datasetUid: "00000000000000000000000000000004",
+          sequenceUid: "00000000000000000000000000000005",
+          customerName: "must be stripped",
+        },
+        groupUnitsByStatus: { ...groupUnitsByStatus },
+        batchName: "must be stripped",
+        customerPayload: { name: "must be stripped" },
+        url: "https://private.example/batch",
+        config: { private: true },
+      },
+    ],
+    hasMore: true,
+    nextCursor: "00000000000000000000000000000008",
+    groupName: "must be stripped",
+    coworkerProfile: {
+      username: "+15550000000",
+      email: "private@example.com",
+      lastName: "Private",
+    },
+    permissionTopology: ["must be stripped"],
+    pay: { rate: "must be stripped" },
+    performance: { score: 0.99 },
+  };
+}
+
+function workforceGroupMembershipMutationResponse() {
+  return {
+    operationEventUid: "00000000000000000000000000000009",
+    operation: "remove" as "add" | "remove",
+    groupUid: "00000000000000000000000000000006",
+    coworkerUid: "00000000000000000000000000000007",
+    previousMembership: true,
+    currentMembership: false,
+    effect: {
+      scope: "global_group" as const,
+      mayAffectPlatformCapabilities: true as boolean,
+      membershipChanged: true as boolean,
+      permissions: ["must be stripped"],
+    },
+    reason: "Move the coworker through a reviewed staffing change.",
+    groupName: "must be stripped",
+    coworkerProfile: { email: "private@example.com" },
+    customerPayload: { name: "must be stripped" },
+    workDetails: { url: "https://private.example/work" },
+    pay: { hourlyRate: "must be stripped" },
+    performance: { score: 0.99 },
+  };
+}
+
 function workforceBatchUnits() {
   return {
     generatedAt: "2026-08-29T20:00:00Z",
@@ -653,6 +780,356 @@ describe("workforce operations tool", () => {
     ).rejects.toThrow();
   });
 
+  it("lists a privacy-bounded workforce group roster with exact readiness filters", async () => {
+    avala.transport.requestSingle.mockResolvedValue(workforceGroupMembers());
+
+    const result = await server.getHandler("list_workforce_group_members")!({
+      groupUid: "00000000000000000000000000000006",
+      active: true,
+      approved: false,
+      hasActiveWork: false,
+      limit: 25,
+      cursor: "00000000000000000000000000000007",
+    });
+
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/admin/workforce/groups/00000000000000000000000000000006/members/",
+      {
+        active: "true",
+        approved: "false",
+        has_active_work: "false",
+        limit: "25",
+        cursor: "00000000000000000000000000000007",
+      },
+    );
+    expect(server.getConfig("list_workforce_group_members")?._meta).toMatchObject({
+      "avala.ai/rest-route": "workforce-group-members",
+      "avala.ai/rest-method": "GET",
+      "avala.ai/required-scope": "workforce.write",
+      "avala.ai/toolset": "staff",
+    });
+    expect(result.structuredContent).toEqual({
+      generatedAt: "2026-08-31T20:00:00Z",
+      groupUid: "00000000000000000000000000000006",
+      members: [
+        {
+          coworkerUid: "00000000000000000000000000000007",
+          displayName: "Ari",
+          readiness: {
+            active: true,
+            approved: true,
+            hasActiveWork: false,
+          },
+        },
+      ],
+      hasMore: true,
+      nextCursor: "00000000000000000000000000000007",
+    });
+    const serialized = JSON.stringify(result.structuredContent);
+    for (const hidden of [
+      "+15550000000",
+      "private@example.com",
+      "Private",
+      "profile.png",
+      "permissions",
+      "pay",
+      "performance",
+      "currentWork",
+      "currentWorkUnitUid",
+      "groupName",
+      "permissionTopology",
+      "customerPayload",
+    ]) {
+      expect(serialized).not.toContain(hidden);
+    }
+    expect(JSON.parse(result.content[0]!.text)).toEqual(result.structuredContent);
+  });
+
+  it("pins workforce group-member UUIDs, filters, bounds, and response size", async () => {
+    const inputSchema = server.getConfig("list_workforce_group_members")
+      ?.inputSchema as {
+      shape: Record<string, unknown>;
+      safeParse: (value: unknown) => { success: boolean };
+    };
+    expect(inputSchema.shape.detail).toBeUndefined();
+    expect(
+      inputSchema.safeParse({
+        groupUid: "00000000-0000-0000-0000-000000000006",
+        active: false,
+        approved: false,
+        hasActiveWork: false,
+        limit: 100,
+        cursor: "00000000-0000-0000-0000-000000000007",
+      }).success,
+    ).toBe(true);
+    expect(inputSchema.safeParse({}).success).toBe(false);
+    expect(inputSchema.safeParse({ groupUid: "not-a-uuid" }).success).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        groupUid: "00000000000000000000000000000006",
+        active: "false",
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        groupUid: "00000000000000000000000000000006",
+        limit: 101,
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        groupUid: "00000000000000000000000000000006",
+        includeContact: true,
+      }).success,
+    ).toBe(false);
+
+    const invalidLabel = workforceGroupMembers();
+    invalidLabel.members[0]!.displayName = "";
+    avala.transport.requestSingle.mockResolvedValueOnce(invalidLabel);
+    await expect(
+      server.getHandler("list_workforce_group_members")!({
+        groupUid: "00000000000000000000000000000006",
+      }),
+    ).rejects.toThrow();
+
+    const oversized = workforceGroupMembers();
+    oversized.members = Array.from({ length: 101 }, (_, index) => ({
+      ...oversized.members[0]!,
+      coworkerUid: index.toString(16).padStart(32, "0"),
+    }));
+    avala.transport.requestSingle.mockResolvedValueOnce(oversized);
+    await expect(
+      server.getHandler("list_workforce_group_members")!({
+        groupUid: "00000000000000000000000000000006",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("previews exact global group-membership impact and strips privacy drift", async () => {
+    avala.transport.requestSingle.mockResolvedValue(
+      workforceGroupMembershipImpact(),
+    );
+
+    const result = await server.getHandler(
+      "preview_workforce_group_membership_impact",
+    )!({
+      groupUid: "00000000000000000000000000000006",
+      coworkerUid: "00000000000000000000000000000007",
+      operation: "remove",
+      limit: 25,
+      cursor: "00000000000000000000000000000008",
+    });
+
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/admin/workforce/groups/00000000000000000000000000000006/members/00000000000000000000000000000007/impact/",
+      {
+        operation: "remove",
+        limit: "25",
+        cursor: "00000000000000000000000000000008",
+      },
+    );
+    expect(
+      server.getConfig("preview_workforce_group_membership_impact")?._meta,
+    ).toMatchObject({
+      "avala.ai/rest-route": "workforce-group-membership-impact",
+      "avala.ai/rest-method": "GET",
+      "avala.ai/required-scope": "workforce.write",
+      "avala.ai/toolset": "staff",
+    });
+    expect(result.structuredContent).toEqual({
+      generatedAt: "2026-08-31T20:00:00Z",
+      operation: "remove",
+      groupUid: "00000000000000000000000000000006",
+      coworkerUid: "00000000000000000000000000000007",
+      currentMembership: true,
+      readiness: {
+        active: true,
+        approved: true,
+        hasActiveWork: true,
+      },
+      effect: {
+        scope: "global_group",
+        mayAffectPlatformCapabilities: true,
+        wouldChangeMembership: true,
+        coworkerReadyForNewWork: false,
+        assignedInProgressGroupWorkUnits: 2,
+        removalBlockedByActiveGroupWork: true,
+      },
+      affectedBatchesByStatus: {
+        available: 2,
+        unavailable: 1,
+        archived: 1,
+      },
+      affectedGroupUnitsByStatus: {
+        unavailable: 1,
+        backlog: 7,
+        inProgress: 2,
+        inReview: 3,
+        completed: 40,
+        error: 1,
+      },
+      affectedBatches: [
+        {
+          batchUid: "00000000000000000000000000000008",
+          batchStatus: "available",
+          lineContext: {
+            organizationUid: "00000000000000000000000000000002",
+            projectUid: "00000000000000000000000000000003",
+            datasetUid: "00000000000000000000000000000004",
+            sequenceUid: "00000000000000000000000000000005",
+          },
+          groupUnitsByStatus: {
+            unavailable: 1,
+            backlog: 7,
+            inProgress: 2,
+            inReview: 3,
+            completed: 40,
+            error: 1,
+          },
+        },
+      ],
+      hasMore: true,
+      nextCursor: "00000000000000000000000000000008",
+    });
+    const serialized = JSON.stringify(result.structuredContent);
+    for (const hidden of [
+      "must be stripped",
+      "+15550000000",
+      "private@example.com",
+      "Private",
+      "private.example",
+      "permissions",
+      "pay",
+      "performance",
+      "customerPayload",
+      "customerName",
+      "batchName",
+      "groupName",
+      "config",
+    ]) {
+      expect(serialized).not.toContain(hidden);
+    }
+    expect(JSON.parse(result.content[0]!.text)).toEqual(result.structuredContent);
+  });
+
+  it("pins impact-preview target, operation, bounds, and response invariants", async () => {
+    const inputSchema = server.getConfig(
+      "preview_workforce_group_membership_impact",
+    )?.inputSchema as {
+      shape: Record<string, unknown>;
+      safeParse: (value: unknown) => { success: boolean };
+    };
+    expect(inputSchema.shape.detail).toBeUndefined();
+    expect(
+      inputSchema.safeParse({
+        groupUid: "00000000-0000-0000-0000-000000000006",
+        coworkerUid: "00000000-0000-0000-0000-000000000007",
+        operation: "add",
+        limit: 100,
+        cursor: "00000000-0000-0000-0000-000000000008",
+      }).success,
+    ).toBe(true);
+    expect(inputSchema.safeParse({}).success).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        groupUid: "not-a-uuid",
+        coworkerUid: "00000000000000000000000000000007",
+        operation: "add",
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        groupUid: "00000000000000000000000000000006",
+        coworkerUid: "not-a-uuid",
+        operation: "add",
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        groupUid: "00000000000000000000000000000006",
+        coworkerUid: "00000000000000000000000000000007",
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        groupUid: "00000000000000000000000000000006",
+        coworkerUid: "00000000000000000000000000000007",
+        operation: "delete",
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        groupUid: "00000000000000000000000000000006",
+        coworkerUid: "00000000000000000000000000000007",
+        operation: "remove",
+        limit: 0,
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        groupUid: "00000000000000000000000000000006",
+        coworkerUid: "00000000000000000000000000000007",
+        operation: "remove",
+        limit: 101,
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        groupUid: "00000000000000000000000000000006",
+        coworkerUid: "00000000000000000000000000000007",
+        operation: "remove",
+        includePermissions: true,
+      }).success,
+    ).toBe(false);
+
+    const invalidCapabilitySignal = workforceGroupMembershipImpact();
+    invalidCapabilitySignal.effect.mayAffectPlatformCapabilities = false;
+    avala.transport.requestSingle.mockResolvedValueOnce(invalidCapabilitySignal);
+    await expect(
+      server.getHandler("preview_workforce_group_membership_impact")!({
+        groupUid: "00000000000000000000000000000006",
+        coworkerUid: "00000000000000000000000000000007",
+        operation: "remove",
+      }),
+    ).rejects.toThrow();
+
+    const mismatchedOperation = workforceGroupMembershipImpact();
+    mismatchedOperation.operation = "add";
+    avala.transport.requestSingle.mockResolvedValueOnce(mismatchedOperation);
+    await expect(
+      server.getHandler("preview_workforce_group_membership_impact")!({
+        groupUid: "00000000000000000000000000000006",
+        coworkerUid: "00000000000000000000000000000007",
+        operation: "remove",
+      }),
+    ).rejects.toThrow("did not match the requested group");
+
+    const oversized = workforceGroupMembershipImpact();
+    oversized.affectedBatches = Array.from({ length: 101 }, (_, index) => ({
+      ...oversized.affectedBatches[0]!,
+      batchUid: index.toString(16).padStart(32, "0"),
+    }));
+    avala.transport.requestSingle.mockResolvedValueOnce(oversized);
+    await expect(
+      server.getHandler("preview_workforce_group_membership_impact")!({
+        groupUid: "00000000000000000000000000000006",
+        coworkerUid: "00000000000000000000000000000007",
+        operation: "remove",
+      }),
+    ).rejects.toThrow();
+
+    const invalidCount = workforceGroupMembershipImpact();
+    invalidCount.affectedGroupUnitsByStatus.inProgress = -1;
+    avala.transport.requestSingle.mockResolvedValueOnce(invalidCount);
+    await expect(
+      server.getHandler("preview_workforce_group_membership_impact")!({
+        groupUid: "00000000000000000000000000000006",
+        coworkerUid: "00000000000000000000000000000007",
+        operation: "remove",
+      }),
+    ).rejects.toThrow();
+  });
+
   it("lists a bounded unit page with exact filters and strips all identity and payload drift", async () => {
     avala.transport.requestSingle.mockResolvedValue(workforceBatchUnits());
 
@@ -1075,6 +1552,289 @@ describe("workforce operations tool", () => {
         batchUid: "00000000000000000000000000000001",
       }),
     ).rejects.toThrow();
+  });
+
+  it("maps a confirmed exact preview to the global membership route", async () => {
+    const mutationServer = createMockServer();
+    const requestCreate = vi
+      .fn()
+      .mockResolvedValue(workforceGroupMembershipMutationResponse());
+    registerWorkforceTools(
+      mutationServer as never,
+      (() => ({ transport: { requestCreate } })) as never,
+      {
+        confirmation: createMutationConfirmationService(
+          "workforce-membership-test-key",
+        ),
+        credentialBinding: "staff-credential",
+      },
+    );
+    const handler = mutationServer.getHandler(
+      "change_workforce_group_membership",
+    )!;
+    const mutationArgs = {
+      groupUid: "00000000000000000000000000000006",
+      coworkerUid: "00000000000000000000000000000007",
+      operation: "remove",
+      expectedCurrentMembership: true,
+      expectedReadiness: {
+        active: true,
+        approved: true,
+        hasActiveWork: false,
+      },
+      expectedEffect: {
+        scope: "global_group",
+        mayAffectPlatformCapabilities: true,
+        wouldChangeMembership: true,
+        coworkerReadyForNewWork: true,
+        assignedInProgressGroupWorkUnits: 0,
+        removalBlockedByActiveGroupWork: false,
+      },
+      expectedAffectedBatchesByStatus: {
+        available: 2,
+        unavailable: 1,
+        archived: 1,
+      },
+      expectedAffectedGroupUnitsByStatus: {
+        unavailable: 1,
+        backlog: 7,
+        inProgress: 0,
+        inReview: 3,
+        completed: 40,
+        error: 1,
+      },
+      acknowledgeGlobalGroupScope: true,
+      acknowledgePlatformCapabilityImpact: true,
+      reason: "Move the coworker through a reviewed staffing change.",
+    } as const;
+    const context = (
+      inputResponses?: Record<string, unknown>,
+      requestState?: string,
+    ) => ({
+      mcpReq: {
+        envelope: {},
+        inputResponses,
+        requestState: () => requestState,
+        elicitInput: vi.fn(),
+      },
+    });
+    const inputSchema = mutationServer.getConfig(
+      "change_workforce_group_membership",
+    )?.inputSchema as {
+      safeParse: (value: unknown) => { success: boolean };
+    };
+
+    expect(inputSchema.safeParse(mutationArgs).success).toBe(true);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        acknowledgeGlobalGroupScope: false,
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        acknowledgePlatformCapabilityImpact: false,
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        expectedCurrentMembership: false,
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        expectedEffect: {
+          ...mutationArgs.expectedEffect,
+          assignedInProgressGroupWorkUnits: 1,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        expectedEffect: {
+          ...mutationArgs.expectedEffect,
+          removalBlockedByActiveGroupWork: true,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        expectedEffect: {
+          ...mutationArgs.expectedEffect,
+          coworkerReadyForNewWork: false,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        expectedEffect: {
+          ...mutationArgs.expectedEffect,
+          wouldChangeMembership: false,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        expectedReadiness: {
+          ...mutationArgs.expectedReadiness,
+          email: "private@example.com",
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({ ...mutationArgs, force: true }).success,
+    ).toBe(false);
+
+    const pending = await handler(mutationArgs, context());
+    expect(requestCreate).not.toHaveBeenCalled();
+    expect(pending.resultType).toBe("input_required");
+    expect(pending.requestState).toMatch(/^mc_/);
+    const message = (
+      pending.inputRequests?.confirmAvalaMutation as {
+        params: { message: string };
+      }
+    ).params.message;
+    expect(message).toContain("GLOBAL group membership");
+    expect(message).toContain("not batch-scoped allocation");
+    expect(message).toContain("platform capabilities");
+    expect(message).toContain(
+      "available=2, unavailable=1, archived=1",
+    );
+    expect(message).toContain("backlog=7");
+    expect(message).toContain(
+      "00000000000000000000000000000006",
+    );
+    expect(message).toContain(
+      "00000000000000000000000000000007",
+    );
+    if (!pending.requestState) throw new Error("Missing confirmation state.");
+
+    const result = await handler(
+      mutationArgs,
+      context(
+        {
+          confirmAvalaMutation: {
+            action: "accept",
+            content: { confirm: true },
+          },
+        },
+        pending.requestState,
+      ),
+    );
+
+    expect(requestCreate).toHaveBeenCalledWith(
+      "/admin/workforce/groups/00000000000000000000000000000006/members/00000000000000000000000000000007/membership/",
+      {
+        operation: "remove",
+        expected_current_membership: true,
+        expected_readiness: {
+          active: true,
+          approved: true,
+          has_active_work: false,
+        },
+        expected_effect: {
+          scope: "global_group",
+          may_affect_platform_capabilities: true,
+          would_change_membership: true,
+          coworker_ready_for_new_work: true,
+          assigned_in_progress_group_work_units: 0,
+          removal_blocked_by_active_group_work: false,
+        },
+        expected_affected_batches_by_status: {
+          available: 2,
+          unavailable: 1,
+          archived: 1,
+        },
+        expected_affected_group_units_by_status: {
+          unavailable: 1,
+          backlog: 7,
+          in_progress: 0,
+          in_review: 3,
+          completed: 40,
+          error: 1,
+        },
+        acknowledge_global_group_scope: true,
+        acknowledge_platform_capability_impact: true,
+        reason: "Move the coworker through a reviewed staffing change.",
+      },
+      { idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/) },
+    );
+    expect(
+      mutationServer.getConfig("change_workforce_group_membership"),
+    ).toMatchObject({
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+      _meta: {
+        "avala.ai/rest-route": "workforce-group-membership",
+        "avala.ai/rest-method": "POST",
+        "avala.ai/required-scope": "workforce.write",
+        "avala.ai/toolset": "staff",
+        "avala.ai/requires-confirmation": true,
+      },
+    });
+    expect(result.structuredContent).toMatchObject({
+      operationEventUid: "00000000000000000000000000000009",
+      operation: "remove",
+      groupUid: "00000000000000000000000000000006",
+      coworkerUid: "00000000000000000000000000000007",
+      previousMembership: true,
+      currentMembership: false,
+      effect: {
+        scope: "global_group",
+        mayAffectPlatformCapabilities: true,
+        membershipChanged: true,
+      },
+    });
+    const serialized = JSON.stringify(result.structuredContent);
+    for (const hidden of [
+      "must be stripped",
+      "private@example.com",
+      "private.example",
+      "groupName",
+      "coworkerProfile",
+      "customerPayload",
+      "workDetails",
+      "permissions",
+      "pay",
+      "performance",
+    ]) {
+      expect(serialized).not.toContain(hidden);
+    }
+    expect(result.structuredContent?.reversalGuidance).toContain(
+      "operation=add",
+    );
+    expect(result.structuredContent?.reversalGuidance).toContain(
+      "separate human approval",
+    );
+
+    requestCreate.mockResolvedValueOnce({
+      ...workforceGroupMembershipMutationResponse(),
+      coworkerUid: "00000000000000000000000000000008",
+    });
+    await expect(
+      handler(
+        mutationArgs,
+        context(
+          {
+            confirmAvalaMutation: {
+              action: "accept",
+              content: { confirm: true },
+            },
+          },
+          pending.requestState,
+        ),
+      ),
+    ).rejects.toThrow("did not match the approved operation");
   });
 
   it("maps confirmed batch creation to the exact unavailable sequence plan", async () => {
@@ -2003,6 +2763,9 @@ describe("workforce operations tool", () => {
     ).toBeUndefined();
     expect(
       mutationServer.getHandler("assign_workforce_work_unit"),
+    ).toBeUndefined();
+    expect(
+      mutationServer.getHandler("change_workforce_group_membership"),
     ).toBeUndefined();
     expect(
       mutationServer.getHandler("create_workforce_batch"),

@@ -1242,11 +1242,14 @@ describe("Streamable HTTP transport", () => {
     expect(names).toContain("get_workforce_operations_overview");
     expect(names).toContain("list_workforce_batches");
     expect(names).not.toContain("list_workforce_groups");
+    expect(names).not.toContain("list_workforce_group_members");
+    expect(names).not.toContain("preview_workforce_group_membership_impact");
     expect(names).toContain("get_workforce_batch_attention");
     expect(names).toContain("list_workforce_batch_units");
     expect(names).toContain("get_workforce_sequence_status");
     expect(names).not.toContain("list_workforce_assignment_candidates");
     expect(names).not.toContain("assign_workforce_work_unit");
+    expect(names).not.toContain("change_workforce_group_membership");
     expect(names).not.toContain("create_workforce_batch");
     expect(names).not.toContain("set_workforce_batch_status");
     expect(names).not.toContain("set_workforce_sequence_status");
@@ -1270,7 +1273,10 @@ describe("Streamable HTTP transport", () => {
     ).result.tools.map((tool) => tool.name);
     expect(names).toContain("list_workforce_assignment_candidates");
     expect(names).toContain("list_workforce_groups");
+    expect(names).toContain("list_workforce_group_members");
+    expect(names).toContain("preview_workforce_group_membership_impact");
     expect(names).toContain("assign_workforce_work_unit");
+    expect(names).toContain("change_workforce_group_membership");
     expect(names).toContain("create_workforce_batch");
     expect(names).toContain("deassign_workforce_work_unit");
     expect(names).toContain("set_workforce_batch_priority");
@@ -1306,11 +1312,14 @@ describe("Streamable HTTP transport", () => {
     expect(names).not.toContain("get_workforce_operations_overview");
     expect(names).not.toContain("list_workforce_batches");
     expect(names).not.toContain("list_workforce_groups");
+    expect(names).not.toContain("list_workforce_group_members");
+    expect(names).not.toContain("preview_workforce_group_membership_impact");
     expect(names).not.toContain("get_workforce_batch_attention");
     expect(names).not.toContain("list_workforce_batch_units");
     expect(names).not.toContain("get_workforce_sequence_status");
     expect(names).not.toContain("list_workforce_assignment_candidates");
     expect(names).not.toContain("assign_workforce_work_unit");
+    expect(names).not.toContain("change_workforce_group_membership");
     expect(names).not.toContain("create_workforce_batch");
     expect(names).not.toContain("set_workforce_batch_status");
     expect(names).not.toContain("set_workforce_sequence_status");
@@ -1674,6 +1683,7 @@ describe("Streamable HTTP transport", () => {
       ).result.tools.map((t) => t.name);
       expect(names).toHaveLength(47);
       expect(names).not.toContain("assign_workforce_work_unit");
+      expect(names).not.toContain("change_workforce_group_membership");
       expect(names).not.toContain("create_workforce_batch");
       expect(names).not.toContain("deassign_workforce_work_unit");
       expect(names).not.toContain("set_workforce_batch_priority");

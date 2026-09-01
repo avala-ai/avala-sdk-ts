@@ -51,6 +51,7 @@ export interface McpServerOptions {
 
 export const REVIEWED_HOSTED_MUTATION_TOOLS: ReadonlySet<string> = new Set([
   "assign_workforce_work_unit",
+  "change_workforce_group_membership",
   "create_workforce_batch",
   "deassign_workforce_work_unit",
   "set_workforce_batch_priority",

@@ -14,9 +14,9 @@ import {
  * registers tools through the same `registerTools`, so this count is the
  * stdio/HTTP parity baseline: if it moves, both transports moved together.
  */
-const FULL_TOOL_COUNT = 80;
+const FULL_TOOL_COUNT = 83;
 const HOSTED_READ_TOOL_COUNT = 47;
-const STAFF_TOOL_COUNT = 10;
+const STAFF_TOOL_COUNT = 12;
 const SIGNED_EXPORT_URL =
   "https://bucket.s3.amazonaws.com/export.zip" +
   "?X-Amz-Date=20260829T080000Z&X-Amz-Expires=3600" +
@@ -114,6 +114,10 @@ describe("MCP server", () => {
     expect(server.names).toContain("get_workforce_operations_overview");
     expect(server.names).toContain("list_workforce_batches");
     expect(server.names).toContain("list_workforce_groups");
+    expect(server.names).toContain("list_workforce_group_members");
+    expect(server.names).toContain(
+      "preview_workforce_group_membership_impact",
+    );
     expect(server.names).toContain("get_workforce_batch_attention");
     expect(server.names).toContain("list_workforce_batch_units");
     expect(server.names).toContain("get_workforce_sequence_status");
@@ -145,6 +149,10 @@ describe("MCP server", () => {
     expect(server.names).toContain("get_workforce_operations_overview");
     expect(server.names).toContain("list_workforce_batches");
     expect(server.names).toContain("list_workforce_groups");
+    expect(server.names).toContain("list_workforce_group_members");
+    expect(server.names).toContain(
+      "preview_workforce_group_membership_impact",
+    );
     expect(server.names).toContain("get_workforce_batch_attention");
     expect(server.names).toContain("list_workforce_batch_units");
     expect(server.names).toContain("get_workforce_sequence_status");
@@ -165,6 +173,10 @@ describe("MCP server", () => {
     expect(server.names).not.toContain("get_workforce_operations_overview");
     expect(server.names).not.toContain("list_workforce_batches");
     expect(server.names).not.toContain("list_workforce_groups");
+    expect(server.names).not.toContain("list_workforce_group_members");
+    expect(server.names).not.toContain(
+      "preview_workforce_group_membership_impact",
+    );
     expect(server.names).not.toContain("get_workforce_batch_attention");
     expect(server.names).not.toContain("list_workforce_batch_units");
     expect(server.names).not.toContain("get_workforce_sequence_status");
@@ -188,6 +200,10 @@ describe("MCP server", () => {
     expect(server.names).toContain("get_workforce_operations_overview");
     expect(server.names).toContain("list_workforce_batches");
     expect(server.names).toContain("list_workforce_groups");
+    expect(server.names).toContain("list_workforce_group_members");
+    expect(server.names).toContain(
+      "preview_workforce_group_membership_impact",
+    );
     expect(server.names).toContain("get_workforce_batch_attention");
     expect(server.names).toContain("list_workforce_batch_units");
     expect(server.names).toContain("get_workforce_sequence_status");
@@ -214,6 +230,10 @@ describe("MCP server", () => {
     expect(server.names).not.toContain("get_workforce_sequence_status");
     expect(server.names).toContain("list_workforce_assignment_candidates");
     expect(server.names).toContain("list_workforce_groups");
+    expect(server.names).toContain("list_workforce_group_members");
+    expect(server.names).toContain(
+      "preview_workforce_group_membership_impact",
+    );
   });
 
   it("hides write-scoped workforce planning reads without the exact workforce write scope", () => {
@@ -235,6 +255,10 @@ describe("MCP server", () => {
     expect(server.names).toContain("list_workforce_batch_units");
     expect(server.names).toContain("get_workforce_sequence_status");
     expect(server.names).not.toContain("list_workforce_groups");
+    expect(server.names).not.toContain("list_workforce_group_members");
+    expect(server.names).not.toContain(
+      "preview_workforce_group_membership_impact",
+    );
     expect(server.names).not.toContain("list_workforce_assignment_candidates");
   });
 
@@ -332,9 +356,10 @@ describe("MCP server", () => {
     });
 
     expect(server.names).toHaveLength(
-      HOSTED_READ_TOOL_COUNT + STAFF_TOOL_COUNT + 6,
+      HOSTED_READ_TOOL_COUNT + STAFF_TOOL_COUNT + 7,
     );
     expect(server.names).toContain("assign_workforce_work_unit");
+    expect(server.names).toContain("change_workforce_group_membership");
     expect(server.names).toContain("create_workforce_batch");
     expect(server.names).toContain("deassign_workforce_work_unit");
     expect(server.names).toContain("set_workforce_batch_priority");
@@ -357,6 +382,7 @@ describe("MCP server", () => {
     );
     expect(server.names).toContain("deassign_workforce_work_unit");
     expect(server.names).not.toContain("assign_workforce_work_unit");
+    expect(server.names).not.toContain("change_workforce_group_membership");
     expect(server.names).not.toContain("create_workforce_batch");
     expect(server.names).not.toContain("set_workforce_batch_priority");
     expect(server.names).not.toContain("set_workforce_batch_status");
@@ -383,6 +409,7 @@ describe("MCP server", () => {
     expect(server.names).not.toContain("set_workforce_batch_status");
     expect(server.names).not.toContain("set_workforce_sequence_status");
     expect(server.names).not.toContain("assign_workforce_work_unit");
+    expect(server.names).not.toContain("change_workforce_group_membership");
     expect(server.names).not.toContain("create_workforce_batch");
     expect(server.names).not.toContain("deassign_workforce_work_unit");
   });
