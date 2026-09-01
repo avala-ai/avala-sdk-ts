@@ -162,6 +162,7 @@ describe.skipIf(!monorepoAvailable)("SDK methods use correct transport for respo
     "slices.list": "list",
     "slices.list_items": "listItems",
     "datasets.create": "create",
+    "datasets.get_health": "getHealth",
     "datasets.list_items": "listItems",
     "datasets.list_sequences": "listSequences",
     "annotation_issues.list_by_sequence": "listBySequence",

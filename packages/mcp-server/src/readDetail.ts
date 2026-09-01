@@ -294,25 +294,35 @@ export function aliasDatasetCounts(value: unknown): unknown {
 }
 
 /**
- * Dataset health `itemCount` is `dataset.item_count` sitting next to
- * `sequenceCount`. Verified in `DatasetHealthView` (`api_datasets.py`):
- * `"item_count": dataset.item_count`. Its unit depends on dataset shape:
- * sequence datasets store frames, while non-sequence datasets store assets.
- * Add the matching unit-bearing alias; keep `itemCount` for compatibility.
+ * Dataset health `itemCount` is `dataset.item_count`. Its unit depends on the
+ * provider's declared `isSequence` shape: sequence datasets store frames,
+ * while non-sequence datasets store assets. Never infer that declaration from
+ * `sequenceCount === 0`: a sequence-shaped dataset can legitimately be in the
+ * unhealthy "no sequences landed" state. Add only the matching unit-bearing
+ * alias; keep `itemCount` for full-detail compatibility.
  */
 export function aliasDatasetHealthCounts(value: unknown): unknown {
   const record = asRecord(value);
   if (!record) return value;
-  if (typeof record.itemCount === "number") {
-    if (
-      typeof record.sequenceCount === "number" &&
-      record.sequenceCount === 0
+  if (record.isSequence === true) {
+    record.contentUnit = "frames";
+    delete record.assetCount;
+    if (typeof record.totalFrames === "number") {
+      record.frameCount = record.totalFrames;
+    } else if (
+      typeof record.frameCount !== "number" &&
+      typeof record.itemCount === "number"
     ) {
-      if (typeof record.assetCount !== "number") {
-        record.assetCount = record.itemCount;
-      }
-    } else if (typeof record.frameCount !== "number") {
       record.frameCount = record.itemCount;
+    }
+  } else if (record.isSequence === false) {
+    record.contentUnit = "assets";
+    delete record.frameCount;
+    if (
+      typeof record.assetCount !== "number" &&
+      typeof record.itemCount === "number"
+    ) {
+      record.assetCount = record.itemCount;
     }
   }
   if (Array.isArray(record.sequences)) {
@@ -366,6 +376,6 @@ export const ASSET_COUNT_DESCRIPTION =
 export const DEPRECATED_ITEM_COUNT_ON_DATASET =
   "Deprecated alias of sequenceCount when isSequence is true, otherwise of assetCount. Prefer the unit-bearing name. Kept for one release so existing clients keep working.";
 export const DEPRECATED_ITEM_COUNT_ON_HEALTH =
-  "Deprecated shape-dependent count. It aliases frameCount when sequenceCount is positive and assetCount when sequenceCount is zero. Prefer totalFrames for live sequence frames or assetCount for non-sequence media. Kept for one release so existing clients keep working.";
+  "Deprecated provider-side shape-dependent count. For sequence datasets it can lag the live frameCount; for non-sequence datasets it represents assetCount. Prefer the applicable unit-bearing name. Kept in full detail for existing clients.";
 export const DEPRECATED_ITEM_COUNT_ON_SLICE =
   "Deprecated alias of assetCount. Number of assets (dataset items) in this slice. Prefer assetCount. Kept for one release so existing clients keep working.";

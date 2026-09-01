@@ -55,6 +55,7 @@ const batchCreationWorkflowRoleSchema = z.enum([
   "review",
   "escalation",
 ]);
+const workforceStaffingModeSchema = z.enum(["group_pool", "allocated"]);
 const workforceLineContextOutputSchema = z
   .object({
     organizationUid: compactUuidOutputSchema.nullable(),
@@ -259,6 +260,7 @@ const workforceBatchInventoryOutputSchema = z
             batchUid: compactUuidOutputSchema,
             batchStatus: z.enum(["available", "unavailable", "archived"]),
             priority: z.enum(["medium", "high"]),
+            staffingMode: workforceStaffingModeSchema,
             lineContext: workforceLineContextOutputSchema,
             unitsByStatus: workUnitStatusOutputSchema,
             createdAt: z.string().datetime({ offset: true }),
@@ -405,6 +407,141 @@ const workforceGroupMembershipExpectedUnitStatusInputSchema = z
     error: nonnegativeCount,
   })
   .strict();
+
+const workforceBatchAllocationEffectOutputSchema = z
+  .object({
+    scope: z.literal("batch"),
+    wouldChangeAllocation: z.boolean(),
+    qualifiedForBatchWork: z.boolean(),
+    currentEligibility: z.boolean(),
+    projectedEligibility: z.boolean(),
+    activeAssignedBatchWorkUnits: nonnegativeCount,
+    removalBlockedByActiveBatchWork: z.boolean(),
+    eligibleAllocatedCoworkersAfterChange: nonnegativeCount,
+    removalWouldLeaveAvailableBatchUnstaffed: z.boolean(),
+  })
+  .strip();
+
+const workforceBatchAllocationExpectedEffectInputSchema = z
+  .object({
+    scope: z.literal("batch"),
+    wouldChangeAllocation: z.literal(true),
+    qualifiedForBatchWork: z.boolean(),
+    currentEligibility: z.boolean(),
+    projectedEligibility: z.boolean(),
+    activeAssignedBatchWorkUnits: nonnegativeCount,
+    removalBlockedByActiveBatchWork: z.literal(false),
+    eligibleAllocatedCoworkersAfterChange: nonnegativeCount,
+    removalWouldLeaveAvailableBatchUnstaffed: z.literal(false),
+  })
+  .strict();
+
+const workforceCandidateOperationalSignalsOutputSchema = z
+  .object({
+    completedWorkUnits: nonnegativeCount,
+    abandonedWorkUnits: nonnegativeCount,
+    erroredWorkUnits: nonnegativeCount,
+    lastCompletedAt: z.string().datetime({ offset: true }).nullable(),
+  })
+  .strip();
+
+const workforceBatchStaffingCandidatesOutputSchema = z
+  .object({
+    generatedAt: z.string().datetime({ offset: true }),
+    batchUid: compactUuidOutputSchema,
+    batchStatus: z.enum(["available", "unavailable", "archived"]),
+    staffingMode: workforceStaffingModeSchema,
+    lineContext: workforceLineContextOutputSchema.extend({
+      organizationUid: compactUuidOutputSchema,
+    }),
+    signalWindow: z
+      .object({
+        days: z.number().int().min(1).max(90),
+        startsAt: z.string().datetime({ offset: true }),
+      })
+      .strip(),
+    signalScope: z
+      .object({
+        organizationUid: compactUuidOutputSchema,
+        batchUid: compactUuidOutputSchema,
+      })
+      .strip(),
+    candidates: z
+      .array(
+        z
+          .object({
+            coworkerUid: compactUuidOutputSchema,
+            currentAllocation: z.boolean(),
+            readiness: workforceGroupMemberReadinessOutputSchema,
+            matchingGroupUnitsByStatus: workUnitStatusOutputSchema,
+            operationalSignals: workforceCandidateOperationalSignalsOutputSchema,
+          })
+          .strip(),
+      )
+      .max(100),
+    hasMore: z.boolean(),
+    nextCursor: compactUuidOutputSchema.nullable(),
+  })
+  .strip();
+
+const workforceBatchCoworkerActivityOutputSchema = z
+  .object({
+    generatedAt: z.string().datetime({ offset: true }),
+    batchUid: compactUuidOutputSchema,
+    batchStatus: z.enum(["available", "unavailable", "archived"]),
+    staffingMode: workforceStaffingModeSchema,
+    lineContext: workforceLineContextOutputSchema,
+    activityWindow: z
+      .object({
+        days: z.number().int().min(1).max(90),
+        startsAt: z.string().datetime({ offset: true }),
+      })
+      .strip(),
+    coworkers: z
+      .array(
+        z
+          .object({
+            coworkerUid: compactUuidOutputSchema,
+            currentAllocation: z.boolean(),
+            readiness: workforceGroupMemberReadinessOutputSchema,
+            assignedUnitsByStatus: workUnitStatusOutputSchema,
+            activity: z
+              .object({
+                submittedForReviewWorkUnits: nonnegativeCount,
+                completedWorkUnits: nonnegativeCount,
+                abandonedWorkUnits: nonnegativeCount,
+                erroredWorkUnits: nonnegativeCount,
+                lastActivityAt: z
+                  .string()
+                  .datetime({ offset: true })
+                  .nullable(),
+              })
+              .strip(),
+          })
+          .strip(),
+      )
+      .max(100),
+    hasMore: z.boolean(),
+    nextCursor: compactUuidOutputSchema.nullable(),
+  })
+  .strip();
+
+const workforceBatchAllocationImpactOutputSchema = z
+  .object({
+    generatedAt: z.string().datetime({ offset: true }),
+    operation: z.enum(["add", "remove"]),
+    batchUid: compactUuidOutputSchema,
+    coworkerUid: compactUuidOutputSchema,
+    batchStatus: z.enum(["available", "unavailable", "archived"]),
+    staffingMode: workforceStaffingModeSchema,
+    batchUpdatedAt: z.string().datetime({ offset: true }),
+    lineContext: workforceLineContextOutputSchema,
+    currentAllocation: z.boolean(),
+    readiness: workforceGroupMemberReadinessOutputSchema,
+    matchingGroupUnitsByStatus: workUnitStatusOutputSchema,
+    effect: workforceBatchAllocationEffectOutputSchema,
+  })
+  .strip();
 
 const workforceBatchUnitsOutputSchema = z
   .object({
@@ -920,6 +1057,182 @@ const listWorkforceAssignmentCandidatesTool = defineReadCatalogTool({
   },
 });
 
+const listWorkforceBatchStaffingCandidatesTool = defineReadCatalogTool({
+  name: "list_workforce_batch_staffing_candidates",
+  title: "List workforce batch staffing candidates",
+  description:
+    "Staff only: inspect a bounded, pseudonymous roster for staffing one exact Physical AI labeling production line. Requires workforce.write and returns opaque coworker UIDs, batch allocation state, readiness booleans, matching unit counts, and raw recent organization-scoped outcomes. It excludes names, contacts, profiles, group labels, pay, customer payloads, work details, rankings, and composite scores.",
+  inputSchema: z
+    .object({
+      batchUid: batchUidInputSchema.describe(
+        "Opaque batch UID returned by list_workforce_batches.",
+      ),
+      allocated: z
+        .boolean()
+        .optional()
+        .describe("Optional exact current-allocation filter."),
+      windowDays: z
+        .number()
+        .int()
+        .min(1)
+        .max(90)
+        .optional()
+        .describe(
+          "Recent operational-signal window in days (server default 30, max 90).",
+        ),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe("Maximum candidates to return (server default 50, max 100)."),
+      cursor: batchUidInputSchema
+        .optional()
+        .describe("Opaque nextCursor from the previous staffing page."),
+    })
+    .strict(),
+  outputSchema: workforceBatchStaffingCandidatesOutputSchema,
+  supportsDetail: false,
+  project: (value, _detail, args) => {
+    const roster = value as { batchUid: string };
+    const requestedBatchUid = String(args.batchUid).replaceAll("-", "");
+    if (roster.batchUid !== requestedBatchUid) {
+      throw new Error(
+        "Workforce batch staffing response did not match the requested batch.",
+      );
+    }
+    return value;
+  },
+  route: {
+    name: "workforce-batch-staffing-candidates",
+    method: "GET",
+    path: "/admin/workforce/batches/{batchUid}/staffing-candidates/",
+    query: {
+      allocated: "allocated",
+      windowDays: "window_days",
+      limit: "limit",
+      cursor: "cursor",
+    },
+    response: "single",
+    scope: "workforce.write",
+    toolset: "staff",
+  },
+});
+
+const listWorkforceBatchCoworkerActivityTool = defineReadCatalogTool({
+  name: "list_workforce_batch_coworker_activity",
+  title: "List workforce batch coworker activity",
+  description:
+    "Staff only: monitor a bounded, pseudonymous coworker roster for one exact Physical AI labeling production line. Requires workforce.write and returns opaque coworker UIDs, current batch allocation/readiness, fixed assigned-unit state counts, and raw recent batch-local activity. It excludes names, contacts, profiles, group labels, pay, customer payloads, work details, rankings, rates, and composite performance scores.",
+  inputSchema: z
+    .object({
+      batchUid: batchUidInputSchema.describe(
+        "Opaque batch UID returned by list_workforce_batches or list_workforce_batch_staffing_candidates.",
+      ),
+      allocated: z
+        .boolean()
+        .optional()
+        .describe("Optional exact current-allocation filter."),
+      windowDays: z
+        .number()
+        .int()
+        .min(1)
+        .max(90)
+        .optional()
+        .describe(
+          "Recent batch-activity window in days (server default 30, max 90).",
+        ),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe("Maximum coworkers to return (server default 50, max 100)."),
+      cursor: batchUidInputSchema
+        .optional()
+        .describe("Opaque nextCursor from the previous activity page."),
+    })
+    .strict(),
+  outputSchema: workforceBatchCoworkerActivityOutputSchema,
+  supportsDetail: false,
+  project: (value, _detail, args) => {
+    const activity = value as { batchUid: string };
+    const requestedBatchUid = String(args.batchUid).replaceAll("-", "");
+    if (activity.batchUid !== requestedBatchUid) {
+      throw new Error(
+        "Workforce batch coworker activity response did not match the requested batch.",
+      );
+    }
+    return value;
+  },
+  route: {
+    name: "workforce-batch-coworker-activity",
+    method: "GET",
+    path: "/admin/workforce/batches/{batchUid}/coworker-activity/",
+    query: {
+      allocated: "allocated",
+      windowDays: "window_days",
+      limit: "limit",
+      cursor: "cursor",
+    },
+    response: "single",
+    scope: "workforce.write",
+    toolset: "staff",
+  },
+});
+
+const previewWorkforceBatchAllocationImpactTool = defineReadCatalogTool({
+  name: "preview_workforce_batch_allocation_impact",
+  title: "Preview workforce batch allocation impact",
+  description:
+    "Staff only: preview adding or removing one coworker from one exact allocated Physical AI labeling batch before any staffing mutation. Requires workforce.write and returns only opaque line/coworker IDs, readiness, raw fixed status counts, and guardrail booleans. This changes batch scheduling only: it never changes global group qualification or platform capabilities and exposes no names, contacts, profiles, pay, customer payloads, work details, rankings, or composite scores.",
+  inputSchema: z
+    .object({
+      batchUid: batchUidInputSchema.describe(
+        "Opaque batch UID returned by list_workforce_batches or list_workforce_batch_staffing_candidates.",
+      ),
+      coworkerUid: batchUidInputSchema.describe(
+        "Opaque coworker UID returned by list_workforce_batch_staffing_candidates.",
+      ),
+      operation: z
+        .enum(["add", "remove"])
+        .describe("Explicit batch allocation change to preview; no change is applied."),
+    })
+    .strict(),
+  outputSchema: workforceBatchAllocationImpactOutputSchema,
+  supportsDetail: false,
+  project: (value, _detail, args) => {
+    const impact = value as {
+      operation: string;
+      batchUid: string;
+      coworkerUid: string;
+    };
+    const requestedBatchUid = String(args.batchUid).replaceAll("-", "");
+    const requestedCoworkerUid = String(args.coworkerUid).replaceAll("-", "");
+    if (
+      impact.operation !== args.operation ||
+      impact.batchUid !== requestedBatchUid ||
+      impact.coworkerUid !== requestedCoworkerUid
+    ) {
+      throw new Error(
+        "Workforce batch allocation impact response did not match the requested batch, coworker, and operation.",
+      );
+    }
+    return value;
+  },
+  route: {
+    name: "workforce-batch-allocation-impact",
+    method: "GET",
+    path: "/admin/workforce/batches/{batchUid}/coworkers/{coworkerUid}/allocation-impact/",
+    query: { operation: "operation" },
+    response: "single",
+    scope: "workforce.write",
+    toolset: "staff",
+  },
+});
+
 const changeWorkforceGroupMembershipTool = defineMutationCatalogTool({
   name: "change_workforce_group_membership",
   title: "Change workforce group membership",
@@ -1124,11 +1437,272 @@ const changeWorkforceGroupMembershipTool = defineMutationCatalogTool({
   },
 });
 
+const changeWorkforceBatchAllocationTool = defineMutationCatalogTool({
+  name: "change_workforce_batch_allocation",
+  title: "Change workforce batch allocation",
+  description:
+    "Staff only: add or remove one coworker from one exact allocated Physical AI labeling production line after an exact impact preview and explicit human approval. Requires workforce.write, every expected-state field returned by preview_workforce_batch_allocation_impact, and a batch-scope acknowledgement. This changes batch scheduling only and never changes global group qualification or platform capabilities. Known no-ops, unqualified additions, removals with active batch work, and removals that would leave an available batch unstaffed are refused before approval.",
+  inputSchema: z
+    .object({
+      batchUid: batchUidInputSchema.describe(
+        "Exact opaque batch UID from preview_workforce_batch_allocation_impact.",
+      ),
+      coworkerUid: batchUidInputSchema.describe(
+        "Exact opaque coworker UID from preview_workforce_batch_allocation_impact.",
+      ),
+      operation: z
+        .enum(["add", "remove"])
+        .describe("Exact operation used for the reviewed impact preview."),
+      expectedBatchStatus: z
+        .enum(["available", "unavailable", "archived"])
+        .describe("Exact batchStatus returned by the impact preview."),
+      expectedStaffingMode: z
+        .literal("allocated")
+        .describe(
+          "Exact staffingMode returned by the actionable impact preview; this tool only changes allocated batches.",
+        ),
+      expectedBatchUpdatedAt: z
+        .string()
+        .datetime({ offset: true })
+        .describe("Exact batchUpdatedAt returned by the impact preview."),
+      expectedLineContext: actionableWorkforceLineContextInputSchema.describe(
+        "Exact organization/project/dataset/sequence UID context returned by the impact preview.",
+      ),
+      expectedCurrentAllocation: z
+        .boolean()
+        .describe("Exact currentAllocation returned by the impact preview."),
+      expectedReadiness: workforceGroupMembershipExpectedReadinessInputSchema.describe(
+        "Exact active, approved, and hasActiveWork state returned by the impact preview.",
+      ),
+      expectedMatchingGroupUnitsByStatus:
+        workforceGroupMembershipExpectedUnitStatusInputSchema.describe(
+          "Exact matchingGroupUnitsByStatus counts returned by the impact preview.",
+        ),
+      expectedEffect: workforceBatchAllocationExpectedEffectInputSchema.describe(
+        "Exact actionable batch-only effect returned by the impact preview; blocked removals and no-ops are not accepted.",
+      ),
+      acknowledgeBatchScope: z
+        .literal(true)
+        .describe(
+          "Must be true: this changes allocation within one exact batch and does not change global group qualification.",
+        ),
+      reason: z
+        .string()
+        .trim()
+        .min(8)
+        .max(500)
+        .describe("Operational reason recorded in the immutable audit ledger."),
+    })
+    .strict()
+    .superRefine((value, context) => {
+      if (value.expectedCurrentAllocation !== (value.operation === "remove")) {
+        context.addIssue({
+          code: "custom",
+          path: ["expectedCurrentAllocation"],
+          message:
+            "Add requires an observed unallocated coworker; remove requires an observed allocation.",
+        });
+      }
+      const matchingUnitCount = Object.values(
+        value.expectedMatchingGroupUnitsByStatus,
+      ).reduce((total, count) => total + count, 0);
+      const qualified = matchingUnitCount > 0;
+      if (value.expectedEffect.qualifiedForBatchWork !== qualified) {
+        context.addIssue({
+          code: "custom",
+          path: ["expectedEffect", "qualifiedForBatchWork"],
+          message:
+            "Qualification and matching unit counts must come from one exact preview.",
+        });
+      }
+      const baseEligibility =
+        value.expectedReadiness.active &&
+        value.expectedReadiness.approved &&
+        qualified;
+      if (
+        value.expectedEffect.currentEligibility !==
+        (baseEligibility && value.expectedCurrentAllocation)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["expectedEffect", "currentEligibility"],
+          message:
+            "Current eligibility and allocation state must come from one exact preview.",
+        });
+      }
+      if (
+        value.expectedEffect.projectedEligibility !==
+        (baseEligibility && value.operation === "add")
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["expectedEffect", "projectedEligibility"],
+          message:
+            "Projected eligibility and operation must come from one exact preview.",
+        });
+      }
+      if (value.operation === "add" && !baseEligibility) {
+        context.addIssue({
+          code: "custom",
+          path: ["expectedReadiness"],
+          message:
+            "Allocation additions require an active, approved coworker qualified for this batch.",
+        });
+      }
+      if (
+        value.operation === "remove" &&
+        value.expectedEffect.activeAssignedBatchWorkUnits !== 0
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["expectedEffect", "activeAssignedBatchWorkUnits"],
+          message:
+            "Deassign active work in this batch before removing allocation.",
+        });
+      }
+      if (
+        value.operation === "remove" &&
+        value.expectedBatchStatus === "available" &&
+        value.expectedEffect.eligibleAllocatedCoworkersAfterChange === 0
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["expectedEffect", "eligibleAllocatedCoworkersAfterChange"],
+          message:
+            "Make the batch unavailable before removing its last eligible allocated coworker.",
+        });
+      }
+    }),
+  outputSchema: z
+    .object({
+      operationEventUid: compactUuidOutputSchema,
+      allocationUid: compactUuidOutputSchema,
+      operation: z.enum(["add", "remove"]),
+      batchUid: compactUuidOutputSchema,
+      coworkerUid: compactUuidOutputSchema,
+      previousAllocation: z.boolean(),
+      currentAllocation: z.boolean(),
+      effect: z
+        .object({
+          scope: z.literal("batch"),
+          globalGroupMembershipChanged: z.literal(false),
+          allocationChanged: z.literal(true),
+        })
+        .strip(),
+      reason: z.string().min(1).max(500),
+      reversalGuidance: z.string().min(1).max(1000),
+    })
+    .strip(),
+  route: {
+    name: "workforce-batch-allocation",
+    method: "POST",
+    path: "/admin/workforce/batches/{batchUid}/coworkers/{coworkerUid}/allocation/",
+    scope: "workforce.write",
+    toolset: "staff",
+    body: ({
+      operation,
+      expectedBatchStatus,
+      expectedStaffingMode,
+      expectedBatchUpdatedAt,
+      expectedLineContext,
+      expectedCurrentAllocation,
+      expectedReadiness,
+      expectedMatchingGroupUnitsByStatus,
+      expectedEffect,
+      acknowledgeBatchScope,
+      reason,
+    }) => ({
+      operation,
+      expected_batch_status: expectedBatchStatus,
+      expected_staffing_mode: expectedStaffingMode,
+      expected_batch_updated_at: expectedBatchUpdatedAt,
+      expected_line_context: {
+        organization_uid: expectedLineContext.organizationUid,
+        project_uid: expectedLineContext.projectUid,
+        dataset_uid: expectedLineContext.datasetUid,
+        sequence_uid: expectedLineContext.sequenceUid,
+      },
+      expected_current_allocation: expectedCurrentAllocation,
+      expected_readiness: {
+        active: expectedReadiness.active,
+        approved: expectedReadiness.approved,
+        has_active_work: expectedReadiness.hasActiveWork,
+      },
+      expected_matching_group_units_by_status: {
+        unavailable: expectedMatchingGroupUnitsByStatus.unavailable,
+        backlog: expectedMatchingGroupUnitsByStatus.backlog,
+        in_progress: expectedMatchingGroupUnitsByStatus.inProgress,
+        in_review: expectedMatchingGroupUnitsByStatus.inReview,
+        completed: expectedMatchingGroupUnitsByStatus.completed,
+        error: expectedMatchingGroupUnitsByStatus.error,
+      },
+      expected_effect: {
+        scope: expectedEffect.scope,
+        would_change_allocation: expectedEffect.wouldChangeAllocation,
+        qualified_for_batch_work: expectedEffect.qualifiedForBatchWork,
+        current_eligibility: expectedEffect.currentEligibility,
+        projected_eligibility: expectedEffect.projectedEligibility,
+        active_assigned_batch_work_units:
+          expectedEffect.activeAssignedBatchWorkUnits,
+        removal_blocked_by_active_batch_work:
+          expectedEffect.removalBlockedByActiveBatchWork,
+        eligible_allocated_coworkers_after_change:
+          expectedEffect.eligibleAllocatedCoworkersAfterChange,
+        removal_would_leave_available_batch_unstaffed:
+          expectedEffect.removalWouldLeaveAvailableBatchUnstaffed,
+      },
+      acknowledge_batch_scope: acknowledgeBatchScope,
+      reason,
+    }),
+  },
+  project: (value, args) => {
+    const expectedBatchUid = args.batchUid.replaceAll("-", "");
+    const expectedCoworkerUid = args.coworkerUid.replaceAll("-", "");
+    const expectedNewAllocation = args.operation === "add";
+    if (
+      value.operation !== args.operation ||
+      value.batchUid !== expectedBatchUid ||
+      value.coworkerUid !== expectedCoworkerUid ||
+      value.previousAllocation !== args.expectedCurrentAllocation ||
+      value.currentAllocation !== expectedNewAllocation ||
+      value.reason !== args.reason
+    ) {
+      throw new Error(
+        "Workforce batch allocation mutation response did not match the approved operation.",
+      );
+    }
+    return value;
+  },
+  preview: ({
+    batchUid,
+    coworkerUid,
+    operation,
+    expectedBatchStatus,
+    expectedBatchUpdatedAt,
+    expectedLineContext,
+    expectedReadiness,
+    expectedEffect,
+    reason,
+  }) => ({
+    message:
+      `${operation === "add" ? "Allocate" : "Deallocate"} coworker ${coworkerUid} ${operation === "add" ? "to" : "from"} batch ${batchUid}? ` +
+      `This changes scheduling for this exact batch only; global group qualification and platform capabilities will not change. ` +
+      `Reviewed batch status=${expectedBatchStatus}, updatedAt=${expectedBatchUpdatedAt}; line context: ${describeWorkforceLineContext(expectedLineContext)}. ` +
+      `Readiness active=${expectedReadiness.active}, approved=${expectedReadiness.approved}, hasActiveWork=${expectedReadiness.hasActiveWork}; ` +
+      `qualified=${expectedEffect.qualifiedForBatchWork}, currentEligibility=${expectedEffect.currentEligibility}, projectedEligibility=${expectedEffect.projectedEligibility}, activeBatchUnits=${expectedEffect.activeAssignedBatchWorkUnits}, eligibleAllocatedAfter=${expectedEffect.eligibleAllocatedCoworkersAfterChange}. ` +
+      `Batch-only scope is acknowledged. Reason: ${reason}`,
+  }),
+  reversalGuidance: ({ batchUid, coworkerUid, operation }) => {
+    const reverseOperation = operation === "add" ? "remove" : "add";
+    return `Run preview_workforce_batch_allocation_impact again for batch ${batchUid}, coworker ${coworkerUid}, operation=${reverseOperation}. If the fresh preview is actionable, call change_workforce_batch_allocation with every newly observed field and obtain separate human approval. Reversal changes batch scheduling only; it does not undo work performed meanwhile.`;
+  },
+});
+
 const createWorkforceBatchTool = defineMutationCatalogTool({
   name: "create_workforce_batch",
   title: "Create workforce batch",
   description:
-    "Staff only: create one unavailable, sequence-scoped Physical AI labeling production line with 1–100 backlog work units after explicit human approval. Requires the exact sequence status, update timestamp, and workflow revision returned by get_workforce_sequence_status; the server derives all coworker routes and refuses arbitrary URLs or configuration.",
+    "Staff only: create one unavailable, sequence-scoped Physical AI labeling production line with 1–100 backlog work units after explicit human approval. New MCP-created lines default to allocated staffing so Operations explicitly schedules qualified coworkers before release; group_pool remains available for deliberate legacy pooled operation. Requires the exact sequence status, update timestamp, and workflow revision returned by get_workforce_sequence_status; the server derives all coworker routes and refuses arbitrary URLs or configuration.",
   inputSchema: z
     .object({
       name: z
@@ -1156,6 +1730,11 @@ const createWorkforceBatchTool = defineMutationCatalogTool({
         .nullable()
         .describe(
           "Exact workflowRevisionUid returned by the inspection, including null for the legacy workflow.",
+        ),
+      staffingMode: workforceStaffingModeSchema
+        .optional()
+        .describe(
+          "Staffing boundary for the new line. Omit for allocated, which requires explicit batch allocation in addition to global qualification; choose group_pool only for deliberate legacy pooled operation.",
         ),
       workUnits: z
         .array(
@@ -1191,6 +1770,7 @@ const createWorkforceBatchTool = defineMutationCatalogTool({
       batchUid: compactUuidOutputSchema,
       batchStatus: z.literal("unavailable"),
       priority: z.literal("medium"),
+      staffingMode: workforceStaffingModeSchema,
       createdAt: z.string().datetime({ offset: true }),
       lineContext: workforceLineContextOutputSchema.extend({
         datasetUid: compactUuidOutputSchema,
@@ -1217,6 +1797,7 @@ const createWorkforceBatchTool = defineMutationCatalogTool({
       expectedSequenceStatus,
       expectedSequenceUpdatedAt,
       expectedWorkflowRevisionUid,
+      staffingMode,
       workUnits,
       reason,
     }) => ({
@@ -1226,6 +1807,7 @@ const createWorkforceBatchTool = defineMutationCatalogTool({
       expected_sequence_status: expectedSequenceStatus,
       expected_sequence_updated_at: expectedSequenceUpdatedAt,
       expected_workflow_revision_uid: expectedWorkflowRevisionUid,
+      staffing_mode: staffingMode ?? "allocated",
       work_units: workUnits.map(({ taskName, groupUid, workflowRole }) => ({
         task_name: taskName,
         group_uid: groupUid,
@@ -1236,6 +1818,22 @@ const createWorkforceBatchTool = defineMutationCatalogTool({
       reason,
     }),
   },
+  project: (value, args) => {
+    const expectedSequenceUid = args.sequenceUid.replaceAll("-", "");
+    const expectedStaffingMode = args.staffingMode ?? "allocated";
+    const lineContext = value.lineContext as { sequenceUid: string };
+    if (
+      value.staffingMode !== expectedStaffingMode ||
+      lineContext.sequenceUid !== expectedSequenceUid ||
+      value.workUnitsCreated !== args.workUnits.length ||
+      value.reason !== args.reason
+    ) {
+      throw new Error(
+        "Workforce batch creation response did not match the approved production-line plan.",
+      );
+    }
+    return value;
+  },
   preview: ({
     name,
     projectUid,
@@ -1243,9 +1841,11 @@ const createWorkforceBatchTool = defineMutationCatalogTool({
     expectedSequenceStatus,
     expectedSequenceUpdatedAt,
     expectedWorkflowRevisionUid,
+    staffingMode,
     workUnits,
     reason,
   }) => {
+    const effectiveStaffingMode = staffingMode ?? "allocated";
     const planCounts = new Map<string, number>();
     for (const unit of workUnits) {
       const plan = `${unit.taskName}/${unit.workflowRole ?? "unspecified"}/group ${unit.groupUid}`;
@@ -1258,7 +1858,8 @@ const createWorkforceBatchTool = defineMutationCatalogTool({
       message:
         `Create unavailable work batch ${JSON.stringify(name)} for sequence ${sequenceUid} with ${workUnits.length} backlog work units? ` +
         `Project: ${projectUid ?? "none"}. Inspected sequence state: ${expectedSequenceStatus} at ${expectedSequenceUpdatedAt} under workflow revision ${expectedWorkflowRevisionUid ?? "legacy"}. ` +
-        `Plan: ${planSummary}. Reason: ${reason} The server derives exact coworker routes. Creation does not release work; making the batch available requires separate human approval.`,
+        `Staffing mode: ${effectiveStaffingMode}${effectiveStaffingMode === "allocated" ? " (qualified coworkers must be explicitly allocated before release)" : " (every qualified global-group member may claim work)"}. ` +
+        `Plan: ${planSummary}. Reason: ${reason} The server derives exact coworker routes. Creation does not release work; staffing and making the batch available require separate human approval.`,
     };
   },
   reversalGuidance: ({ sequenceUid }) =>
@@ -1683,10 +2284,14 @@ export const WORKFORCE_READ_CATALOG_TOOLS = [
   listWorkforceBatchUnitsTool,
   getWorkforceSequenceStatusTool,
   listWorkforceAssignmentCandidatesTool,
+  listWorkforceBatchStaffingCandidatesTool,
+  listWorkforceBatchCoworkerActivityTool,
+  previewWorkforceBatchAllocationImpactTool,
 ] as const;
 
 export const WORKFORCE_MUTATION_CATALOG_TOOLS = [
   changeWorkforceGroupMembershipTool,
+  changeWorkforceBatchAllocationTool,
   createWorkforceBatchTool,
   setWorkforceBatchPriorityTool,
   setWorkforceBatchStatusTool,
@@ -1718,6 +2323,21 @@ export function registerWorkforceTools(
     getClient,
     listWorkforceAssignmentCandidatesTool,
   );
+  registerReadCatalogTool(
+    server,
+    getClient,
+    listWorkforceBatchStaffingCandidatesTool,
+  );
+  registerReadCatalogTool(
+    server,
+    getClient,
+    listWorkforceBatchCoworkerActivityTool,
+  );
+  registerReadCatalogTool(
+    server,
+    getClient,
+    previewWorkforceBatchAllocationImpactTool,
+  );
   if (mutationOptions) {
     if (
       allowedMutationTools === undefined ||
@@ -1727,6 +2347,17 @@ export function registerWorkforceTools(
         server,
         getClient,
         changeWorkforceGroupMembershipTool,
+        mutationOptions,
+      );
+    }
+    if (
+      allowedMutationTools === undefined ||
+      allowedMutationTools.has(changeWorkforceBatchAllocationTool.name)
+    ) {
+      registerMutationCatalogTool(
+        server,
+        getClient,
+        changeWorkforceBatchAllocationTool,
         mutationOptions,
       );
     }

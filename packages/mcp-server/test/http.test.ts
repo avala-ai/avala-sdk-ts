@@ -411,6 +411,11 @@ describe("Streamable HTTP transport", () => {
       oauth: TEST_OAUTH,
       oauthBroker: { exchange: oauthExchange },
       internalClientSecret: VALID_INTERNAL_CLIENT_SECRET,
+      buildInfo: {
+        version: "0.7.4-test",
+        buildSha: "a".repeat(40),
+        releaseTag: "v2026.09.01.945-33467834304.1",
+      },
       createClient: (
         apiKey: string,
         clientName: string,
@@ -480,6 +485,32 @@ describe("Streamable HTTP transport", () => {
       );
     },
   );
+
+  it.each([
+    {
+      version: "",
+      buildSha: "a".repeat(40),
+      releaseTag: "release-1",
+    },
+    {
+      version: "0.7.4",
+      buildSha: "short-sha",
+      releaseTag: "release-1",
+    },
+    {
+      version: "0.7.4",
+      buildSha: "a".repeat(40),
+      releaseTag: "release tag with spaces",
+    },
+  ])("rejects malformed public build provenance at startup", (buildInfo) => {
+    expect(() =>
+      createAvalaMcpHttpServer({
+        buildInfo,
+        internalClientSecret: VALID_INTERNAL_CLIENT_SECRET,
+        oauth: TEST_OAUTH,
+      }),
+    ).toThrowError(/buildInfo/);
+  });
 
   function mcpPost(
     body: unknown,
@@ -560,6 +591,9 @@ describe("Streamable HTTP transport", () => {
       name: "avala-mcp",
       status: "ok",
       transport: "streamable-http",
+      version: "0.7.4-test",
+      build_sha: "a".repeat(40),
+      release_tag: "v2026.09.01.945-33467834304.1",
       mcp_endpoint: TEST_OAUTH.resource,
       protected_resource_metadata: RESOURCE_METADATA_URL,
     });
@@ -1248,7 +1282,11 @@ describe("Streamable HTTP transport", () => {
     expect(names).toContain("list_workforce_batch_units");
     expect(names).toContain("get_workforce_sequence_status");
     expect(names).not.toContain("list_workforce_assignment_candidates");
+    expect(names).not.toContain("list_workforce_batch_staffing_candidates");
+    expect(names).not.toContain("list_workforce_batch_coworker_activity");
+    expect(names).not.toContain("preview_workforce_batch_allocation_impact");
     expect(names).not.toContain("assign_workforce_work_unit");
+    expect(names).not.toContain("change_workforce_batch_allocation");
     expect(names).not.toContain("change_workforce_group_membership");
     expect(names).not.toContain("create_workforce_batch");
     expect(names).not.toContain("set_workforce_batch_status");
@@ -1272,10 +1310,14 @@ describe("Streamable HTTP transport", () => {
       await mcpResult<{ result: { tools: { name: string }[] } }>(res)
     ).result.tools.map((tool) => tool.name);
     expect(names).toContain("list_workforce_assignment_candidates");
+    expect(names).toContain("list_workforce_batch_staffing_candidates");
+    expect(names).toContain("list_workforce_batch_coworker_activity");
+    expect(names).toContain("preview_workforce_batch_allocation_impact");
     expect(names).toContain("list_workforce_groups");
     expect(names).toContain("list_workforce_group_members");
     expect(names).toContain("preview_workforce_group_membership_impact");
     expect(names).toContain("assign_workforce_work_unit");
+    expect(names).toContain("change_workforce_batch_allocation");
     expect(names).toContain("change_workforce_group_membership");
     expect(names).toContain("create_workforce_batch");
     expect(names).toContain("deassign_workforce_work_unit");
@@ -1318,7 +1360,11 @@ describe("Streamable HTTP transport", () => {
     expect(names).not.toContain("list_workforce_batch_units");
     expect(names).not.toContain("get_workforce_sequence_status");
     expect(names).not.toContain("list_workforce_assignment_candidates");
+    expect(names).not.toContain("list_workforce_batch_staffing_candidates");
+    expect(names).not.toContain("list_workforce_batch_coworker_activity");
+    expect(names).not.toContain("preview_workforce_batch_allocation_impact");
     expect(names).not.toContain("assign_workforce_work_unit");
+    expect(names).not.toContain("change_workforce_batch_allocation");
     expect(names).not.toContain("change_workforce_group_membership");
     expect(names).not.toContain("create_workforce_batch");
     expect(names).not.toContain("set_workforce_batch_status");
@@ -1683,6 +1729,7 @@ describe("Streamable HTTP transport", () => {
       ).result.tools.map((t) => t.name);
       expect(names).toHaveLength(47);
       expect(names).not.toContain("assign_workforce_work_unit");
+      expect(names).not.toContain("change_workforce_batch_allocation");
       expect(names).not.toContain("change_workforce_group_membership");
       expect(names).not.toContain("create_workforce_batch");
       expect(names).not.toContain("deassign_workforce_work_unit");

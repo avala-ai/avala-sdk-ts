@@ -91,10 +91,12 @@ describe("count-field aliases", () => {
     expect(dataset).not.toHaveProperty("sequenceCount");
   });
 
-  it("maps health itemCount to frameCount beside the existing sequenceCount", () => {
+  it("uses the live health frame total instead of the lagging itemCount", () => {
     const health = {
       datasetUid: "ds-1",
-      itemCount: 3120,
+      dataType: "lidar",
+      isSequence: true,
+      itemCount: 4000,
       sequenceCount: 39,
       totalFrames: 3120,
       sequences: [{ uid: "seq-1", numberOfFrames: 80 }],
@@ -102,7 +104,8 @@ describe("count-field aliases", () => {
     aliasDatasetHealthCounts(health);
     expect(health).toMatchObject({
       frameCount: 3120,
-      itemCount: 3120,
+      contentUnit: "frames",
+      itemCount: 4000,
       sequenceCount: 39,
     });
     expect(health.sequences[0]).toMatchObject({
@@ -114,6 +117,8 @@ describe("count-field aliases", () => {
   it("maps non-sequence health itemCount to assetCount, not frameCount", () => {
     const health = {
       datasetUid: "ds-video",
+      dataType: "video",
+      isSequence: false,
       itemCount: 2,
       sequenceCount: 0,
       totalFrames: 0,
@@ -122,11 +127,46 @@ describe("count-field aliases", () => {
     aliasDatasetHealthCounts(health);
     expect(health).toMatchObject({
       assetCount: 2,
+      contentUnit: "assets",
       itemCount: 2,
       sequenceCount: 0,
       totalFrames: 0,
     });
     expect(health).not.toHaveProperty("frameCount");
+  });
+
+  it("does not reinterpret an empty sequence-shaped dataset as assets", () => {
+    const health = {
+      datasetUid: "ds-empty-sequence",
+      dataType: "lidar",
+      isSequence: true,
+      itemCount: 6,
+      sequenceCount: 0,
+      totalFrames: 0,
+      sequences: [],
+    };
+    aliasDatasetHealthCounts(health);
+    expect(health).toMatchObject({
+      contentUnit: "frames",
+      frameCount: 0,
+      itemCount: 6,
+      sequenceCount: 0,
+    });
+    expect(health).not.toHaveProperty("assetCount");
+  });
+
+  it("does not guess a health count unit when the provider omits shape", () => {
+    const health = {
+      datasetUid: "ds-unknown-shape",
+      itemCount: 6,
+      sequenceCount: 0,
+      totalFrames: 0,
+      sequences: [],
+    };
+    aliasDatasetHealthCounts(health);
+    expect(health).not.toHaveProperty("contentUnit");
+    expect(health).not.toHaveProperty("frameCount");
+    expect(health).not.toHaveProperty("assetCount");
   });
 
   it("mirrors sequence numberOfFrames onto frameCount", () => {
@@ -169,6 +209,7 @@ describe("output schema field descriptions (walked, not grepped)", () => {
     expect(descriptions.sequenceCount).toBe(SEQUENCE_COUNT_DESCRIPTION);
     expect(descriptions.assetCount).toBe(ASSET_COUNT_DESCRIPTION);
     expect(descriptions.itemCount).toMatch(/shape-dependent/);
+    expect(descriptions.contentUnit).toMatch(/derived only from isSequence/);
   });
 
   it("states that slice itemCount is a deprecated assetCount", () => {

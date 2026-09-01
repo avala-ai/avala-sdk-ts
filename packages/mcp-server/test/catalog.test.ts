@@ -245,6 +245,25 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
     limit: 25,
     cursor: "00000000000000000000000000000007",
   },
+  list_workforce_batch_staffing_candidates: {
+    batchUid: "00000000000000000000000000000001",
+    allocated: false,
+    windowDays: 14,
+    limit: 25,
+    cursor: "00000000000000000000000000000007",
+  },
+  list_workforce_batch_coworker_activity: {
+    batchUid: "00000000000000000000000000000001",
+    allocated: true,
+    windowDays: 14,
+    limit: 25,
+    cursor: "00000000000000000000000000000007",
+  },
+  preview_workforce_batch_allocation_impact: {
+    batchUid: "00000000000000000000000000000001",
+    coworkerUid: "00000000000000000000000000000007",
+    operation: "add",
+  },
 };
 
 const READ_CATALOG_TOOLS = [
@@ -329,6 +348,7 @@ describe("declarative MCP catalog", () => {
       slug: "result-dataset",
       itemCount: 1,
       dataType: "image",
+      isSequence: true,
       type: "image_classification",
       project: "project-result",
       createdAt: "2026-08-24T00:00:00Z",
@@ -840,6 +860,7 @@ describe("declarative MCP catalog", () => {
           batchUid: "00000000000000000000000000000001",
           batchStatus: "available",
           priority: "high",
+          staffingMode: "allocated",
           lineContext: {
             organizationUid: "00000000000000000000000000000002",
             projectUid: "00000000000000000000000000000003",
@@ -1008,6 +1029,137 @@ describe("declarative MCP catalog", () => {
       hasMore: false,
       nextCursor: null,
     };
+    const workforceBatchStaffingCandidates = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      batchUid: "00000000000000000000000000000001",
+      batchStatus: "unavailable",
+      staffingMode: "allocated",
+      lineContext: {
+        organizationUid: "00000000000000000000000000000002",
+        projectUid: "00000000000000000000000000000003",
+        datasetUid: "00000000000000000000000000000004",
+        sequenceUid: "00000000000000000000000000000005",
+      },
+      signalWindow: {
+        days: 14,
+        startsAt: "2026-08-15T20:00:00.000Z",
+      },
+      signalScope: {
+        organizationUid: "00000000000000000000000000000002",
+        batchUid: "00000000000000000000000000000001",
+      },
+      candidates: [
+        {
+          coworkerUid: "00000000000000000000000000000007",
+          currentAllocation: false,
+          readiness: {
+            active: true,
+            approved: true,
+            hasActiveWork: false,
+          },
+          matchingGroupUnitsByStatus: {
+            unavailable: 0,
+            backlog: 2,
+            inProgress: 0,
+            inReview: 0,
+            completed: 10,
+            error: 0,
+          },
+          operationalSignals: {
+            completedWorkUnits: 12,
+            abandonedWorkUnits: 2,
+            erroredWorkUnits: 1,
+            lastCompletedAt: "2026-08-29T18:00:00Z",
+          },
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    };
+    const workforceBatchCoworkerActivity = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      batchUid: "00000000000000000000000000000001",
+      batchStatus: "available",
+      staffingMode: "allocated",
+      lineContext: {
+        organizationUid: "00000000000000000000000000000002",
+        projectUid: "00000000000000000000000000000003",
+        datasetUid: "00000000000000000000000000000004",
+        sequenceUid: "00000000000000000000000000000005",
+      },
+      activityWindow: {
+        days: 14,
+        startsAt: "2026-08-15T20:00:00.000Z",
+      },
+      coworkers: [
+        {
+          coworkerUid: "00000000000000000000000000000007",
+          currentAllocation: true,
+          readiness: {
+            active: true,
+            approved: true,
+            hasActiveWork: true,
+          },
+          assignedUnitsByStatus: {
+            unavailable: 0,
+            backlog: 0,
+            inProgress: 2,
+            inReview: 1,
+            completed: 10,
+            error: 1,
+          },
+          activity: {
+            submittedForReviewWorkUnits: 9,
+            completedWorkUnits: 8,
+            abandonedWorkUnits: 1,
+            erroredWorkUnits: 1,
+            lastActivityAt: "2026-08-29T18:00:00Z",
+          },
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    };
+    const workforceBatchAllocationImpact = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      operation: "add",
+      batchUid: "00000000000000000000000000000001",
+      coworkerUid: "00000000000000000000000000000007",
+      batchStatus: "unavailable",
+      staffingMode: "allocated",
+      batchUpdatedAt: "2026-08-29T19:58:00Z",
+      lineContext: {
+        organizationUid: "00000000000000000000000000000002",
+        projectUid: "00000000000000000000000000000003",
+        datasetUid: "00000000000000000000000000000004",
+        sequenceUid: "00000000000000000000000000000005",
+      },
+      currentAllocation: false,
+      readiness: {
+        active: true,
+        approved: true,
+        hasActiveWork: false,
+      },
+      matchingGroupUnitsByStatus: {
+        unavailable: 0,
+        backlog: 2,
+        inProgress: 0,
+        inReview: 0,
+        completed: 10,
+        error: 0,
+      },
+      effect: {
+        scope: "batch",
+        wouldChangeAllocation: true,
+        qualifiedForBatchWork: true,
+        currentEligibility: false,
+        projectedEligibility: true,
+        activeAssignedBatchWorkUnits: 0,
+        removalBlockedByActiveBatchWork: false,
+        eligibleAllocatedCoworkersAfterChange: 1,
+        removalWouldLeaveAvailableBatchUnstaffed: false,
+      },
+    };
     const transport = {
       requestPage: vi.fn(
         async (path: string, query?: Record<string, string>) => {
@@ -1067,6 +1219,21 @@ describe("declarative MCP catalog", () => {
             "/admin/workforce/work-units/00000000000000000000000000000006/assignment-candidates/"
           )
             return workforceAssignmentCandidates;
+          if (
+            path ===
+            "/admin/workforce/batches/00000000000000000000000000000001/staffing-candidates/"
+          )
+            return workforceBatchStaffingCandidates;
+          if (
+            path ===
+            "/admin/workforce/batches/00000000000000000000000000000001/coworker-activity/"
+          )
+            return workforceBatchCoworkerActivity;
+          if (
+            path ===
+            "/admin/workforce/batches/00000000000000000000000000000001/coworkers/00000000000000000000000000000007/allocation-impact/"
+          )
+            return workforceBatchAllocationImpact;
           if (path.startsWith("/exports/")) return exportItem;
           return sampleEntity;
         },

@@ -74,6 +74,7 @@ const sequenceDetailOutputSchema = z
     frames: z.array(z.record(z.string(), z.unknown())).nullable(),
     metrics: z.record(z.string(), z.unknown()).nullable(),
     datasetUid: z.string().nullable(),
+    datasetDataType: z.string().nullable().optional(),
     deviceId: z.string().nullable().optional(),
     allowLidarCalibration: z.boolean().nullable(),
     lidarCalibrationEnabled: z.boolean().nullable(),
@@ -115,6 +116,20 @@ const datasetHealthOutputSchema = z
     datasetUid: z.string(),
     datasetSlug: z.string(),
     datasetStatus: z.string().nullable(),
+    dataType: z
+      .string()
+      .describe("The dataset's declared Physical AI media or sensor type."),
+    isSequence: z
+      .boolean()
+      .describe(
+        "Provider-declared dataset shape. True means content counts use frames; false means they use non-sequence assets.",
+      ),
+    contentUnit: z
+      .enum(["frames", "assets"])
+      .optional()
+      .describe(
+        "Unit of the applicable content count, derived only from isSequence.",
+      ),
     frameCount: z.number().optional().describe(FRAME_COUNT_DESCRIPTION),
     assetCount: z.number().optional().describe(ASSET_COUNT_DESCRIPTION),
     itemCount: z.number().describe(DEPRECATED_ITEM_COUNT_ON_HEALTH),
@@ -124,7 +139,11 @@ const datasetHealthOutputSchema = z
     gcStoragePrefix: z.string().nullable(),
     lastUpdatedAt: z.string().nullable(),
     sequences: z.array(sequenceHealthOutputSchema),
-    ingestOk: z.boolean(),
+    ingestOk: z
+      .boolean()
+      .describe(
+        "Whether provider ingest checks passed for the declared dataset shape. This is not reconstruction or training readiness.",
+      ),
     issues: z.array(z.string()),
   })
   .passthrough();
@@ -498,6 +517,7 @@ const SEQUENCE_DETAIL_CONCISE_KEYS = [
   "key",
   "status",
   "datasetUid",
+  "datasetDataType",
   "deviceId",
 ] as const;
 
@@ -505,11 +525,12 @@ const DATASET_HEALTH_CONCISE_KEYS = [
   "datasetUid",
   "datasetSlug",
   "datasetStatus",
+  "dataType",
+  "isSequence",
+  "contentUnit",
   "frameCount",
   "assetCount",
-  "itemCount",
   "sequenceCount",
-  "totalFrames",
   "ingestOk",
   "issues",
   "lastUpdatedAt",
@@ -1025,7 +1046,7 @@ const getDatasetHealthTool = defineReadCatalogTool({
   name: "get_dataset_health",
   title: "Get dataset health",
   description:
-    "Get a read-only ingest/health snapshot for a dataset: live frame totals for sequence data or asset counts for non-sequence media, sequence count, ingest_ok flag, and any issues detected. Default detail omits the per-sequence array. Useful for validating a dataset after upload without opening Mission Control. For the reconstruction question ('is this ready to rebuild?') use get_dataset_readiness — ingestOk does not see missing calibration.",
+    "Get a read-only ingest/health snapshot for a dataset. The provider-declared isSequence field determines whether the applicable content count is frameCount or assetCount; zero sequences never imply non-sequence media. Default detail omits the per-sequence array and deprecated ambiguous counters. Useful for validating ingest after upload without opening Mission Control. For the reconstruction question ('is this ready to rebuild?') use get_dataset_readiness — ingestOk does not see missing calibration.",
   inputSchema: getDatasetHealthInputSchema,
   outputSchema: datasetHealthOutputSchema,
   normalize: aliasDatasetHealthCounts,
@@ -1191,7 +1212,15 @@ export const DATASET_COMPOSITE_READ_CATALOG_TOOLS = [
 ] as const;
 
 const FRAME_CONCISE_KEYS = ["frameIndex", "model", "key"] as const;
-const CALIBRATION_CONCISE_KEYS = ["sequenceUid"] as const;
+const CALIBRATION_CONCISE_KEYS = [
+  "sequenceUid",
+  "datasetDataType",
+  "status",
+  "unavailableReason",
+  "source",
+  "frameCount",
+  "cameraCount",
+] as const;
 
 export function registerDatasetTools(
   server: McpServer,
@@ -1292,7 +1321,7 @@ export function registerDatasetTools(
     "get_calibration",
     {
       description:
-        "Get a sequence's canonicalized per-camera rig (position, heading, intrinsics, projection model) derived from frame[0]. Default detail is sequenceUid. Use detail=full for the camera array.",
+        "Get a sequence's canonicalized per-camera rig (position, heading, intrinsics, projection model) derived from frame[0] for LiDAR datasets. Always returns availability status and an explicit reason when unavailable: unsupported_dataset_type, no_frames, no_camera_rig_configured, frame_camera_metadata_missing, or dataset_type_unavailable. Default detail keeps status, reason, source, and counts. Use detail=full for the camera array.",
       inputSchema: z.object({
         owner: z
           .string()

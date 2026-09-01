@@ -27,6 +27,7 @@ import {
   HEALTH_PATH,
   MCP_PATH,
 } from "./httpServer.js";
+import packageJson from "../package.json" with { type: "json" };
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name];
@@ -60,6 +61,11 @@ const server = createAvalaMcpHttpServer({
   baseUrl: process.env.AVALA_BASE_URL,
   allowedOrigins,
   internalClientSecret: process.env.AVALA_MCP_INTERNAL_CLIENT_SECRET,
+  buildInfo: {
+    version: packageJson.version,
+    buildSha: process.env.AVALA_MCP_BUILD_SHA ?? "unknown",
+    releaseTag: process.env.AVALA_MCP_RELEASE_TAG ?? "local",
+  },
   oauth: {
     resource: requiredEnvironment("AVALA_MCP_OAUTH_RESOURCE"),
     authorizationServer: requiredEnvironment("AVALA_MCP_OAUTH_ISSUER"),

@@ -51,6 +51,7 @@ export interface McpServerOptions {
 
 export const REVIEWED_HOSTED_MUTATION_TOOLS: ReadonlySet<string> = new Set([
   "assign_workforce_work_unit",
+  "change_workforce_batch_allocation",
   "change_workforce_group_membership",
   "create_workforce_batch",
   "deassign_workforce_work_unit",
@@ -197,6 +198,10 @@ export const TOOL_REGISTRARS: readonly ToolRegistrar[] = [
       const enabled =
         options.allowMutations ||
         options.allowedMutationTools?.has("assign_workforce_work_unit") ===
+          true ||
+        options.allowedMutationTools?.has("change_workforce_batch_allocation") ===
+          true ||
+        options.allowedMutationTools?.has("change_workforce_group_membership") ===
           true ||
         options.allowedMutationTools?.has("create_workforce_batch") === true ||
         options.allowedMutationTools?.has("deassign_workforce_work_unit") ===

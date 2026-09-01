@@ -63,6 +63,7 @@ interface HealthPayload {
   datasetUid?: string | null;
   datasetSlug?: string | null;
   datasetStatus?: string | null;
+  isSequence?: boolean;
   ingestOk?: boolean;
   issues?: unknown;
   sequences?: unknown;
@@ -87,6 +88,11 @@ function sequencesOf(health: HealthPayload): HealthSequence[] | null {
 }
 
 function frameTotal(health: HealthPayload): number | null {
+  if (health.isSequence === false) return null;
+  const isDeclaredOrObservedSequence =
+    health.isSequence === true ||
+    (typeof health.sequenceCount === "number" && health.sequenceCount > 0);
+  if (!isDeclaredOrObservedSequence) return null;
   // `totalFrames` FIRST. `DatasetHealthView` computes it live by summing the
   // sequences, whereas `frameCount`/`itemCount` are denormalized counters that
   // are allowed to lag — `dataset/tests/test_live_dataset_sync.py` exists
@@ -95,10 +101,10 @@ function frameTotal(health: HealthPayload): number | null {
   // non-empty, which is the worst kind of wrong answer here: a readiness check
   // telling a customer their data is missing when it is not.
   //
-  // A non-sequence VIDEO/image dataset legitimately has `totalFrames: 0`.
-  // Keep that value as its frame total; `inputMediaCheck` separately evaluates
-  // the dataset's unit-bearing `assetCount` instead of relabeling assets as
-  // frames.
+  // A non-sequence VIDEO/image dataset legitimately has `totalFrames: 0`, but
+  // that is a non-applicable counter rather than a measured frame zero. The
+  // shape guard above suppresses it and `inputMediaCheck` evaluates the
+  // dataset's unit-bearing `assetCount` instead.
   if (typeof health.totalFrames === "number") return health.totalFrames;
   if (typeof health.frameCount === "number") return health.frameCount;
   if (
@@ -112,8 +118,9 @@ function frameTotal(health: HealthPayload): number | null {
 }
 
 function assetTotal(health: HealthPayload): number | null {
+  if (health.isSequence !== false) return null;
   if (typeof health.assetCount === "number") return health.assetCount;
-  if (health.sequenceCount === 0 && typeof health.itemCount === "number") {
+  if (typeof health.itemCount === "number") {
     return health.itemCount;
   }
   return null;
@@ -369,10 +376,17 @@ function inputMediaCheck(
   health: HealthPayload,
   sequences: HealthSequence[] | null,
 ): ReadinessCheck {
+  if (health.isSequence === true) return frameCountCheck(health);
+  if (health.isSequence === false) return assetCountCheck(health);
   const sequenceCount = sequenceTotal(health, sequences);
-  return sequenceCount !== null && sequenceCount > 0
-    ? frameCountCheck(health)
-    : assetCountCheck(health);
+  if (sequenceCount !== null && sequenceCount > 0) {
+    return frameCountCheck(health);
+  }
+  return check(
+    "input_media_shape",
+    "insufficient_evidence",
+    "The health payload did not declare whether this dataset is sequence-shaped, so its item count cannot be interpreted safely.",
+  );
 }
 
 function summarize(checks: ReadinessCheck[]): string {

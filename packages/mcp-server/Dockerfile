@@ -86,6 +86,9 @@ RUN rm -rf node_modules && bun install --frozen-lockfile --production --linker h
 FROM node:20-alpine AS runner
 WORKDIR /app
 
+ARG AVALA_MCP_BUILD_SHA=unknown
+ARG AVALA_MCP_RELEASE_TAG=local
+
 # Carry the whole pruned /app tree so bun's relative workspace symlinks
 # (node_modules/@avala-ai/sdk -> ../../packages/sdk) keep resolving —
 # cherry-picking individual node_modules entries across stages is how that
@@ -99,6 +102,11 @@ COPY --from=builder /app/packages/mcp-server/dist packages/mcp-server/dist
 
 ENV NODE_ENV=production
 ENV PORT=8080
+ENV AVALA_MCP_BUILD_SHA=$AVALA_MCP_BUILD_SHA
+ENV AVALA_MCP_RELEASE_TAG=$AVALA_MCP_RELEASE_TAG
+
+LABEL org.opencontainers.image.revision=$AVALA_MCP_BUILD_SHA
+LABEL ai.avala.release-tag=$AVALA_MCP_RELEASE_TAG
 
 # node:20-alpine ships a non-root "node" user (uid 1000) — this service makes
 # outbound HTTPS calls to Django and nothing else, so there is no reason to

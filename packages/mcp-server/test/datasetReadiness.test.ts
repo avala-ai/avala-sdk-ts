@@ -7,6 +7,7 @@ const sfLidarHealth = {
   datasetUid: "ds-1",
   datasetSlug: "sf-lidar",
   datasetStatus: "created",
+  isSequence: true,
   ingestOk: true,
   issues: [],
   sequenceCount: 39,
@@ -89,6 +90,7 @@ describe("assessDatasetReadiness", () => {
         datasetUid: "ds-video",
         datasetSlug: "walkthrough",
         datasetStatus: "created",
+        isSequence: false,
         ingestOk: true,
         issues: [],
         sequenceCount: 0,
@@ -101,7 +103,7 @@ describe("assessDatasetReadiness", () => {
 
     expect(result).toMatchObject({
       sequenceCount: 0,
-      frameCount: 0,
+      frameCount: null,
       assetCount: 2,
       blockingReasons: [],
       unmeasured: [],
@@ -123,6 +125,7 @@ describe("assessDatasetReadiness", () => {
   it("still requires sequences when the recipe requires stored calibration", () => {
     const result = assessDatasetReadiness(
       {
+        isSequence: false,
         ingestOk: true,
         issues: [],
         sequenceCount: 0,
@@ -142,6 +145,7 @@ describe("assessDatasetReadiness", () => {
   it("does not relabel sequence items as assets when live frame count is zero", () => {
     const result = assessDatasetReadiness(
       {
+        isSequence: true,
         ingestOk: true,
         issues: [],
         sequenceCount: 1,
@@ -164,6 +168,52 @@ describe("assessDatasetReadiness", () => {
       result.checks.find((item) => item.key === "has_frames"),
     ).toMatchObject({ status: "fail", evidence: { frameCount: 0 } });
     expect(result.checks.some((item) => item.key === "has_assets")).toBe(
+      false,
+    );
+  });
+
+  it("marks an undeclared zero-sequence content shape as unmeasured", () => {
+    const result = assessDatasetReadiness(
+      {
+        ingestOk: true,
+        issues: [],
+        sequenceCount: 0,
+        totalFrames: 0,
+        itemCount: 6,
+        sequences: [],
+      },
+      [],
+    );
+
+    expect(result.frameCount).toBeNull();
+    expect(result.assetCount).toBeNull();
+    expect(result.blockingReasons).toEqual([]);
+    expect(result.unmeasured).toContain("input_media_shape");
+    expect(
+      result.checks.find((item) => item.key === "input_media_shape"),
+    ).toMatchObject({ status: "insufficient_evidence", severity: null });
+  });
+
+  it("lets a declared non-sequence shape outrank stray sequence counters", () => {
+    const result = assessDatasetReadiness(
+      {
+        isSequence: false,
+        ingestOk: true,
+        issues: [],
+        sequenceCount: 1,
+        totalFrames: 80,
+        itemCount: 2,
+        sequences: [],
+      },
+      [],
+    );
+
+    expect(result.frameCount).toBeNull();
+    expect(result.assetCount).toBe(2);
+    expect(
+      result.checks.find((item) => item.key === "has_assets"),
+    ).toMatchObject({ status: "pass", evidence: { assetCount: 2 } });
+    expect(result.checks.some((item) => item.key === "has_frames")).toBe(
       false,
     );
   });
@@ -194,6 +244,7 @@ describe("assessDatasetReadiness", () => {
   it("does not convert a missing sequences array into a fail", () => {
     const result = assessDatasetReadiness(
       {
+        isSequence: true,
         ingestOk: true,
         sequenceCount: 4,
         frameCount: 100,
@@ -214,6 +265,7 @@ describe("assessDatasetReadiness", () => {
   it("skips calibration when there are no sequences", () => {
     const result = assessDatasetReadiness(
       {
+        isSequence: true,
         ingestOk: true,
         issues: [],
         sequenceCount: 0,
@@ -227,6 +279,6 @@ describe("assessDatasetReadiness", () => {
       (check) => check.key === "lidar_calibration",
     );
     expect(lidar?.status).toBe("skipped");
-    expect(result.blockingReasons).toEqual(["has_sequences", "has_assets"]);
+    expect(result.blockingReasons).toEqual(["has_sequences", "has_frames"]);
   });
 });

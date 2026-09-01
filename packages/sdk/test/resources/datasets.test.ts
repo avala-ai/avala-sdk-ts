@@ -1,7 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Avala } from "../../src/client.js";
+import type { DatasetCalibration } from "../../src/types.js";
 
 describe("datasets resource", () => {
+  it("preserves the legacy calibration result type", () => {
+    const calibration: DatasetCalibration = {
+      sequenceUid: "55555555-5555-5555-5555-555555555555",
+      cameras: [],
+    };
+
+    expect(calibration.cameras).toEqual([]);
+  });
+
   const mockResponse = {
     results: [
       {
@@ -326,6 +336,7 @@ describe("datasets resource", () => {
     number_of_frames: 1,
     frames: [sampleFrame],
     dataset_uid: "44444444-4444-4444-4444-444444444444",
+    dataset_data_type: "lidar",
     allow_lidar_calibration: true,
     lidar_calibration_enabled: true,
     camera_calibration_enabled: true,
@@ -335,6 +346,8 @@ describe("datasets resource", () => {
     dataset_uid: "44444444-4444-4444-4444-444444444444",
     dataset_slug: "third-dimension-095940-full-scene",
     dataset_status: "created",
+    data_type: "lidar",
+    is_sequence: true,
     item_count: 569,
     sequence_count: 1,
     total_frames: 569,
@@ -423,9 +436,86 @@ describe("datasets resource", () => {
       "55555555-5555-5555-5555-555555555555",
     );
     expect(calib.sequenceUid).toBe("55555555-5555-5555-5555-555555555555");
+    expect(calib).toMatchObject({
+      datasetDataType: "lidar",
+      status: "available",
+      unavailableReason: null,
+      source: "frame_0",
+      frameCount: 1,
+      cameraCount: 1,
+    });
     expect(calib.cameras).toHaveLength(1);
     expect(calib.cameras[0].model).toBe("pinhole");
     expect(calib.cameras[0].fx).toBe(824.74);
+  });
+
+  it.each([
+    {
+      name: "unsupported media",
+      overrides: { dataset_data_type: "video" },
+      reason: "unsupported_dataset_type",
+      source: null,
+    },
+    {
+      name: "missing frame zero",
+      overrides: { dataset_data_type: "lidar", frames: [] },
+      reason: "no_frames",
+      source: null,
+    },
+    {
+      name: "no configured camera rig",
+      overrides: {
+        dataset_data_type: "lidar",
+        frames: [{ ...sampleFrame, images: [] }],
+        camera_calibration: [],
+      },
+      reason: "no_camera_rig_configured",
+      source: "frame_0",
+    },
+    {
+      name: "configured rig missing from frame zero",
+      overrides: {
+        dataset_data_type: "lidar",
+        frames: [{ ...sampleFrame, images: [] }],
+        camera_calibration: [{ sensor_id: "cam_01" }],
+      },
+      reason: "frame_camera_metadata_missing",
+      source: "frame_0",
+    },
+    {
+      name: "missing provider dataset type",
+      overrides: {
+        dataset_data_type: undefined,
+        frames: [{ ...sampleFrame, images: [] }],
+      },
+      reason: "dataset_type_unavailable",
+      source: "frame_0",
+    },
+  ])("getCalibration explains $name", async ({ overrides, reason, source }) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ ...sequencePayload, ...overrides }),
+      }),
+    );
+
+    const avala = new Avala({ apiKey: "test-key" });
+    const calibration = await avala.datasets.getCalibration(
+      "thirddimension",
+      "third-dimension-095940-full-scene",
+      "55555555-5555-5555-5555-555555555555",
+    );
+
+    expect(calibration).toMatchObject({
+      status: "unavailable",
+      unavailableReason: reason,
+      source,
+      cameraCount: 0,
+      cameras: [],
+    });
   });
 
   it("getHealth returns typed snapshot", async () => {
@@ -441,6 +531,8 @@ describe("datasets resource", () => {
 
     const avala = new Avala({ apiKey: "test-key" });
     const health = await avala.datasets.getHealth("thirddimension", "third-dimension-095940-full-scene");
+    expect(health.dataType).toBe("lidar");
+    expect(health.isSequence).toBe(true);
     expect(health.totalFrames).toBe(569);
     expect(health.ingestOk).toBe(true);
     expect(health.gcStoragePrefix).toBeNull();

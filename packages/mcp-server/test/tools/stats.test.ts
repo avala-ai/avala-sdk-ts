@@ -3,7 +3,10 @@ import { registerStatsTools } from "../../src/tools/stats.js";
 
 type ToolHandler = (
   args: Record<string, unknown>,
-) => Promise<{ content: { type: string; text: string }[] }>;
+) => Promise<{
+  structuredContent?: Record<string, unknown>;
+  content: { type: string; text: string }[];
+}>;
 
 function createMockServer() {
   const handlers = new Map<string, ToolHandler>();
@@ -61,9 +64,15 @@ describe("stats tools", () => {
     expect(avala.exports.list).toHaveBeenCalledWith({ limit: 1 });
 
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.datasets.count).toBe(1);
-    expect(parsed.datasets.hasMore).toBe(true);
+    expect(result.structuredContent).toEqual(parsed);
+    expect(parsed.datasets).toEqual({
+      count: null,
+      minimumCount: 2,
+      countStatus: "lower_bound",
+      hasMore: true,
+    });
     expect(parsed.projects.count).toBe(1);
+    expect(parsed.projects.countStatus).toBe("exact");
     expect(parsed.exports.count).toBe(1);
   });
 
@@ -94,6 +103,8 @@ describe("stats tools", () => {
     expect(parsed).toHaveProperty("projects");
     expect(parsed).toHaveProperty("exports");
     expect(parsed.datasets).toHaveProperty("count");
+    expect(parsed.datasets).toHaveProperty("minimumCount");
+    expect(parsed.datasets).toHaveProperty("countStatus");
     expect(parsed.datasets).toHaveProperty("hasMore");
   });
 
@@ -107,8 +118,30 @@ describe("stats tools", () => {
     const parsed = JSON.parse(result.content[0].text);
 
     expect(parsed.datasets.count).toBe(0);
+    expect(parsed.datasets.minimumCount).toBe(0);
+    expect(parsed.datasets.countStatus).toBe("exact");
     expect(parsed.datasets.hasMore).toBe(false);
     expect(parsed.projects.count).toBe(0);
     expect(parsed.exports.count).toBe(0);
+  });
+
+  it("never presents a one-row cursor probe as an exact total", async () => {
+    const partial = {
+      items: [{ uid: "first" }],
+      hasMore: true,
+    };
+    avala.datasets.list.mockResolvedValue(partial);
+    avala.projects.listMine.mockResolvedValue(partial);
+    avala.exports.list.mockResolvedValue(partial);
+
+    const result = await server.getHandler("get_workspace_stats")!({});
+    const parsed = JSON.parse(result.content[0].text);
+
+    for (const resource of ["datasets", "projects", "exports"] as const) {
+      expect(parsed[resource].count).toBeNull();
+      expect(parsed[resource].minimumCount).toBe(2);
+      expect(parsed[resource].countStatus).toBe("lower_bound");
+    }
+    expect(JSON.stringify(parsed)).not.toContain('"count": 1');
   });
 });

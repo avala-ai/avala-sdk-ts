@@ -97,12 +97,39 @@ export interface AvalaMcpHttpOptions {
   baseUrl?: string;
   /** Shared secret proving REST requests originated from the hosted MCP service. */
   internalClientSecret?: string;
+  /** Public, non-secret identity of the image serving this process. */
+  buildInfo?: HostedBuildInfo;
   /**
    * Browser origins allowed to reach this server. Default empty: only
    * requests WITHOUT an Origin header (non-browser clients — Claude, Cursor,
    * CI) are accepted. See the Origin check below.
    */
   allowedOrigins?: string[];
+}
+
+export interface HostedBuildInfo {
+  /** Published package version. */
+  version: string;
+  /** Exact source commit embedded into the image, or `unknown` for local development. */
+  buildSha: string;
+  /** Immutable image release tag, or `local` for local development. */
+  releaseTag: string;
+}
+
+const LOCAL_BUILD_INFO: HostedBuildInfo = {
+  version: "development",
+  buildSha: "unknown",
+  releaseTag: "local",
+};
+
+function validateBuildInfo(info: HostedBuildInfo): HostedBuildInfo {
+  if (!/^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/.test(info.version))
+    throw new Error("buildInfo.version is not a canonical public version.");
+  if (info.buildSha !== "unknown" && !/^[0-9a-f]{40}$/.test(info.buildSha))
+    throw new Error("buildInfo.buildSha must be a full lowercase Git SHA.");
+  if (!/^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$/.test(info.releaseTag))
+    throw new Error("buildInfo.releaseTag is not a canonical image tag.");
+  return info;
 }
 
 type Credential =
@@ -461,6 +488,7 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
     required: true,
   });
   const internalClientSecret = options.internalClientSecret as string;
+  const buildInfo = validateBuildInfo(options.buildInfo ?? LOCAL_BUILD_INFO);
   const oauthConfig = validateHostedOAuthConfig(options.oauth);
   const oauthMetadata = protectedResourceMetadata(oauthConfig);
   const oauthMetadataUrl = protectedResourceMetadataUrl(oauthConfig.resource);
@@ -759,6 +787,9 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
                 name: "avala-mcp",
                 status: "ok",
                 transport: "streamable-http",
+                version: buildInfo.version,
+                build_sha: buildInfo.buildSha,
+                release_tag: buildInfo.releaseTag,
                 mcp_endpoint: oauthConfig.resource,
                 protected_resource_metadata: oauthMetadataUrl,
               }),

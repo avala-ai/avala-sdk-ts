@@ -418,6 +418,9 @@ export interface DatasetSequence {
   frames: Record<string, unknown>[] | null;
   metrics: Record<string, unknown> | null;
   datasetUid: string | null;
+  // Detail-serializer only; lets frame-derived clients classify whether their
+  // evidence model supports this dataset without fetching the full parent.
+  datasetDataType?: string | null;
   // Detail-serializer only; absent from list and api-key-list responses.
   deviceId?: string | null;
   allowLidarCalibration: boolean | null;
@@ -494,12 +497,40 @@ export interface CameraCalibration {
   alpha?: number | null;
 }
 
-/** Canonicalized rig view, derived from frame[0] of the sequence. */
+export type DatasetCalibrationUnavailableReason =
+  | "unsupported_dataset_type"
+  | "no_frames"
+  | "no_camera_rig_configured"
+  | "frame_camera_metadata_missing"
+  | "dataset_type_unavailable";
+
+/** Canonicalized rig view, derived from frame[0] of a LiDAR sequence. */
 export interface DatasetCalibration {
   sequenceUid: string;
   cameras: CameraCalibration[];
   datasetLevelCameraCalibration?: Record<string, unknown> | null;
 }
+
+interface DatasetCalibrationEvidence extends DatasetCalibration {
+  datasetDataType: string | null;
+  frameCount: number;
+  cameraCount: number;
+}
+
+/** Calibration result with evidence-backed availability classification. */
+export type ClassifiedDatasetCalibration = DatasetCalibrationEvidence &
+  (
+    | {
+        status: "available";
+        unavailableReason: null;
+        source: "frame_0";
+      }
+    | {
+        status: "unavailable";
+        unavailableReason: DatasetCalibrationUnavailableReason;
+        source: "frame_0" | null;
+      }
+  );
 
 export interface SequenceHealth {
   uid: string;
@@ -515,6 +546,8 @@ export interface DatasetHealth {
   datasetUid: string;
   datasetSlug: string;
   datasetStatus: string | null;
+  dataType: string;
+  isSequence: boolean;
   itemCount: number;
   sequenceCount: number;
   totalFrames: number;

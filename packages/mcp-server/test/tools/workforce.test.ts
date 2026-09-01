@@ -154,6 +154,7 @@ function workforceBatchInventory() {
         batchUid: "00000000000000000000000000000001",
         batchStatus: "available" as const,
         priority: "high" as const,
+        staffingMode: "allocated" as const,
         lineContext: {
           organizationUid: "00000000000000000000000000000002" as string | null,
           projectUid: "00000000000000000000000000000003" as string | null,
@@ -462,6 +463,213 @@ function workforceAssignmentCandidates(windowDays = 30) {
   };
 }
 
+function workforceBatchStaffingCandidates(windowDays = 30) {
+  const startsAt = new Date(
+    Date.parse("2026-08-31T20:00:00Z") - windowDays * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  return {
+    generatedAt: "2026-08-31T20:00:00Z",
+    batchUid: "00000000000000000000000000000001",
+    batchStatus: "unavailable" as const,
+    staffingMode: "allocated" as const,
+    lineContext: {
+      organizationUid: "00000000000000000000000000000002",
+      projectUid: "00000000000000000000000000000003",
+      datasetUid: "00000000000000000000000000000004",
+      sequenceUid: "00000000000000000000000000000005",
+      customerName: "must be stripped",
+    },
+    signalWindow: {
+      days: windowDays,
+      startsAt,
+      internalCutoff: "must be stripped",
+    },
+    signalScope: {
+      organizationUid: "00000000000000000000000000000002",
+      batchUid: "00000000000000000000000000000001",
+      customerName: "must be stripped",
+    },
+    candidates: [
+      {
+        coworkerUid: "00000000000000000000000000000007",
+        currentAllocation: false,
+        readiness: {
+          active: true,
+          approved: true,
+          hasActiveWork: false,
+          currentWorkUnitUid: "must be stripped",
+        },
+        matchingGroupUnitsByStatus: {
+          unavailable: 0,
+          backlog: 8,
+          inProgress: 0,
+          inReview: 0,
+          completed: 2,
+          error: 0,
+          workUnitUids: ["must be stripped"],
+        },
+        operationalSignals: {
+          completedWorkUnits: 12,
+          abandonedWorkUnits: 2,
+          erroredWorkUnits: 1,
+          lastCompletedAt: "2026-08-31T18:00:00Z" as string | null,
+          comments: ["must be stripped"],
+        },
+        displayName: "Private Name",
+        email: "private@example.com",
+        pay: { rate: "must be stripped" },
+        rank: 1,
+        score: 0.99,
+      },
+    ],
+    hasMore: true,
+    nextCursor: "00000000000000000000000000000007",
+    batchName: "must be stripped",
+    groupNames: ["must be stripped"],
+    customerPayload: { name: "must be stripped" },
+  };
+}
+
+function workforceBatchCoworkerActivity(windowDays = 30) {
+  const startsAt = new Date(
+    Date.parse("2026-08-31T20:00:00Z") - windowDays * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  return {
+    generatedAt: "2026-08-31T20:00:00Z",
+    batchUid: "00000000000000000000000000000001",
+    batchStatus: "available" as const,
+    staffingMode: "allocated" as const,
+    lineContext: {
+      organizationUid: "00000000000000000000000000000002",
+      projectUid: "00000000000000000000000000000003",
+      datasetUid: "00000000000000000000000000000004",
+      sequenceUid: "00000000000000000000000000000005",
+      customerName: "must be stripped",
+    },
+    activityWindow: {
+      days: windowDays,
+      startsAt,
+      internalCutoff: "must be stripped",
+    },
+    coworkers: [
+      {
+        coworkerUid: "00000000000000000000000000000007",
+        currentAllocation: true,
+        readiness: {
+          active: true,
+          approved: true,
+          hasActiveWork: true,
+          currentWorkUnitUid: "must be stripped",
+        },
+        assignedUnitsByStatus: {
+          unavailable: 0,
+          backlog: 0,
+          inProgress: 2,
+          inReview: 1,
+          completed: 12,
+          error: 1,
+          workUnitUids: ["must be stripped"],
+        },
+        activity: {
+          submittedForReviewWorkUnits: 9,
+          completedWorkUnits: 8,
+          abandonedWorkUnits: 1,
+          erroredWorkUnits: 1,
+          lastActivityAt: "2026-08-31T18:00:00Z" as string | null,
+          comments: ["must be stripped"],
+          completionRate: 0.88,
+        },
+        username: "+15550000000",
+        email: "private@example.com",
+        displayName: "Private Name",
+        pay: { rate: "must be stripped" },
+        workDetails: { url: "https://private.example/work" },
+        qualityScore: 0.99,
+        rank: 1,
+      },
+    ],
+    hasMore: true,
+    nextCursor: "00000000000000000000000000000007",
+    batchName: "must be stripped",
+    groupNames: ["must be stripped"],
+    customerPayload: { name: "must be stripped" },
+  };
+}
+
+function workforceBatchAllocationImpact() {
+  return {
+    generatedAt: "2026-08-31T20:00:00Z",
+    operation: "add" as "add" | "remove",
+    batchUid: "00000000000000000000000000000001",
+    coworkerUid: "00000000000000000000000000000007",
+    batchStatus: "unavailable" as const,
+    staffingMode: "allocated" as const,
+    batchUpdatedAt: "2026-08-31T19:58:00Z",
+    lineContext: {
+      organizationUid: "00000000000000000000000000000002",
+      projectUid: "00000000000000000000000000000003",
+      datasetUid: "00000000000000000000000000000004",
+      sequenceUid: "00000000000000000000000000000005",
+      customerName: "must be stripped",
+    },
+    currentAllocation: false,
+    readiness: {
+      active: true,
+      approved: true,
+      hasActiveWork: false,
+      currentWorkUnitUid: "must be stripped",
+    },
+    matchingGroupUnitsByStatus: {
+      unavailable: 0,
+      backlog: 8,
+      inProgress: 0,
+      inReview: 0,
+      completed: 2,
+      error: 0,
+      workUnitUids: ["must be stripped"],
+    },
+    effect: {
+      scope: "batch" as const,
+      wouldChangeAllocation: true,
+      qualifiedForBatchWork: true,
+      currentEligibility: false,
+      projectedEligibility: true,
+      activeAssignedBatchWorkUnits: 0,
+      removalBlockedByActiveBatchWork: false,
+      eligibleAllocatedCoworkersAfterChange: 1,
+      removalWouldLeaveAvailableBatchUnstaffed: false,
+      globalGroupMembershipChanged: "must be stripped",
+    },
+    coworkerProfile: { email: "private@example.com" },
+    customerPayload: { name: "must be stripped" },
+    pay: { rate: "must be stripped" },
+    performance: { score: 0.99 },
+  };
+}
+
+function workforceBatchAllocationMutationResponse() {
+  return {
+    operationEventUid: "00000000000000000000000000000009",
+    allocationUid: "0000000000000000000000000000000a",
+    operation: "add" as "add" | "remove",
+    batchUid: "00000000000000000000000000000001",
+    coworkerUid: "00000000000000000000000000000007",
+    previousAllocation: false,
+    currentAllocation: true,
+    effect: {
+      scope: "batch" as const,
+      globalGroupMembershipChanged: false as boolean,
+      allocationChanged: true as boolean,
+      groupNames: ["must be stripped"],
+    },
+    reason: "Schedule a qualified coworker on this exact production line.",
+    coworkerProfile: { email: "private@example.com" },
+    customerPayload: { name: "must be stripped" },
+    pay: { rate: "must be stripped" },
+    performance: { score: 0.99 },
+  };
+}
+
 describe("workforce operations tool", () => {
   let server: ReturnType<typeof createMockServer>;
   let avala: { transport: { requestSingle: ReturnType<typeof vi.fn> } };
@@ -616,6 +824,7 @@ describe("workforce operations tool", () => {
       batchUid: "00000000000000000000000000000001",
       batchStatus: "available",
       priority: "high",
+      staffingMode: "allocated",
       lineContext: {
         organizationUid: "00000000000000000000000000000002",
         projectUid: "00000000000000000000000000000003",
@@ -1451,8 +1660,386 @@ describe("workforce operations tool", () => {
       (
         (result.structuredContent?.candidates as Record<string, unknown>[])[0]!
           .operationalSignals as Record<string, unknown>
-      ).lastCompletedAt,
+    ).lastCompletedAt,
     ).toBeNull();
+  });
+
+  it("lists bounded batch staffing candidates and strips identity, payload, pay, and ranking drift", async () => {
+    avala.transport.requestSingle.mockResolvedValue(
+      workforceBatchStaffingCandidates(14),
+    );
+
+    const result = await server.getHandler(
+      "list_workforce_batch_staffing_candidates",
+    )!({
+      batchUid: "00000000000000000000000000000001",
+      allocated: false,
+      windowDays: 14,
+      limit: 25,
+      cursor: "00000000000000000000000000000008",
+    });
+
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/admin/workforce/batches/00000000000000000000000000000001/staffing-candidates/",
+      {
+        allocated: "false",
+        window_days: "14",
+        limit: "25",
+        cursor: "00000000000000000000000000000008",
+      },
+    );
+    expect(
+      server.getConfig("list_workforce_batch_staffing_candidates")?._meta,
+    ).toMatchObject({
+      "avala.ai/rest-route": "workforce-batch-staffing-candidates",
+      "avala.ai/rest-method": "GET",
+      "avala.ai/required-scope": "workforce.write",
+      "avala.ai/toolset": "staff",
+    });
+    expect(result.structuredContent).toMatchObject({
+      batchUid: "00000000000000000000000000000001",
+      batchStatus: "unavailable",
+      staffingMode: "allocated",
+      signalWindow: {
+        days: 14,
+        startsAt: "2026-08-17T20:00:00.000Z",
+      },
+      signalScope: {
+        organizationUid: "00000000000000000000000000000002",
+        batchUid: "00000000000000000000000000000001",
+      },
+      candidates: [
+        {
+          coworkerUid: "00000000000000000000000000000007",
+          currentAllocation: false,
+          readiness: {
+            active: true,
+            approved: true,
+            hasActiveWork: false,
+          },
+          matchingGroupUnitsByStatus: {
+            unavailable: 0,
+            backlog: 8,
+            inProgress: 0,
+            inReview: 0,
+            completed: 2,
+            error: 0,
+          },
+          operationalSignals: {
+            completedWorkUnits: 12,
+            abandonedWorkUnits: 2,
+            erroredWorkUnits: 1,
+            lastCompletedAt: "2026-08-31T18:00:00Z",
+          },
+        },
+      ],
+    });
+    const serialized = JSON.stringify(result.structuredContent);
+    for (const hidden of [
+      "must be stripped",
+      "Private Name",
+      "private@example.com",
+      "customerName",
+      "displayName",
+      "currentWorkUnitUid",
+      "workUnitUids",
+      "groupNames",
+      "customerPayload",
+      "pay",
+      "rank",
+      "score",
+    ]) {
+      expect(serialized).not.toContain(hidden);
+    }
+    expect(JSON.parse(result.content[0]!.text)).toEqual(result.structuredContent);
+  });
+
+  it("pins batch staffing identifiers, filters, bounds, target echo, and response size", async () => {
+    const inputSchema = server.getConfig(
+      "list_workforce_batch_staffing_candidates",
+    )?.inputSchema as {
+      shape: Record<string, unknown>;
+      safeParse: (value: unknown) => { success: boolean };
+    };
+    expect(inputSchema.shape.detail).toBeUndefined();
+    expect(
+      inputSchema.safeParse({
+        batchUid: "00000000-0000-0000-0000-000000000001",
+        allocated: true,
+        windowDays: 90,
+        limit: 100,
+      }).success,
+    ).toBe(true);
+    expect(inputSchema.safeParse({ batchUid: "not-a-uuid" }).success).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        batchUid: "00000000000000000000000000000001",
+        allocated: "false",
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        batchUid: "00000000000000000000000000000001",
+        windowDays: 91,
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        batchUid: "00000000000000000000000000000001",
+        includeProfiles: true,
+      }).success,
+    ).toBe(false);
+
+    const wrongBatch = workforceBatchStaffingCandidates();
+    wrongBatch.batchUid = "00000000000000000000000000000009";
+    avala.transport.requestSingle.mockResolvedValueOnce(wrongBatch);
+    await expect(
+      server.getHandler("list_workforce_batch_staffing_candidates")!({
+        batchUid: "00000000000000000000000000000001",
+      }),
+    ).rejects.toThrow("did not match the requested batch");
+
+    const oversized = workforceBatchStaffingCandidates();
+    oversized.candidates = Array.from({ length: 101 }, (_, index) => ({
+      ...oversized.candidates[0]!,
+      coworkerUid: index.toString(16).padStart(32, "0"),
+    }));
+    avala.transport.requestSingle.mockResolvedValueOnce(oversized);
+    await expect(
+      server.getHandler("list_workforce_batch_staffing_candidates")!({
+        batchUid: "00000000000000000000000000000001",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("lists bounded batch coworker activity and strips identity, payload, pay, work-detail, and ranking drift", async () => {
+    avala.transport.requestSingle.mockResolvedValue(
+      workforceBatchCoworkerActivity(14),
+    );
+
+    const result = await server.getHandler(
+      "list_workforce_batch_coworker_activity",
+    )!({
+      batchUid: "00000000000000000000000000000001",
+      allocated: true,
+      windowDays: 14,
+      limit: 25,
+      cursor: "00000000000000000000000000000008",
+    });
+
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/admin/workforce/batches/00000000000000000000000000000001/coworker-activity/",
+      {
+        allocated: "true",
+        window_days: "14",
+        limit: "25",
+        cursor: "00000000000000000000000000000008",
+      },
+    );
+    expect(
+      server.getConfig("list_workforce_batch_coworker_activity")?._meta,
+    ).toMatchObject({
+      "avala.ai/rest-route": "workforce-batch-coworker-activity",
+      "avala.ai/rest-method": "GET",
+      "avala.ai/required-scope": "workforce.write",
+      "avala.ai/toolset": "staff",
+    });
+    expect(result.structuredContent).toMatchObject({
+      batchUid: "00000000000000000000000000000001",
+      batchStatus: "available",
+      staffingMode: "allocated",
+      activityWindow: {
+        days: 14,
+        startsAt: "2026-08-17T20:00:00.000Z",
+      },
+      coworkers: [
+        {
+          coworkerUid: "00000000000000000000000000000007",
+          currentAllocation: true,
+          readiness: {
+            active: true,
+            approved: true,
+            hasActiveWork: true,
+          },
+          assignedUnitsByStatus: {
+            unavailable: 0,
+            backlog: 0,
+            inProgress: 2,
+            inReview: 1,
+            completed: 12,
+            error: 1,
+          },
+          activity: {
+            submittedForReviewWorkUnits: 9,
+            completedWorkUnits: 8,
+            abandonedWorkUnits: 1,
+            erroredWorkUnits: 1,
+            lastActivityAt: "2026-08-31T18:00:00Z",
+          },
+        },
+      ],
+      hasMore: true,
+      nextCursor: "00000000000000000000000000000007",
+    });
+    const serialized = JSON.stringify(result.structuredContent);
+    for (const hidden of [
+      "must be stripped",
+      "+15550000000",
+      "Private Name",
+      "private@example.com",
+      "private.example",
+      "customerName",
+      "displayName",
+      "workUnitUids",
+      "groupNames",
+      "customerPayload",
+      "pay",
+      "completionRate",
+      "qualityScore",
+      "rank",
+      "score",
+    ]) {
+      expect(serialized).not.toContain(hidden);
+    }
+    expect(JSON.parse(result.content[0]!.text)).toEqual(result.structuredContent);
+  });
+
+  it("pins batch coworker activity identifiers, filters, bounds, target echo, and response size", async () => {
+    const inputSchema = server.getConfig(
+      "list_workforce_batch_coworker_activity",
+    )?.inputSchema as {
+      shape: Record<string, unknown>;
+      safeParse: (value: unknown) => { success: boolean };
+    };
+    expect(inputSchema.shape.detail).toBeUndefined();
+    expect(
+      inputSchema.safeParse({
+        batchUid: "00000000-0000-0000-0000-000000000001",
+        allocated: false,
+        windowDays: 90,
+        limit: 100,
+      }).success,
+    ).toBe(true);
+    expect(inputSchema.safeParse({ batchUid: "not-a-uuid" }).success).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        batchUid: "00000000000000000000000000000001",
+        allocated: "true",
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        batchUid: "00000000000000000000000000000001",
+        windowDays: 91,
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        batchUid: "00000000000000000000000000000001",
+        includeProfiles: true,
+      }).success,
+    ).toBe(false);
+
+    const wrongBatch = workforceBatchCoworkerActivity();
+    wrongBatch.batchUid = "00000000000000000000000000000009";
+    avala.transport.requestSingle.mockResolvedValueOnce(wrongBatch);
+    await expect(
+      server.getHandler("list_workforce_batch_coworker_activity")!({
+        batchUid: "00000000000000000000000000000001",
+      }),
+    ).rejects.toThrow("did not match the requested batch");
+
+    const invalidActivity = workforceBatchCoworkerActivity();
+    invalidActivity.coworkers[0]!.activity.completedWorkUnits = -1;
+    avala.transport.requestSingle.mockResolvedValueOnce(invalidActivity);
+    await expect(
+      server.getHandler("list_workforce_batch_coworker_activity")!({
+        batchUid: "00000000000000000000000000000001",
+      }),
+    ).rejects.toThrow();
+
+    const oversized = workforceBatchCoworkerActivity();
+    oversized.coworkers = Array.from({ length: 101 }, (_, index) => ({
+      ...oversized.coworkers[0]!,
+      coworkerUid: index.toString(16).padStart(32, "0"),
+    }));
+    avala.transport.requestSingle.mockResolvedValueOnce(oversized);
+    await expect(
+      server.getHandler("list_workforce_batch_coworker_activity")!({
+        batchUid: "00000000000000000000000000000001",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("previews one exact batch allocation impact and strips private provider drift", async () => {
+    avala.transport.requestSingle.mockResolvedValue(
+      workforceBatchAllocationImpact(),
+    );
+
+    const result = await server.getHandler(
+      "preview_workforce_batch_allocation_impact",
+    )!({
+      batchUid: "00000000000000000000000000000001",
+      coworkerUid: "00000000000000000000000000000007",
+      operation: "add",
+    });
+
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/admin/workforce/batches/00000000000000000000000000000001/coworkers/00000000000000000000000000000007/allocation-impact/",
+      { operation: "add" },
+    );
+    expect(
+      server.getConfig("preview_workforce_batch_allocation_impact")?._meta,
+    ).toMatchObject({
+      "avala.ai/rest-route": "workforce-batch-allocation-impact",
+      "avala.ai/rest-method": "GET",
+      "avala.ai/required-scope": "workforce.write",
+      "avala.ai/toolset": "staff",
+    });
+    expect(result.structuredContent).toMatchObject({
+      operation: "add",
+      batchUid: "00000000000000000000000000000001",
+      coworkerUid: "00000000000000000000000000000007",
+      batchStatus: "unavailable",
+      staffingMode: "allocated",
+      currentAllocation: false,
+      effect: {
+        scope: "batch",
+        wouldChangeAllocation: true,
+        qualifiedForBatchWork: true,
+        currentEligibility: false,
+        projectedEligibility: true,
+        activeAssignedBatchWorkUnits: 0,
+        removalBlockedByActiveBatchWork: false,
+        eligibleAllocatedCoworkersAfterChange: 1,
+        removalWouldLeaveAvailableBatchUnstaffed: false,
+      },
+    });
+    const serialized = JSON.stringify(result.structuredContent);
+    for (const hidden of [
+      "must be stripped",
+      "private@example.com",
+      "customerName",
+      "coworkerProfile",
+      "customerPayload",
+      "pay",
+      "performance",
+      "globalGroupMembershipChanged",
+    ]) {
+      expect(serialized).not.toContain(hidden);
+    }
+    expect(JSON.parse(result.content[0]!.text)).toEqual(result.structuredContent);
+
+    const wrongOperation = workforceBatchAllocationImpact();
+    wrongOperation.operation = "remove";
+    avala.transport.requestSingle.mockResolvedValueOnce(wrongOperation);
+    await expect(
+      server.getHandler("preview_workforce_batch_allocation_impact")!({
+        batchUid: "00000000000000000000000000000001",
+        coworkerUid: "00000000000000000000000000000007",
+        operation: "add",
+      }),
+    ).rejects.toThrow("did not match the requested batch, coworker, and operation");
   });
 
   it("drills into an overview batch through one exact staff route and strips response drift", async () => {
@@ -1837,12 +2424,307 @@ describe("workforce operations tool", () => {
     ).rejects.toThrow("did not match the approved operation");
   });
 
+  it("maps a confirmed exact preview to one batch-only allocation mutation", async () => {
+    const mutationServer = createMockServer();
+    const requestCreate = vi
+      .fn()
+      .mockResolvedValue(workforceBatchAllocationMutationResponse());
+    registerWorkforceTools(
+      mutationServer as never,
+      (() => ({ transport: { requestCreate } })) as never,
+      {
+        confirmation: createMutationConfirmationService(
+          "workforce-allocation-test-key",
+        ),
+        credentialBinding: "staff-credential",
+      },
+    );
+    const handler = mutationServer.getHandler(
+      "change_workforce_batch_allocation",
+    )!;
+    const mutationArgs = {
+      batchUid: "00000000000000000000000000000001",
+      coworkerUid: "00000000000000000000000000000007",
+      operation: "add",
+      expectedBatchStatus: "unavailable",
+      expectedStaffingMode: "allocated",
+      expectedBatchUpdatedAt: "2026-08-31T19:58:00Z",
+      expectedLineContext: {
+        organizationUid: "00000000000000000000000000000002",
+        projectUid: "00000000000000000000000000000003",
+        datasetUid: "00000000000000000000000000000004",
+        sequenceUid: "00000000000000000000000000000005",
+      },
+      expectedCurrentAllocation: false,
+      expectedReadiness: {
+        active: true,
+        approved: true,
+        hasActiveWork: false,
+      },
+      expectedMatchingGroupUnitsByStatus: {
+        unavailable: 0,
+        backlog: 8,
+        inProgress: 0,
+        inReview: 0,
+        completed: 2,
+        error: 0,
+      },
+      expectedEffect: {
+        scope: "batch",
+        wouldChangeAllocation: true,
+        qualifiedForBatchWork: true,
+        currentEligibility: false,
+        projectedEligibility: true,
+        activeAssignedBatchWorkUnits: 0,
+        removalBlockedByActiveBatchWork: false,
+        eligibleAllocatedCoworkersAfterChange: 1,
+        removalWouldLeaveAvailableBatchUnstaffed: false,
+      },
+      acknowledgeBatchScope: true,
+      reason: "Schedule a qualified coworker on this exact production line.",
+    } as const;
+    const context = (
+      inputResponses?: Record<string, unknown>,
+      requestState?: string,
+    ) => ({
+      mcpReq: {
+        envelope: {},
+        inputResponses,
+        requestState: () => requestState,
+        elicitInput: vi.fn(),
+      },
+    });
+    const inputSchema = mutationServer.getConfig(
+      "change_workforce_batch_allocation",
+    )?.inputSchema as {
+      safeParse: (value: unknown) => { success: boolean };
+    };
+
+    expect(inputSchema.safeParse(mutationArgs).success).toBe(true);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        expectedStaffingMode: "group_pool",
+      }).success,
+    ).toBe(false);
+    const safeRemovalArgs = {
+      ...mutationArgs,
+      operation: "remove",
+      expectedCurrentAllocation: true,
+      expectedEffect: {
+        ...mutationArgs.expectedEffect,
+        currentEligibility: true,
+        projectedEligibility: false,
+      },
+    } as const;
+    expect(inputSchema.safeParse(safeRemovalArgs).success).toBe(true);
+    expect(
+      inputSchema.safeParse({
+        ...safeRemovalArgs,
+        expectedEffect: {
+          ...safeRemovalArgs.expectedEffect,
+          activeAssignedBatchWorkUnits: 1,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        ...safeRemovalArgs,
+        expectedBatchStatus: "available",
+        expectedEffect: {
+          ...safeRemovalArgs.expectedEffect,
+          eligibleAllocatedCoworkersAfterChange: 0,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        expectedCurrentAllocation: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        expectedReadiness: {
+          ...mutationArgs.expectedReadiness,
+          approved: false,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        expectedEffect: {
+          ...mutationArgs.expectedEffect,
+          qualifiedForBatchWork: false,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({
+        ...mutationArgs,
+        expectedEffect: {
+          ...mutationArgs.expectedEffect,
+          removalBlockedByActiveBatchWork: true,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      inputSchema.safeParse({ ...mutationArgs, acknowledgeBatchScope: false })
+        .success,
+    ).toBe(false);
+    expect(inputSchema.safeParse({ ...mutationArgs, force: true }).success).toBe(
+      false,
+    );
+
+    const pending = await handler(mutationArgs, context());
+    expect(requestCreate).not.toHaveBeenCalled();
+    expect(pending.resultType).toBe("input_required");
+    expect(pending.requestState).toMatch(/^mc_/);
+    const message = (
+      pending.inputRequests?.confirmAvalaMutation as {
+        params: { message: string };
+      }
+    ).params.message;
+    expect(message).toContain("this exact batch only");
+    expect(message).toContain("global group qualification");
+    expect(message).toContain("eligibleAllocatedAfter=1");
+    expect(message).toContain("Batch-only scope is acknowledged");
+    if (!pending.requestState) throw new Error("Missing confirmation state.");
+
+    const result = await handler(
+      mutationArgs,
+      context(
+        {
+          confirmAvalaMutation: {
+            action: "accept",
+            content: { confirm: true },
+          },
+        },
+        pending.requestState,
+      ),
+    );
+
+    expect(requestCreate).toHaveBeenCalledWith(
+      "/admin/workforce/batches/00000000000000000000000000000001/coworkers/00000000000000000000000000000007/allocation/",
+      {
+        operation: "add",
+        expected_batch_status: "unavailable",
+        expected_staffing_mode: "allocated",
+        expected_batch_updated_at: "2026-08-31T19:58:00Z",
+        expected_line_context: {
+          organization_uid: "00000000000000000000000000000002",
+          project_uid: "00000000000000000000000000000003",
+          dataset_uid: "00000000000000000000000000000004",
+          sequence_uid: "00000000000000000000000000000005",
+        },
+        expected_current_allocation: false,
+        expected_readiness: {
+          active: true,
+          approved: true,
+          has_active_work: false,
+        },
+        expected_matching_group_units_by_status: {
+          unavailable: 0,
+          backlog: 8,
+          in_progress: 0,
+          in_review: 0,
+          completed: 2,
+          error: 0,
+        },
+        expected_effect: {
+          scope: "batch",
+          would_change_allocation: true,
+          qualified_for_batch_work: true,
+          current_eligibility: false,
+          projected_eligibility: true,
+          active_assigned_batch_work_units: 0,
+          removal_blocked_by_active_batch_work: false,
+          eligible_allocated_coworkers_after_change: 1,
+          removal_would_leave_available_batch_unstaffed: false,
+        },
+        acknowledge_batch_scope: true,
+        reason: "Schedule a qualified coworker on this exact production line.",
+      },
+      { idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/) },
+    );
+    expect(
+      mutationServer.getConfig("change_workforce_batch_allocation"),
+    ).toMatchObject({
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+      _meta: {
+        "avala.ai/rest-route": "workforce-batch-allocation",
+        "avala.ai/rest-method": "POST",
+        "avala.ai/required-scope": "workforce.write",
+        "avala.ai/toolset": "staff",
+        "avala.ai/requires-confirmation": true,
+      },
+    });
+    expect(result.structuredContent).toMatchObject({
+      operationEventUid: "00000000000000000000000000000009",
+      allocationUid: "0000000000000000000000000000000a",
+      operation: "add",
+      batchUid: "00000000000000000000000000000001",
+      coworkerUid: "00000000000000000000000000000007",
+      previousAllocation: false,
+      currentAllocation: true,
+      effect: {
+        scope: "batch",
+        globalGroupMembershipChanged: false,
+        allocationChanged: true,
+      },
+    });
+    const serialized = JSON.stringify(result.structuredContent);
+    for (const hidden of [
+      "must be stripped",
+      "private@example.com",
+      "coworkerProfile",
+      "customerPayload",
+      "groupNames",
+      "pay",
+      "performance",
+    ]) {
+      expect(serialized).not.toContain(hidden);
+    }
+    expect(result.structuredContent?.reversalGuidance).toContain(
+      "operation=remove",
+    );
+    expect(result.structuredContent?.reversalGuidance).toContain(
+      "separate human approval",
+    );
+
+    requestCreate.mockResolvedValueOnce({
+      ...workforceBatchAllocationMutationResponse(),
+      coworkerUid: "00000000000000000000000000000008",
+    });
+    await expect(
+      handler(
+        mutationArgs,
+        context(
+          {
+            confirmAvalaMutation: {
+              action: "accept",
+              content: { confirm: true },
+            },
+          },
+          pending.requestState,
+        ),
+      ),
+    ).rejects.toThrow("did not match the approved operation");
+  });
+
   it("maps confirmed batch creation to the exact unavailable sequence plan", async () => {
     const mutationServer = createMockServer();
     const requestCreate = vi.fn().mockResolvedValue({
       batchUid: "00000000000000000000000000000001",
       batchStatus: "unavailable",
       priority: "medium",
+      staffingMode: "allocated",
       createdAt: "2026-08-31T20:01:00Z",
       lineContext: {
         organizationUid: "00000000000000000000000000000002",
@@ -1953,6 +2835,7 @@ describe("workforce operations tool", () => {
     expect(pending.resultType).toBe("input_required");
     expect(pending.requestState).toMatch(/^mc_/);
     expect(JSON.stringify(pending)).toContain("does not release work");
+    expect(JSON.stringify(pending)).toContain("Staffing mode: allocated");
     expect(JSON.stringify(pending)).toContain(
       "1x cuboid/first_pass/group 00000000000000000000000000000006",
     );
@@ -1983,6 +2866,7 @@ describe("workforce operations tool", () => {
         expected_sequence_status: "labeling",
         expected_sequence_updated_at: "2026-08-31T19:58:00Z",
         expected_workflow_revision_uid: null,
+        staffing_mode: "allocated",
         work_units: [
           {
             task_name: "cuboid",
@@ -2020,6 +2904,7 @@ describe("workforce operations tool", () => {
       batchUid: "00000000000000000000000000000001",
       batchStatus: "unavailable",
       priority: "medium",
+      staffingMode: "allocated",
       workUnitsCreated: 2,
       sequenceStatus: "labeling",
       workflowRevisionUid: null,
@@ -2766,6 +3651,9 @@ describe("workforce operations tool", () => {
     ).toBeUndefined();
     expect(
       mutationServer.getHandler("change_workforce_group_membership"),
+    ).toBeUndefined();
+    expect(
+      mutationServer.getHandler("change_workforce_batch_allocation"),
     ).toBeUndefined();
     expect(
       mutationServer.getHandler("create_workforce_batch"),

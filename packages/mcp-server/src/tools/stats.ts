@@ -9,6 +9,67 @@ const WORKSPACE_STATS_CONCISE_KEYS = [
   "exports",
 ] as const;
 
+const exactResourceCountSchema = z
+  .object({
+    count: z.number().int().nonnegative(),
+    minimumCount: z.number().int().nonnegative(),
+    countStatus: z.literal("exact"),
+    hasMore: z.literal(false),
+  })
+  .strip();
+
+const lowerBoundResourceCountSchema = z
+  .object({
+    count: z.null(),
+    minimumCount: z.number().int().positive(),
+    countStatus: z.literal("lower_bound"),
+    hasMore: z.literal(true),
+  })
+  .strip();
+
+const resourceCountSchema = z.discriminatedUnion("countStatus", [
+  exactResourceCountSchema,
+  lowerBoundResourceCountSchema,
+]);
+
+const workspaceStatsOutputSchema = z
+  .object({
+    datasets: resourceCountSchema,
+    projects: resourceCountSchema,
+    exports: resourceCountSchema,
+  })
+  .strip();
+
+interface PageProbe {
+  items: unknown[];
+  hasMore: boolean;
+}
+
+function summarizePageProbe(
+  page: PageProbe,
+): z.infer<typeof resourceCountSchema> {
+  const observedCount = page.items.length;
+  if (!page.hasMore) {
+    return {
+      count: observedCount,
+      minimumCount: observedCount,
+      countStatus: "exact",
+      hasMore: false,
+    };
+  }
+
+  // Cursor pagination deliberately omits a total. With a one-row probe and a
+  // next cursor we can prove only that at least one additional row exists.
+  // Returning `count: 1` here used to turn that lower bound into a confident,
+  // false workspace total.
+  return {
+    count: null,
+    minimumCount: observedCount + 1,
+    countStatus: "lower_bound",
+    hasMore: true,
+  };
+}
+
 export function registerStatsTools(
   server: McpServer,
   getClient: GetClient,
@@ -17,10 +78,11 @@ export function registerStatsTools(
     "get_workspace_stats",
     {
       description:
-        "Get a summary of workspace usage including dataset count and project count. Project count is the caller's own scope via /users/me/projects/, not every project on the instance. Already a small payload; detail is accepted for consistency with other get tools.",
+        "Get a bounded workspace presence summary for datasets, projects, and exports. Cursor-paginated routes do not expose totals: count is exact only when countStatus=exact, otherwise count is null and minimumCount is the proven lower bound. Project scope is the caller's own via /users/me/projects/, not every project on the instance. Already a small payload; detail is accepted for consistency with other get tools.",
       inputSchema: z.object({
         detail: detailInputField,
       }),
+      outputSchema: workspaceStatsOutputSchema,
       _meta: {
         "avala.ai/required-scopes": [
           "datasets.read",
@@ -40,11 +102,11 @@ export function registerStatsTools(
         avala.exports.list({ limit: 1 }),
       ]);
 
-      const stats = {
-        datasets: { count: datasets.items.length, hasMore: datasets.hasMore },
-        projects: { count: projects.items.length, hasMore: projects.hasMore },
-        exports: { count: exports.items.length, hasMore: exports.hasMore },
-      };
+      const stats = workspaceStatsOutputSchema.parse({
+        datasets: summarizePageProbe(datasets),
+        projects: summarizePageProbe(projects),
+        exports: summarizePageProbe(exports),
+      });
 
       const presented = presentReadDetail(
         stats,
@@ -53,6 +115,7 @@ export function registerStatsTools(
       );
 
       return {
+        structuredContent: presented,
         content: [
           {
             type: "text" as const,

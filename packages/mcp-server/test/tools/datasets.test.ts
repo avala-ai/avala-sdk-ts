@@ -515,6 +515,7 @@ describe("dataset tools", () => {
       ],
       metrics: null,
       datasetUid: "ds-1",
+      datasetDataType: "lidar",
       allowLidarCalibration: false,
       lidarCalibrationEnabled: false,
       cameraCalibrationEnabled: false,
@@ -525,6 +526,10 @@ describe("dataset tools", () => {
       owner: "thirddimension",
       slug: "third-dimension-095940-full-scene",
       sequenceUid: "seq-1",
+    });
+    expect(JSON.parse(concise.content[0].text)).toMatchObject({
+      datasetUid: "ds-1",
+      datasetDataType: "lidar",
     });
     expect(JSON.parse(concise.content[0].text)).not.toHaveProperty("frames");
 
@@ -687,6 +692,12 @@ describe("dataset tools", () => {
   it("get_calibration defaults to sequenceUid", async () => {
     avala.datasets.getCalibration.mockResolvedValue({
       sequenceUid: "seq-1",
+      datasetDataType: "lidar",
+      status: "available",
+      unavailableReason: null,
+      source: "frame_0",
+      frameCount: 1,
+      cameraCount: 1,
       cameras: [{ cameraId: "cam_01", model: "pinhole" }],
     });
 
@@ -697,15 +708,53 @@ describe("dataset tools", () => {
     });
     expect(JSON.parse(concise.content[0].text)).toEqual({
       sequenceUid: "seq-1",
+      datasetDataType: "lidar",
+      status: "available",
+      unavailableReason: null,
+      source: "frame_0",
+      frameCount: 1,
+      cameraCount: 1,
     });
   });
 
-  it("get_dataset_health aliases itemCount to frameCount and omits sequences by default", async () => {
+  it("get_calibration explains an empty camera rig", async () => {
+    avala.datasets.getCalibration.mockResolvedValue({
+      sequenceUid: "seq-1",
+      datasetDataType: "lidar",
+      status: "unavailable",
+      unavailableReason: "no_camera_rig_configured",
+      source: "frame_0",
+      frameCount: 1,
+      cameraCount: 0,
+      cameras: [],
+    });
+
+    const result = await server.getHandler("get_calibration")!({
+      owner: "org",
+      slug: "empty-rig",
+      sequenceUid: "seq-1",
+      detail: "full",
+    });
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      sequenceUid: "seq-1",
+      datasetDataType: "lidar",
+      status: "unavailable",
+      unavailableReason: "no_camera_rig_configured",
+      source: "frame_0",
+      frameCount: 1,
+      cameraCount: 0,
+      cameras: [],
+    });
+  });
+
+  it("get_dataset_health exposes the declared frame unit and omits ambiguous counters by default", async () => {
     avala.transport.requestSingle.mockResolvedValue({
       datasetUid: "ds-1",
       datasetSlug: "sf-lidar",
       datasetStatus: "created",
-      itemCount: 3120,
+      dataType: "lidar",
+      isSequence: true,
+      itemCount: 4000,
       sequenceCount: 39,
       totalFrames: 3120,
       s3Prefix: "datasets/sf-lidar",
@@ -731,18 +780,37 @@ describe("dataset tools", () => {
     });
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.frameCount).toBe(3120);
-    expect(parsed.itemCount).toBe(3120);
+    expect(parsed.contentUnit).toBe("frames");
+    expect(parsed.dataType).toBe("lidar");
+    expect(parsed.isSequence).toBe(true);
     expect(parsed.sequenceCount).toBe(39);
-    expect(parsed.totalFrames).toBe(3120);
+    expect(parsed).not.toHaveProperty("itemCount");
+    expect(parsed).not.toHaveProperty("totalFrames");
     expect(parsed).not.toHaveProperty("sequences");
     expect(parsed).not.toHaveProperty("s3Prefix");
+
+    const full = await server.getHandler("get_dataset_health")!({
+      owner: "thirddimension",
+      slug: "sf-lidar",
+      detail: "full",
+    });
+    const fullParsed = JSON.parse(full.content[0].text);
+    expect(fullParsed).toMatchObject({
+      contentUnit: "frames",
+      frameCount: 3120,
+      itemCount: 4000,
+      totalFrames: 3120,
+    });
+    expect(fullParsed.sequences).toHaveLength(1);
   });
 
-  it("get_dataset_health aliases non-sequence itemCount to assetCount", async () => {
+  it("get_dataset_health exposes the declared asset unit without a false frame zero", async () => {
     avala.transport.requestSingle.mockResolvedValue({
       datasetUid: "ds-video",
       datasetSlug: "walkthrough",
       datasetStatus: "created",
+      dataType: "video",
+      isSequence: false,
       itemCount: 2,
       sequenceCount: 0,
       totalFrames: 0,
@@ -760,9 +828,71 @@ describe("dataset tools", () => {
     });
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.assetCount).toBe(2);
-    expect(parsed.itemCount).toBe(2);
-    expect(parsed.totalFrames).toBe(0);
+    expect(parsed.contentUnit).toBe("assets");
+    expect(parsed.dataType).toBe("video");
+    expect(parsed.isSequence).toBe(false);
+    expect(parsed).not.toHaveProperty("itemCount");
+    expect(parsed).not.toHaveProperty("totalFrames");
     expect(parsed).not.toHaveProperty("frameCount");
+  });
+
+  it("get_dataset_health keeps zero frames for a sequence-shaped dataset with no sequences", async () => {
+    avala.transport.requestSingle.mockResolvedValue({
+      datasetUid: "ds-empty-sequence",
+      datasetSlug: "empty-lidar",
+      datasetStatus: "created",
+      dataType: "lidar",
+      isSequence: true,
+      itemCount: 6,
+      sequenceCount: 0,
+      totalFrames: 0,
+      s3Prefix: null,
+      gcStoragePrefix: null,
+      lastUpdatedAt: "2026-08-24T00:00:00Z",
+      ingestOk: false,
+      sequences: [],
+      issues: ["Dataset is marked is_sequence but has no sequences"],
+    });
+
+    const result = await server.getHandler("get_dataset_health")!({
+      owner: "org",
+      slug: "empty-lidar",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed).toMatchObject({
+      isSequence: true,
+      contentUnit: "frames",
+      frameCount: 0,
+      sequenceCount: 0,
+      ingestOk: false,
+    });
+    expect(parsed).not.toHaveProperty("assetCount");
+    expect(parsed).not.toHaveProperty("itemCount");
+    expect(parsed).not.toHaveProperty("totalFrames");
+  });
+
+  it("get_dataset_health fails loud when the provider omits content shape", async () => {
+    avala.transport.requestSingle.mockResolvedValue({
+      datasetUid: "ds-unknown-shape",
+      datasetSlug: "unknown-shape",
+      datasetStatus: "created",
+      itemCount: 6,
+      sequenceCount: 0,
+      totalFrames: 0,
+      s3Prefix: null,
+      gcStoragePrefix: null,
+      lastUpdatedAt: "2026-08-24T00:00:00Z",
+      ingestOk: true,
+      sequences: [],
+      issues: [],
+    });
+
+    await expect(
+      server.getHandler("get_dataset_health")!({
+        owner: "org",
+        slug: "unknown-shape",
+      }),
+    ).rejects.toThrow(/dataType|isSequence/);
   });
 
   it("get_dataset_readiness blocks sf-lidar reconstruction on missing calibration", async () => {
@@ -770,6 +900,8 @@ describe("dataset tools", () => {
       datasetUid: "ds-1",
       datasetSlug: "sf-lidar",
       datasetStatus: "created",
+      dataType: "lidar",
+      isSequence: true,
       itemCount: 3120,
       sequenceCount: 39,
       totalFrames: 3120,
@@ -832,6 +964,8 @@ describe("dataset tools", () => {
     avala.transport.requestSingle.mockResolvedValue({
       datasetUid: "ds-1",
       datasetSlug: "sf-lidar",
+      dataType: "lidar",
+      isSequence: true,
       ingestOk: true,
       issues: [],
       sequenceCount: 2,
@@ -871,6 +1005,8 @@ describe("dataset tools", () => {
     avala.transport.requestSingle.mockResolvedValue({
       datasetUid: "ds-1",
       datasetSlug: "mystery",
+      dataType: "lidar",
+      isSequence: true,
       ingestOk: true,
       issues: [],
       sequenceCount: 3,
@@ -897,6 +1033,8 @@ describe("dataset tools", () => {
       datasetUid: "ds-camera",
       datasetSlug: "camera-only",
       datasetStatus: "created",
+      dataType: "image",
+      isSequence: true,
       sequenceCount: 1,
       totalFrames: 90,
       ingestOk: true,
@@ -934,6 +1072,8 @@ describe("dataset tools", () => {
       datasetUid: "ds-video",
       datasetSlug: "walkthrough",
       datasetStatus: "created",
+      dataType: "video",
+      isSequence: false,
       itemCount: 2,
       sequenceCount: 0,
       totalFrames: 0,
@@ -953,7 +1093,7 @@ describe("dataset tools", () => {
     );
 
     expect(parsed).toMatchObject({
-      frameCount: 0,
+      frameCount: null,
       assetCount: 2,
       blockingReasons: [],
       unmeasured: [],

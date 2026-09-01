@@ -1,8 +1,9 @@
 import type {
   CameraCalibration,
+  ClassifiedDatasetCalibration,
   CursorPage,
   Dataset,
-  DatasetCalibration,
+  DatasetCalibrationUnavailableReason,
   DatasetFrame,
   DatasetHealth,
   DatasetItem,
@@ -50,13 +51,38 @@ function buildFrame(frames: Record<string, unknown>[], frameIdx: number, sequenc
   };
 }
 
-function buildCalibrationFromSequence(sequence: DatasetSequence): DatasetCalibration {
+function buildCalibrationFromSequence(sequence: DatasetSequence): ClassifiedDatasetCalibration {
   const frames = sequence.frames ?? [];
+  const datasetDataType = sequence.datasetDataType ?? null;
+  const unavailable = (
+    unavailableReason: DatasetCalibrationUnavailableReason,
+    source: ClassifiedDatasetCalibration["source"] = null,
+  ): ClassifiedDatasetCalibration => ({
+    sequenceUid: sequence.uid,
+    datasetDataType,
+    status: "unavailable",
+    unavailableReason,
+    source,
+    frameCount: frames.length,
+    cameraCount: 0,
+    cameras: [],
+  });
+
+  if (datasetDataType !== null && datasetDataType !== "lidar") {
+    return unavailable("unsupported_dataset_type");
+  }
   if (frames.length === 0) {
-    return { sequenceUid: sequence.uid, cameras: [] };
+    return unavailable("no_frames");
   }
   const frame0 = frames[0];
   const images = (frame0.images as Record<string, unknown>[] | undefined) ?? [];
+  if (images.length === 0) {
+    if (datasetDataType === null) {
+      return unavailable("dataset_type_unavailable", "frame_0");
+    }
+    const configuredRig = Array.isArray(sequence.cameraCalibration) && sequence.cameraCalibration.length > 0;
+    return unavailable(configuredRig ? "frame_camera_metadata_missing" : "no_camera_rig_configured", "frame_0");
+  }
   const model0 = (frame0.model as string | null | undefined) ?? null;
   const xi0 = (frame0.xi as number | null | undefined) ?? null;
   const alpha0 = (frame0.alpha as number | null | undefined) ?? null;
@@ -78,7 +104,16 @@ function buildCalibrationFromSequence(sequence: DatasetSequence): DatasetCalibra
     xi: (img.xi as number | null | undefined) ?? xi0,
     alpha: (img.alpha as number | null | undefined) ?? alpha0,
   }));
-  return { sequenceUid: sequence.uid, cameras };
+  return {
+    sequenceUid: sequence.uid,
+    datasetDataType,
+    status: "available",
+    unavailableReason: null,
+    source: "frame_0",
+    frameCount: frames.length,
+    cameraCount: cameras.length,
+    cameras,
+  };
 }
 
 export interface CreateDatasetOptions {
@@ -175,8 +210,8 @@ export class DatasetsResource extends BaseResource {
     return buildFrame(sequence.frames ?? [], frameIdx, sequenceUid);
   }
 
-  /** Return a canonicalized rig view for a sequence, derived from frame[0]. */
-  async getCalibration(owner: string, slug: string, sequenceUid: string): Promise<DatasetCalibration> {
+  /** Return a canonicalized LiDAR camera rig or an explicit unavailable reason. */
+  async getCalibration(owner: string, slug: string, sequenceUid: string): Promise<ClassifiedDatasetCalibration> {
     const sequence = await this.getSequence(owner, slug, sequenceUid);
     return buildCalibrationFromSequence(sequence);
   }
