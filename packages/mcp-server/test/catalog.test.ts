@@ -899,6 +899,16 @@ describe("declarative MCP catalog", () => {
         productionHistoryCoverage: "current_result_rows_and_status_only",
         sequenceResultCoverage: "not_included",
         summaryScope: "returned_coworker_scan_page",
+        practicePopulation:
+          "returned_current_cohort_members_without_observed_currently_qualifying_output",
+        practiceOutcomeHistory:
+          "current_user_step_progress_rows_after_current_enrollment; deleted_rows_and_prior_content_versions_unavailable",
+        practiceFailureWithoutPass:
+          "unresolved_recorded_evidence_not_causal_dropoff_or_actual_stall",
+        practiceLoadFailureInterpretation:
+          "positive_rows_are_recorded_product_failure_evidence; absence_does_not_prove_success; no_coworker_skill_inference",
+        practicePageAggregation:
+          "sum_matching_current_exercise_step_uids_across_every_unchanged_cursor_page; global_claims_require_single_page_global_reconciliation_or_full_scan_sum_matching_repeated_cohort_total",
       },
       cohort: {
         currentStoredLearningMembers: 0,
@@ -929,9 +939,35 @@ describe("declarative MCP catalog", () => {
         trainingIncomplete: 0,
         observedCurrentlyQualifyingOutput: 0,
         completedWithoutCurrentlyQualifyingOutput: 0,
+        withoutObservedCurrentlyQualifyingOutput: 0,
         completionRate: null,
         currentOutputRateFromCompleted: null,
         overallCurrentYield: null,
+      },
+      practiceExerciseEvidence: {
+        availability:
+          "not_queried_no_returned_members_without_observed_current_output",
+        learningGeneratedAt: null,
+        population: {
+          scope:
+            "returned_current_cohort_members_without_observed_currently_qualifying_output",
+          returnedMembersWithoutObservedCurrentlyQualifyingOutput: 0,
+          matchedCurrentLearningMembers: 0,
+        },
+        outcomeEvidence: {
+          source: "user_step_progress.practice_results",
+          coverage:
+            "not_queried_no_returned_members_without_observed_current_output",
+        },
+        loadFailureEvidence: {
+          source: "practice_task_load_failures",
+          conservativeRecordingStartedAt: null,
+          windowCoverage:
+            "not_queried_no_returned_members_without_observed_current_output",
+          delivery: "best_effort_client_diagnostics",
+        },
+        currentJourneyExerciseCount: null,
+        exercises: [],
       },
       members: [],
       hasMore: false,

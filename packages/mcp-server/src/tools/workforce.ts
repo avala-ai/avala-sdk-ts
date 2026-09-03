@@ -3386,6 +3386,303 @@ function workforceRateMatches(
   return actual !== null && Math.abs(actual - numerator / denominator) <= 1e-12;
 }
 
+const noReturnedMemberPracticeEvidence =
+  "not_queried_no_returned_members_without_observed_current_output" as const;
+
+const workforceTrainingPracticeExerciseSchema = z
+  .object({
+    exercise: z
+      .object({
+        module: z
+          .object({
+            uid: z.string().min(1).max(255),
+            slug: z.string().min(1).max(255),
+            title: z.string().min(1).max(500),
+            currentSortOrder: nonnegativeCount,
+            currentlyRequired: z.boolean(),
+          })
+          .strip(),
+        lesson: z
+          .object({
+            uid: z.string().min(1).max(255),
+            slug: z.string().min(1).max(255),
+            title: z.string().min(1).max(500),
+            currentSortOrder: nonnegativeCount,
+          })
+          .strip(),
+        step: z
+          .object({
+            uid: z.string().min(1).max(255),
+          })
+          .strip(),
+        taskName: z.string().min(1).max(100),
+      })
+      .strip(),
+    members: z
+      .object({
+        eligible: z.number().int().min(0).max(10),
+        attempted: z.number().int().min(0).max(10),
+        withRecordedFailure: z.number().int().min(0).max(10),
+        withRecordedPass: z.number().int().min(0).max(10),
+        withRecordedFailureAndNoPass: z.number().int().min(0).max(10),
+        withVerifiedFailureAndNoVerifiedPass: z
+          .number()
+          .int()
+          .min(0)
+          .max(10),
+      })
+      .strip(),
+    outcomes: z
+      .object({
+        recorded: nonnegativeCount,
+        passed: nonnegativeCount,
+        failed: nonnegativeCount,
+        verifiedPassed: nonnegativeCount,
+        verifiedFailed: nonnegativeCount,
+        unverifiedGraded: nonnegativeCount,
+        sandbox: nonnegativeCount,
+        unusableCurrentRowEntries: nonnegativeCount,
+        invalidCurrentRows: nonnegativeCount,
+        excludedPreEnrollment: nonnegativeCount,
+      })
+      .strip(),
+    loadFailures: z
+      .object({
+        affectedMembers: z.number().int().min(0).max(10),
+        recordedEvents: nonnegativeCount,
+        failedFrames: nonnegativeCount,
+        observedFrames: nonnegativeCount,
+        byKind: z
+          .object({
+            network: nonnegativeCount,
+            http: nonnegativeCount,
+            processing: nonnegativeCount,
+            unsupportedFormat: nonnegativeCount,
+            metadata: nonnegativeCount,
+          })
+          .strip(),
+        affectedBrowserFamilyCount: nonnegativeCount,
+        affectedPracticeBuildCount: nonnegativeCount,
+      })
+      .strip(),
+  })
+  .strip();
+
+const workforceTrainingPracticeEvidenceSchema = z
+  .discriminatedUnion("availability", [
+    z
+      .object({
+        availability: z.literal("available"),
+        learningGeneratedAt: coworkerJourneyTimestampSchema,
+        population: z
+          .object({
+            scope: z.literal(
+              "returned_current_cohort_members_without_observed_currently_qualifying_output",
+            ),
+            returnedMembersWithoutObservedCurrentlyQualifyingOutput: z
+              .number()
+              .int()
+              .min(0)
+              .max(10),
+            matchedCurrentLearningMembers: z.number().int().min(0).max(10),
+          })
+          .strip(),
+        outcomeEvidence: z
+          .object({
+            source: z.literal("user_step_progress.practice_results"),
+            coverage: z.enum([
+              "current_rows_complete",
+              "partial_unusable_current_rows",
+            ]),
+          })
+          .strip(),
+        loadFailureEvidence: z
+          .object({
+            source: z.literal("practice_task_load_failures"),
+            conservativeRecordingStartedAt: coworkerJourneyTimestampSchema,
+            windowCoverage: z.enum([
+              "within_conservative_recording_era",
+              "overlaps_pre_recording_era",
+            ]),
+            delivery: z.literal("best_effort_client_diagnostics"),
+          })
+          .strip(),
+        currentJourneyExerciseCount: z.number().int().min(0).max(200),
+        exercises: z.array(workforceTrainingPracticeExerciseSchema).max(200),
+      })
+      .strip(),
+    z
+      .object({
+        availability: z.literal(noReturnedMemberPracticeEvidence),
+        learningGeneratedAt: z.null(),
+        population: z
+          .object({
+            scope: z.literal(
+              "returned_current_cohort_members_without_observed_currently_qualifying_output",
+            ),
+            returnedMembersWithoutObservedCurrentlyQualifyingOutput: z.literal(0),
+            matchedCurrentLearningMembers: z.literal(0),
+          })
+          .strip(),
+        outcomeEvidence: z
+          .object({
+            source: z.literal("user_step_progress.practice_results"),
+            coverage: z.literal(noReturnedMemberPracticeEvidence),
+          })
+          .strip(),
+        loadFailureEvidence: z
+          .object({
+            source: z.literal("practice_task_load_failures"),
+            conservativeRecordingStartedAt: z.null(),
+            windowCoverage: z.literal(noReturnedMemberPracticeEvidence),
+            delivery: z.literal("best_effort_client_diagnostics"),
+          })
+          .strip(),
+        currentJourneyExerciseCount: z.null(),
+        exercises: z.array(workforceTrainingPracticeExerciseSchema).max(0),
+      })
+      .strip(),
+  ])
+  .superRefine((practice, context) => {
+    if (practice.availability !== "available") return;
+
+    const addIssue = (path: (string | number)[], message: string): void => {
+      context.addIssue({ code: "custom", path, message });
+    };
+    const matchedMembers = practice.population.matchedCurrentLearningMembers;
+    if (
+      matchedMembers === 0 ||
+      practice.population.returnedMembersWithoutObservedCurrentlyQualifyingOutput !==
+        matchedMembers
+    ) {
+      addIssue(
+        ["population"],
+        "Available practice evidence requires the complete returned no-output subset.",
+      );
+    }
+    if (practice.currentJourneyExerciseCount !== practice.exercises.length) {
+      addIssue(
+        ["currentJourneyExerciseCount"],
+        "Practice exercise count does not match the returned exercises.",
+      );
+    }
+
+    const seenStepUids = new Set<string>();
+    let previousOrder:
+      | {
+          moduleSort: number;
+          moduleUid: string;
+          lessonSort: number;
+          lessonUid: string;
+          stepUid: string;
+        }
+      | undefined;
+    let containsUnusableOutcomeRows = false;
+    for (const [index, row] of practice.exercises.entries()) {
+      const path = ["exercises", index];
+      const { exercise, members, outcomes, loadFailures } = row;
+      if (
+        members.eligible !== matchedMembers ||
+        members.attempted > members.eligible ||
+        members.withRecordedFailure > members.attempted ||
+        members.withRecordedPass > members.attempted ||
+        members.withRecordedFailureAndNoPass >
+          members.withRecordedFailure ||
+        members.withVerifiedFailureAndNoVerifiedPass >
+          members.withRecordedFailure
+      ) {
+        addIssue(
+          [...path, "members"],
+          "Practice member counts do not reconcile to the eligible cohort subset.",
+        );
+      }
+      if (
+        outcomes.recorded < members.attempted ||
+        outcomes.recorded !== outcomes.passed + outcomes.failed ||
+        outcomes.recorded !==
+          outcomes.verifiedPassed +
+            outcomes.verifiedFailed +
+            outcomes.unverifiedGraded +
+            outcomes.sandbox ||
+        outcomes.verifiedPassed > outcomes.passed ||
+        outcomes.verifiedFailed > outcomes.failed
+      ) {
+        addIssue(
+          [...path, "outcomes"],
+          "Practice outcome counts do not reconcile.",
+        );
+      }
+      const failureKindCounts = Object.values(loadFailures.byKind);
+      if (
+        loadFailures.affectedMembers > members.eligible ||
+        loadFailures.affectedMembers > loadFailures.recordedEvents ||
+        loadFailures.failedFrames > loadFailures.observedFrames ||
+        failureKindCounts.some(
+          (count) => count > loadFailures.recordedEvents,
+        ) ||
+        loadFailures.affectedBrowserFamilyCount >
+          loadFailures.recordedEvents ||
+        loadFailures.affectedPracticeBuildCount > loadFailures.recordedEvents
+      ) {
+        addIssue(
+          [...path, "loadFailures"],
+          "Practice load-failure counts do not reconcile.",
+        );
+      }
+
+      containsUnusableOutcomeRows =
+        containsUnusableOutcomeRows ||
+        outcomes.unusableCurrentRowEntries > 0 ||
+        outcomes.invalidCurrentRows > 0;
+      const stepUid = exercise.step.uid;
+      if (seenStepUids.has(stepUid)) {
+        addIssue(
+          [...path, "exercise", "step", "uid"],
+          "Practice exercise step UIDs must be unique.",
+        );
+      }
+      seenStepUids.add(stepUid);
+      const order = {
+        moduleSort: exercise.module.currentSortOrder,
+        moduleUid: exercise.module.uid,
+        lessonSort: exercise.lesson.currentSortOrder,
+        lessonUid: exercise.lesson.uid,
+        stepUid,
+      };
+      let followsPrevious = previousOrder === undefined;
+      if (previousOrder !== undefined) {
+        if (order.moduleSort !== previousOrder.moduleSort) {
+          followsPrevious = order.moduleSort > previousOrder.moduleSort;
+        } else if (order.moduleUid !== previousOrder.moduleUid) {
+          followsPrevious = order.moduleUid > previousOrder.moduleUid;
+        } else if (order.lessonSort !== previousOrder.lessonSort) {
+          followsPrevious = order.lessonSort > previousOrder.lessonSort;
+        } else if (order.lessonUid !== previousOrder.lessonUid) {
+          followsPrevious = order.lessonUid > previousOrder.lessonUid;
+        } else {
+          followsPrevious = order.stepUid > previousOrder.stepUid;
+        }
+      }
+      if (!followsPrevious) {
+        addIssue(
+          [...path, "exercise"],
+          "Practice exercises must use deterministic current-curriculum order.",
+        );
+      }
+      previousOrder = order;
+    }
+
+    const expectedOutcomeCoverage = containsUnusableOutcomeRows
+      ? "partial_unusable_current_rows"
+      : "current_rows_complete";
+    if (practice.outcomeEvidence.coverage !== expectedOutcomeCoverage) {
+      addIssue(
+        ["outcomeEvidence", "coverage"],
+        "Practice outcome coverage contradicts the returned exercise evidence.",
+      );
+    }
+  });
+
 const workforceTrainingCohortEvidenceOutputSchema = z
   .object({
     generatedAt: coworkerJourneyTimestampSchema,
@@ -3416,6 +3713,21 @@ const workforceTrainingCohortEvidenceOutputSchema = z
         ),
         sequenceResultCoverage: z.literal("not_included"),
         summaryScope: z.literal("returned_coworker_scan_page"),
+        practicePopulation: z.literal(
+          "returned_current_cohort_members_without_observed_currently_qualifying_output",
+        ),
+        practiceOutcomeHistory: z.literal(
+          "current_user_step_progress_rows_after_current_enrollment; deleted_rows_and_prior_content_versions_unavailable",
+        ),
+        practiceFailureWithoutPass: z.literal(
+          "unresolved_recorded_evidence_not_causal_dropoff_or_actual_stall",
+        ),
+        practiceLoadFailureInterpretation: z.literal(
+          "positive_rows_are_recorded_product_failure_evidence; absence_does_not_prove_success; no_coworker_skill_inference",
+        ),
+        practicePageAggregation: z.literal(
+          "sum_matching_current_exercise_step_uids_across_every_unchanged_cursor_page; global_claims_require_single_page_global_reconciliation_or_full_scan_sum_matching_repeated_cohort_total",
+        ),
       })
       .strip(),
     cohort: z
@@ -3467,11 +3779,17 @@ const workforceTrainingCohortEvidenceOutputSchema = z
           .int()
           .min(0)
           .max(10),
+        withoutObservedCurrentlyQualifyingOutput: z
+          .number()
+          .int()
+          .min(0)
+          .max(10),
         completionRate: z.number().min(0).max(1).nullable(),
         currentOutputRateFromCompleted: z.number().min(0).max(1).nullable(),
         overallCurrentYield: z.number().min(0).max(1).nullable(),
       })
       .strip(),
+    practiceExerciseEvidence: workforceTrainingPracticeEvidenceSchema,
     members: z
       .array(
         z
@@ -3516,7 +3834,7 @@ const workforceTrainingCohortEvidenceOutputSchema = z
     const addIssue = (path: (string | number)[], message: string): void => {
       context.addIssue({ code: "custom", path, message });
     };
-    const { coverage, summary, members } = report;
+    const { coverage, summary, practiceExerciseEvidence, members } = report;
     const cohortFrom = Date.parse(report.criteria.cohortStartedFrom);
     const cohortBefore = Date.parse(report.criteria.cohortStartedBefore);
 
@@ -3785,16 +4103,71 @@ const workforceTrainingCohortEvidenceOutputSchema = z
 
     const incomplete = members.length - completed;
     const withoutCurrentOutput = completed - observedOutput;
+    const withoutObservedCurrentOutput = members.length - observedOutput;
     if (
       summary.completedCurrentEnrollment !== completed ||
       summary.trainingIncomplete !== incomplete ||
       summary.observedCurrentlyQualifyingOutput !== observedOutput ||
-      summary.completedWithoutCurrentlyQualifyingOutput !== withoutCurrentOutput
+      summary.completedWithoutCurrentlyQualifyingOutput !==
+        withoutCurrentOutput ||
+      summary.withoutObservedCurrentlyQualifyingOutput !==
+        withoutObservedCurrentOutput
     ) {
       addIssue(
         ["summary"],
         "Cohort summary does not match the returned members.",
       );
+    }
+    if (
+      practiceExerciseEvidence.population
+        .returnedMembersWithoutObservedCurrentlyQualifyingOutput !==
+        withoutObservedCurrentOutput ||
+      practiceExerciseEvidence.population.matchedCurrentLearningMembers !==
+        withoutObservedCurrentOutput
+    ) {
+      addIssue(
+        ["practiceExerciseEvidence", "population"],
+        "Practice population does not match returned members without observed current output.",
+      );
+    }
+    if (
+      (withoutObservedCurrentOutput === 0) !==
+      (practiceExerciseEvidence.availability ===
+        noReturnedMemberPracticeEvidence)
+    ) {
+      addIssue(
+        ["practiceExerciseEvidence", "availability"],
+        "Practice availability does not match the returned no-output subset.",
+      );
+    }
+    if (
+      practiceExerciseEvidence.availability === "available" &&
+      Date.parse(practiceExerciseEvidence.learningGeneratedAt) >
+        Date.parse(report.generatedAt)
+    ) {
+      addIssue(
+        ["practiceExerciseEvidence", "learningGeneratedAt"],
+        "Report generation cannot precede its practice evidence.",
+      );
+    }
+    if (practiceExerciseEvidence.availability === "available") {
+      const expectedLoadFailureCoverage =
+        cohortFrom >=
+        Date.parse(
+          practiceExerciseEvidence.loadFailureEvidence
+            .conservativeRecordingStartedAt,
+        )
+          ? "within_conservative_recording_era"
+          : "overlaps_pre_recording_era";
+      if (
+        practiceExerciseEvidence.loadFailureEvidence.windowCoverage !==
+        expectedLoadFailureCoverage
+      ) {
+        addIssue(
+          ["practiceExerciseEvidence", "loadFailureEvidence", "windowCoverage"],
+          "Practice load-failure coverage does not match the cohort window.",
+        );
+      }
     }
     if (
       !workforceRateMatches(summary.completionRate, completed, members.length) ||
@@ -4409,7 +4782,7 @@ const listWorkforceTrainingCohortEvidenceTool = defineReadCatalogTool({
   name: "list_workforce_training_cohort_evidence",
   title: "List workforce training cohort evidence",
   description:
-    "Staff only: inspect one bounded UID-ordered coworker scan page for an exact Learning journey and required half-open enrollment window of at most 31 days. The joined evidence distinguishes current stored enrollment and completion, the latest durable completed-step fact in the journey's current modules, and current visible non-practice nonobsolete accepted or paid-without-review results created after current completion. A latest progress point is not page abandonment or proof of an actual stall, and production evidence is current result-row state rather than historical payout or an ever-qualified claim; sequence results are excluded. Page coverage and rates describe only returned in-window members, while currentStoredLearningMembers is a global current-storage count. Start without cursor and follow every nextCursor with identical journey and window inputs; make a global cohort claim only when globalReconciliationComplete is true. Deleted or overwritten enrollment history is unavailable. Returns only opaque coworker and curriculum UIDs, current curriculum labels, bounded counts, timestamps, and evidence states; excludes names, contacts, provider identities, KYC, pay details, customer payloads, work URLs, comments, and task contents.",
+    "Staff only: inspect one bounded UID-ordered coworker scan page for an exact Learning journey and required half-open enrollment window of at most 31 days. Learning enrollment, progress, and practice evidence is authoritative at learning.avala.ai (Vercel/Supabase); Django only joins it to current production state. The joined evidence distinguishes current stored enrollment and completion, the latest durable completed-step fact in the journey's current modules, and current visible non-practice nonobsolete accepted or paid-without-review results created after current completion. For returned members without observed currently qualifying output, practiceExerciseEvidence adds current-curriculum exercise outcomes plus positive load-failure diagnostics. Failure without pass is unresolved recorded evidence, not causal attribution, actual stall, intent, skill assessment, or a coworker ranking; absence of a load-failure row does not prove success. A latest progress point is not page abandonment or proof of an actual stall, and production evidence is current result-row state rather than historical payout or an ever-qualified claim; sequence results are excluded. Page coverage and rates describe only returned in-window members, while currentStoredLearningMembers is a global current-storage count. Start without cursor and follow every nextCursor with identical journey and window inputs. Aggregate practice counts by stable exercise step UIDs across every unchanged page; make a global claim only after a single page with globalReconciliationComplete=true or a full scan whose repeated cohort total reconciles. Deleted or overwritten enrollment and practice-row history is unavailable. Returns only opaque coworker and curriculum UIDs, current curriculum labels, bounded counts, timestamps, and evidence states; excludes names, contacts, provider identities, prompts, answers, scores, accuracy, raw task or failure payloads, browser/build labels, KYC, pay details, customer payloads, work URLs, comments, and task contents.",
   inputSchema: z
     .object({
       journeyUid: batchUidInputSchema.describe(

@@ -185,6 +185,16 @@ function workforceTrainingCohortEvidence() {
       productionHistoryCoverage: "current_result_rows_and_status_only" as const,
       sequenceResultCoverage: "not_included" as const,
       summaryScope: "returned_coworker_scan_page" as const,
+      practicePopulation:
+        "returned_current_cohort_members_without_observed_currently_qualifying_output" as const,
+      practiceOutcomeHistory:
+        "current_user_step_progress_rows_after_current_enrollment; deleted_rows_and_prior_content_versions_unavailable" as const,
+      practiceFailureWithoutPass:
+        "unresolved_recorded_evidence_not_causal_dropoff_or_actual_stall" as const,
+      practiceLoadFailureInterpretation:
+        "positive_rows_are_recorded_product_failure_evidence; absence_does_not_prove_success; no_coworker_skill_inference" as const,
+      practicePageAggregation:
+        "sum_matching_current_exercise_step_uids_across_every_unchanged_cursor_page; global_claims_require_single_page_global_reconciliation_or_full_scan_sum_matching_repeated_cohort_total" as const,
       customerLabels: ["must be stripped"],
     },
     cohort: {
@@ -222,10 +232,115 @@ function workforceTrainingCohortEvidence() {
       trainingIncomplete: 1,
       observedCurrentlyQualifyingOutput: 1,
       completedWithoutCurrentlyQualifyingOutput: 0,
+      withoutObservedCurrentlyQualifyingOutput: 1,
       completionRate: 0.5 as number | null,
       currentOutputRateFromCompleted: 1 as number | null,
       overallCurrentYield: 0.5 as number | null,
       score: "must be stripped",
+    },
+    practiceExerciseEvidence: {
+      availability: "available" as
+        | "available"
+        | "not_queried_no_returned_members_without_observed_current_output",
+      learningGeneratedAt: "2026-09-03T12:02:00Z" as string | null,
+      population: {
+        scope:
+          "returned_current_cohort_members_without_observed_currently_qualifying_output" as const,
+        returnedMembersWithoutObservedCurrentlyQualifyingOutput: 1,
+        matchedCurrentLearningMembers: 1,
+        providerSubjects: ["auth0|practice-private"],
+      },
+      outcomeEvidence: {
+        source: "user_step_progress.practice_results" as const,
+        coverage: "current_rows_complete" as
+          | "current_rows_complete"
+          | "partial_unusable_current_rows"
+          | "not_queried_no_returned_members_without_observed_current_output",
+        rawRows: [{ answer: "private-answer" }],
+      },
+      loadFailureEvidence: {
+        source: "practice_task_load_failures" as const,
+        conservativeRecordingStartedAt: "2026-01-01T00:00:00Z" as
+          | string
+          | null,
+        windowCoverage: "within_conservative_recording_era" as
+          | "within_conservative_recording_era"
+          | "overlaps_pre_recording_era"
+          | "not_queried_no_returned_members_without_observed_current_output",
+        delivery: "best_effort_client_diagnostics" as const,
+        browserLabels: ["private-browser-label"],
+      },
+      currentJourneyExerciseCount: 1 as number | null,
+      exercises: [
+        {
+          exercise: {
+            module: {
+              uid: "module-cuboids",
+              slug: "cuboids",
+              title: "Cuboid Foundations",
+              currentSortOrder: 2,
+              currentlyRequired: true,
+              privateNotes: "must be stripped",
+            },
+            lesson: {
+              uid: "lesson-orientation",
+              slug: "orientation",
+              title: "Object orientation",
+              currentSortOrder: 4,
+              answerKey: "private-answer-key",
+            },
+            step: {
+              uid: "step-practice-yaw",
+              prompt: "private-prompt",
+            },
+            taskName: "practice-cuboid-orientation",
+            taskPayload: { customer: "private-customer-payload" },
+          },
+          members: {
+            eligible: 1,
+            attempted: 1,
+            withRecordedFailure: 1,
+            withRecordedPass: 0,
+            withRecordedFailureAndNoPass: 1,
+            withVerifiedFailureAndNoVerifiedPass: 1,
+            providerIdentities: ["auth0|practice-private"],
+          },
+          outcomes: {
+            recorded: 1,
+            passed: 0,
+            failed: 1,
+            verifiedPassed: 0,
+            verifiedFailed: 1,
+            unverifiedGraded: 0,
+            sandbox: 0,
+            unusableCurrentRowEntries: 0,
+            invalidCurrentRows: 0,
+            excludedPreEnrollment: 0,
+            answers: ["private-answer"],
+            scores: [0.25],
+          },
+          loadFailures: {
+            affectedMembers: 1,
+            recordedEvents: 1,
+            failedFrames: 1,
+            observedFrames: 1,
+            byKind: {
+              network: 1,
+              http: 0,
+              processing: 0,
+              unsupportedFormat: 0,
+              metadata: 0,
+              rawException: "private-stack",
+            },
+            affectedBrowserFamilyCount: 1,
+            affectedPracticeBuildCount: 1,
+            browserFamilies: ["private-browser-label"],
+            practiceBuilds: ["private-build-label"],
+          },
+          rawAttempts: [{ payload: "private-attempt" }],
+        },
+      ],
+      providerPayload: { private: true },
     },
     members: [
       {
@@ -2379,6 +2494,10 @@ describe("workforce operations tool", () => {
         productionHistoryCoverage: "current_result_rows_and_status_only",
         sequenceResultCoverage: "not_included",
         summaryScope: "returned_coworker_scan_page",
+        practicePopulation:
+          "returned_current_cohort_members_without_observed_currently_qualifying_output",
+        practiceFailureWithoutPass:
+          "unresolved_recorded_evidence_not_causal_dropoff_or_actual_stall",
       },
       cohort: { currentStoredLearningMembers: 3 },
       coverage: {
@@ -2391,9 +2510,59 @@ describe("workforce operations tool", () => {
         completedCurrentEnrollment: 1,
         trainingIncomplete: 1,
         observedCurrentlyQualifyingOutput: 1,
+        withoutObservedCurrentlyQualifyingOutput: 1,
         completionRate: 0.5,
         currentOutputRateFromCompleted: 1,
         overallCurrentYield: 0.5,
+      },
+      practiceExerciseEvidence: {
+        availability: "available",
+        learningGeneratedAt: "2026-09-03T12:02:00Z",
+        population: {
+          scope:
+            "returned_current_cohort_members_without_observed_currently_qualifying_output",
+          returnedMembersWithoutObservedCurrentlyQualifyingOutput: 1,
+          matchedCurrentLearningMembers: 1,
+        },
+        outcomeEvidence: {
+          source: "user_step_progress.practice_results",
+          coverage: "current_rows_complete",
+        },
+        loadFailureEvidence: {
+          source: "practice_task_load_failures",
+          conservativeRecordingStartedAt: "2026-01-01T00:00:00Z",
+          windowCoverage: "within_conservative_recording_era",
+          delivery: "best_effort_client_diagnostics",
+        },
+        currentJourneyExerciseCount: 1,
+        exercises: [
+          {
+            exercise: {
+              module: { uid: "module-cuboids" },
+              lesson: { uid: "lesson-orientation" },
+              step: { uid: "step-practice-yaw" },
+              taskName: "practice-cuboid-orientation",
+            },
+            members: {
+              eligible: 1,
+              attempted: 1,
+              withRecordedFailureAndNoPass: 1,
+              withVerifiedFailureAndNoVerifiedPass: 1,
+            },
+            outcomes: {
+              recorded: 1,
+              failed: 1,
+              verifiedFailed: 1,
+            },
+            loadFailures: {
+              affectedMembers: 1,
+              recordedEvents: 1,
+              failedFrames: 1,
+              observedFrames: 1,
+              byKind: { network: 1 },
+            },
+          },
+        ],
       },
       members: [
         {
@@ -2444,6 +2613,13 @@ describe("workforce operations tool", () => {
       '"providerQuery"',
       '"rawFacts"',
       '"answerKey"',
+      "private-answer",
+      "private-prompt",
+      "private-browser-label",
+      "private-build-label",
+      "private-customer-payload",
+      "private-stack",
+      "private-attempt",
     ]) {
       expect(rendered).not.toContain(forbidden);
     }
@@ -2458,6 +2634,10 @@ describe("workforce operations tool", () => {
     expect(description).toContain("globalReconciliationComplete");
     expect(description).toContain("not page abandonment");
     expect(description).toContain("current result-row state");
+    expect(description).toContain("learning.avala.ai");
+    expect(description).toContain("positive load-failure");
+    expect(description).toContain("stable exercise step UIDs");
+    expect(description).toContain("not causal attribution");
   });
 
   it("rejects unbounded training-cohort inputs and inconsistent evidence", async () => {
@@ -2518,8 +2698,55 @@ describe("workforce operations tool", () => {
       response.summary.started = 3;
     }, "page cohort counts");
     await expectRejected((response) => {
+      response.summary.withoutObservedCurrentlyQualifyingOutput = 0;
+    }, "summary does not match");
+    await expectRejected((response) => {
       response.summary.completionRate = 0.75;
     }, "rates do not match");
+    await expectRejected((response) => {
+      response.practiceExerciseEvidence.population.matchedCurrentLearningMembers =
+        0;
+    }, "complete returned no-output subset");
+    await expectRejected((response) => {
+      response.practiceExerciseEvidence.currentJourneyExerciseCount = 0;
+    }, "exercise count does not match");
+    await expectRejected((response) => {
+      response.practiceExerciseEvidence.exercises[0]!.members.eligible = 2;
+    }, "member counts do not reconcile");
+    await expectRejected((response) => {
+      response.practiceExerciseEvidence.exercises[0]!.outcomes.recorded = 2;
+    }, "outcome counts do not reconcile");
+    await expectRejected((response) => {
+      response.practiceExerciseEvidence.exercises[0]!.loadFailures.failedFrames =
+        2;
+    }, "load-failure counts do not reconcile");
+    await expectRejected((response) => {
+      response.practiceExerciseEvidence.outcomeEvidence.coverage =
+        "partial_unusable_current_rows";
+    }, "outcome coverage contradicts");
+    await expectRejected((response) => {
+      response.practiceExerciseEvidence.loadFailureEvidence.windowCoverage =
+        "overlaps_pre_recording_era";
+    }, "load-failure coverage does not match");
+    await expectRejected((response) => {
+      response.practiceExerciseEvidence.learningGeneratedAt =
+        "2026-09-03T12:06:00Z";
+    }, "Report generation cannot precede its practice evidence");
+    await expectRejected((response) => {
+      const duplicate = structuredClone(
+        response.practiceExerciseEvidence.exercises[0]!,
+      );
+      response.practiceExerciseEvidence.exercises.push(duplicate);
+      response.practiceExerciseEvidence.currentJourneyExerciseCount = 2;
+    }, "step UIDs must be unique");
+    await expectRejected((response) => {
+      const outOfOrder = structuredClone(
+        response.practiceExerciseEvidence.exercises[0]!,
+      );
+      outOfOrder.exercise.step.uid = "step-aaa";
+      response.practiceExerciseEvidence.exercises.push(outOfOrder);
+      response.practiceExerciseEvidence.currentJourneyExerciseCount = 2;
+    }, "current-curriculum order");
     await expectRejected((response) => {
       response.members[1]!.coworkerUid = response.members[0]!.coworkerUid;
     }, "unique");
