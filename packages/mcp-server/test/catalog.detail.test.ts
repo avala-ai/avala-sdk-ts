@@ -39,6 +39,12 @@ describe("catalog detail plumbing", () => {
     expect(
       applyReadListDefaults({ limit: 5 }, { query: { limit: "limit" } }).limit,
     ).toBe(5);
+    expect(
+      applyReadListDefaults(
+        {},
+        { query: { limit: "limit" }, defaultLimit: 10 },
+      ).limit,
+    ).toBe(10);
   });
 
   it("does not send detail to the upstream query string", async () => {

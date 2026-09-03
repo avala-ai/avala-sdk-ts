@@ -39,6 +39,8 @@ export interface ReadRouteDefinition<InputSchema extends AnyZodObject> {
   path: string;
   /** Tool input key -> REST query-string key. */
   query?: Partial<Record<Extract<keyof z.infer<InputSchema>, string>, string>>;
+  /** Safe route-specific limit when it differs from the catalog default. */
+  defaultLimit?: number;
   /** Constant query values required by this route in every invocation. */
   fixedQuery?: Readonly<Record<string, string>>;
   response: "page" | "list" | "single";
@@ -198,10 +200,13 @@ export function withReadDetailInput<InputSchema extends AnyZodObject>(
  */
 export function applyReadListDefaults(
   args: Record<string, unknown>,
-  route: { query?: Partial<Record<string, string>> },
+  route: {
+    query?: Partial<Record<string, string>>;
+    defaultLimit?: number;
+  },
 ): Record<string, unknown> {
   if (!route.query?.limit || args.limit !== undefined) return args;
-  return { ...args, limit: DEFAULT_PAGE_LIMIT };
+  return { ...args, limit: route.defaultLimit ?? DEFAULT_PAGE_LIMIT };
 }
 
 function presentCatalogResult(

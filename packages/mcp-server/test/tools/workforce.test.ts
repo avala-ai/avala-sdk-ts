@@ -102,6 +102,220 @@ function workforceOverview() {
   };
 }
 
+function workforceTrainingCandidates() {
+  return {
+    generatedAt: "2026-09-02T20:00:00Z",
+    window: {
+      completedFrom: "2026-01-01T00:00:00Z",
+      completedBefore: "2026-09-01T00:00:00Z",
+      internalQuery: "must be stripped",
+    },
+    coverage: {
+      scanOrder: "coworker_uid" as const,
+      candidateOrder: "earliest_completed_at" as const,
+      scannedCoworkers: 4,
+      matchedLearningIdentities: 3,
+      notLinkedLearningIdentities: 1,
+      completedTrainingCoworkers: 3,
+      excludedWithPaidOutcomes: 1,
+      globalEarliestComplete: false,
+      providerSubjects: ["auth0|private"],
+    },
+    candidates: [
+      {
+        coworkerUid: "00000000000000000000000000000007",
+        displayName: "Ari",
+        training: {
+          completedJourneysInWindow: 2,
+          earliestCompletedAt: "2026-02-10T12:00:00Z",
+          journeyTitles: ["Private training title"],
+        },
+        production: {
+          scope: "visible_non_practice" as const,
+          acceptedResults: 0,
+          overlookedResults: 0,
+          customerPayload: { name: "private" },
+        },
+        username: "+15550000000",
+        email: "private@example.com",
+        lastName: "Private",
+        providerSubject: "auth0|private",
+        kyc: { status: "private" },
+        pay: { rate: "private" },
+      },
+      {
+        coworkerUid: "00000000000000000000000000000008",
+        displayName: "coworker-000000",
+        training: {
+          completedJourneysInWindow: 1,
+          earliestCompletedAt: "2026-03-01T12:00:00Z",
+        },
+        production: {
+          scope: "visible_non_practice" as const,
+          acceptedResults: 0,
+          overlookedResults: 0,
+        },
+      },
+    ],
+    hasMore: true,
+    nextCursor: "00000000000000000000000000000009" as string | null,
+    unlinkedCoworkers: [{ email: "private@example.com" }],
+  };
+}
+
+function coworkerJourney() {
+  return {
+    generatedAt: "2026-09-02T20:00:00Z",
+    coworkerUid: "00000000000000000000000000000007",
+    displayName: "Ari",
+    account: {
+      active: true,
+      approvedForWork: true,
+      phoneVerified: true,
+      joinedAt: "2026-01-02T20:00:00Z",
+      lastLoginAt: "2026-09-02T19:00:00Z",
+      username: "+15550000000",
+      email: "private@example.com",
+    },
+    workRoles: {
+      assignee: true,
+      reviewer: false,
+      dataCollection: false,
+      groupNames: ["private-customer-group"],
+    },
+    learning: {
+      identity: { status: "matched" as const, providerSubject: "auth0|private" },
+      learningAccess: {
+        availability: "available" as const,
+        status: "approved",
+        joinedAt: "2026-01-03T20:00:00Z",
+        email: "private@example.com",
+      },
+      onboarding: {
+        availability: "available" as const,
+        status: "onboarded" as const,
+        onboardedAt: "2026-01-04T20:00:00Z",
+        source: "operations",
+        decidedAt: "2026-01-04T20:00:00Z",
+      },
+      training: {
+        summary: {
+          enrolledJourneys: 1,
+          activeJourneys: 0,
+          completedJourneys: 1,
+          droppedJourneys: 0,
+          firstEnrolledAt: "2026-01-05T20:00:00Z",
+          earliestCompletedAt: "2026-01-08T20:00:00Z",
+          lastActivityAt: "2026-01-08T20:00:00Z",
+        },
+        journeys: [
+          {
+            uid: "00000000-0000-0000-0000-000000000021",
+            slug: "lidar-foundations",
+            title: "LiDAR Foundations",
+            status: "completed" as const,
+            enrolledAt: "2026-01-05T20:00:00Z",
+            completedAt: "2026-01-08T20:00:00Z",
+            performance: {
+              availability: "available" as const,
+              modulesCompleted: 4,
+              totalModules: 4,
+              stepsCompleted: 12,
+              totalSteps: 12,
+              progressPercentage: 100,
+              quizAttempts: 6,
+              quizCorrect: 5,
+              quizAccuracy: 83.33,
+              practiceAttempts: 2,
+              practicePassed: 2,
+              practicePassRate: 100,
+              proficiencyLevel: "qualified",
+              performanceStatus: "on_track",
+              atRiskIndicators: [],
+              firstActivityAt: "2026-01-05T20:00:00Z",
+              lastActivityAt: "2026-01-08T20:00:00Z",
+              completedAt: "2026-01-08T20:00:00Z",
+              computedAt: "2026-09-02T20:00:00Z",
+              rawAttempts: [{ answer: "private" }],
+            },
+            nextRequiredModule: null,
+          },
+        ],
+      },
+      taskAccess: [
+        {
+          taskName: "cuboid",
+          isGranted: true,
+          grantedAt: "2026-01-08T20:00:00Z",
+          grantedReason: "qualified",
+          revokedAt: null,
+          revokedReason: null,
+          computedAt: "2026-09-02T20:00:00Z",
+          operatorEmail: "private@example.com",
+        },
+      ],
+    },
+    production: {
+      results: {
+        scope: "visible_non_practice" as const,
+        total: 3,
+        byStatus: { pending: 0, accepted: 2, rejected: 1, overlooked: 0 },
+        firstCreatedAt: "2026-02-01T20:00:00Z",
+        lastCreatedAt: "2026-02-03T20:00:00Z",
+        firstAcceptedAt: "2026-02-02T20:00:00Z",
+        lastAcceptedAt: "2026-02-03T20:00:00Z",
+        resultRows: [{ customerPayload: "private" }],
+      },
+      sessions: {
+        scope: "non_practice" as const,
+        total: 2,
+        byStatus: {
+          pending: 0,
+          ready: 0,
+          assigned: 0,
+          finished: 2,
+          abandoned: 0,
+        },
+        firstCreatedAt: "2026-02-01T20:00:00Z",
+        lastCreatedAt: "2026-02-03T20:00:00Z",
+      },
+      workUnits: {
+        scope: "non_practice_or_unscoped" as const,
+        assignedUnits: {
+          total: 2,
+          byStatus: {
+            unavailable: 0,
+            backlog: 0,
+            inProgress: 0,
+            inReview: 0,
+            completed: 2,
+            error: 0,
+          },
+        },
+        transitions: {
+          submittedForReview: 2,
+          completed: 2,
+          abandoned: 0,
+          errored: 0,
+          firstActivityAt: "2026-02-01T20:00:00Z",
+          lastActivityAt: "2026-02-03T20:00:00Z",
+        },
+        workUrls: ["https://private.example/work"],
+      },
+    },
+    diagnosis: {
+      currentStage: "production_active" as const,
+      nextRequiredStep: null,
+      blocker: null,
+      internalNotes: "private",
+    },
+    lastName: "Private",
+    phone: "+15550000000",
+    kyc: { status: "private" },
+    pay: { rate: "private" },
+  };
+}
+
 function workforceBatchAttention() {
   const statusCounts = {
     unavailable: 0,
@@ -781,6 +995,350 @@ describe("workforce operations tool", () => {
     await expect(
       server.getHandler("get_workforce_operations_overview")!({}),
     ).rejects.toThrow();
+  });
+
+  it("gets one evidence-backed coworker journey and strips privacy drift", async () => {
+    avala.transport.requestSingle.mockResolvedValue(coworkerJourney());
+
+    const result = await server.getHandler("get_coworker_journey")!({
+      coworkerUid: "00000000-0000-0000-0000-000000000007",
+    });
+
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/admin/workforce/coworkers/00000000-0000-0000-0000-000000000007/journey/",
+    );
+    expect(server.getConfig("get_coworker_journey")?._meta).toMatchObject({
+      "avala.ai/rest-route": "workforce-coworker-journey",
+      "avala.ai/rest-method": "GET",
+      "avala.ai/required-scope": "workforce.read",
+      "avala.ai/toolset": "staff",
+    });
+    expect(result.structuredContent).toMatchObject({
+      coworkerUid: "00000000000000000000000000000007",
+      displayName: "Ari",
+      learning: {
+        identity: { status: "matched" },
+        training: {
+          summary: { completedJourneys: 1 },
+        },
+      },
+      production: {
+        results: {
+          scope: "visible_non_practice",
+          byStatus: { accepted: 2 },
+        },
+      },
+      diagnosis: {
+        currentStage: "production_active",
+        nextRequiredStep: null,
+        blocker: null,
+      },
+    });
+    const rendered = JSON.stringify(result.structuredContent);
+    for (const forbidden of [
+      "+15550000000",
+      "private@example.com",
+      "auth0|private",
+      "private-customer-group",
+      "private.example",
+      '"lastName"',
+      '"kyc"',
+      '"pay"',
+      '"rawAttempts"',
+      '"internalNotes"',
+    ]) {
+      expect(rendered).not.toContain(forbidden);
+    }
+    expect(JSON.parse(result.content[0]!.text)).toEqual(
+      result.structuredContent,
+    );
+  });
+
+  it("lists bounded trained-without-paid-production candidates and strips privacy drift", async () => {
+    avala.transport.requestSingle.mockResolvedValue(
+      workforceTrainingCandidates(),
+    );
+
+    const result = await server.getHandler(
+      "list_coworker_training_candidates",
+    )!({
+      completedFrom: "2026-01-01T00:00:00Z",
+      completedBefore: "2026-09-01T00:00:00Z",
+      limit: 10,
+      cursor: "00000000-0000-0000-0000-000000000001",
+    });
+
+    expect(avala.transport.requestSingle).toHaveBeenCalledWith(
+      "/admin/workforce/coworkers/training-candidates/",
+      {
+        completed_from: "2026-01-01T00:00:00Z",
+        completed_before: "2026-09-01T00:00:00Z",
+        limit: "10",
+        cursor: "00000000-0000-0000-0000-000000000001",
+      },
+    );
+    await server.getHandler("list_coworker_training_candidates")!({
+      completedFrom: "2026-01-01T00:00:00Z",
+      completedBefore: "2026-09-01T00:00:00Z",
+    });
+    expect(avala.transport.requestSingle).toHaveBeenLastCalledWith(
+      "/admin/workforce/coworkers/training-candidates/",
+      {
+        completed_from: "2026-01-01T00:00:00Z",
+        completed_before: "2026-09-01T00:00:00Z",
+        limit: "10",
+      },
+    );
+    expect(
+      server.getConfig("list_coworker_training_candidates")?._meta,
+    ).toMatchObject({
+      "avala.ai/rest-route": "workforce-coworker-training-candidates",
+      "avala.ai/rest-method": "GET",
+      "avala.ai/required-scope": "workforce.read",
+      "avala.ai/toolset": "staff",
+    });
+    expect(result.structuredContent).toEqual({
+      generatedAt: "2026-09-02T20:00:00Z",
+      window: {
+        completedFrom: "2026-01-01T00:00:00Z",
+        completedBefore: "2026-09-01T00:00:00Z",
+      },
+      coverage: {
+        scanOrder: "coworker_uid",
+        candidateOrder: "earliest_completed_at",
+        scannedCoworkers: 4,
+        matchedLearningIdentities: 3,
+        notLinkedLearningIdentities: 1,
+        completedTrainingCoworkers: 3,
+        excludedWithPaidOutcomes: 1,
+        globalEarliestComplete: false,
+      },
+      candidates: [
+        {
+          coworkerUid: "00000000000000000000000000000007",
+          displayName: "Ari",
+          training: {
+            completedJourneysInWindow: 2,
+            earliestCompletedAt: "2026-02-10T12:00:00Z",
+          },
+          production: {
+            scope: "visible_non_practice",
+            acceptedResults: 0,
+            overlookedResults: 0,
+          },
+        },
+        {
+          coworkerUid: "00000000000000000000000000000008",
+          displayName: "coworker-000000",
+          training: {
+            completedJourneysInWindow: 1,
+            earliestCompletedAt: "2026-03-01T12:00:00Z",
+          },
+          production: {
+            scope: "visible_non_practice",
+            acceptedResults: 0,
+            overlookedResults: 0,
+          },
+        },
+      ],
+      hasMore: true,
+      nextCursor: "00000000000000000000000000000009",
+    });
+    const rendered = JSON.stringify(result.structuredContent);
+    for (const forbidden of [
+      "+15550000000",
+      "private@example.com",
+      "auth0|private",
+      "Private training title",
+      '"lastName"',
+      '"kyc"',
+      '"pay"',
+      '"customerPayload"',
+    ]) {
+      expect(rendered).not.toContain(forbidden);
+    }
+    expect(JSON.parse(result.content[0]!.text)).toEqual(
+      result.structuredContent,
+    );
+
+    const description = String(
+      server.getConfig("list_coworker_training_candidates")?.description,
+    );
+    expect(description).toContain("follow every nextCursor");
+    expect(description).toContain("notLinkedLearningIdentities");
+    expect(description).toContain("get_coworker_journey");
+    expect(description).toContain("paid-without-review");
+  });
+
+  it("rejects unbounded inputs and inconsistent candidate coverage", async () => {
+    const inputSchema = server.getConfig("list_coworker_training_candidates")
+      ?.inputSchema as {
+      shape: Record<string, unknown>;
+      safeParse: (value: unknown) => { success: boolean };
+    };
+    const validInput = {
+      completedFrom: "2026-01-01T00:00:00Z",
+      completedBefore: "2026-09-01T00:00:00Z",
+    };
+    expect(inputSchema.shape.detail).toBeUndefined();
+    expect(inputSchema.safeParse(validInput).success).toBe(true);
+    for (const invalid of [
+      {},
+      { ...validInput, completedFrom: "2026-01-01T00:00:00" },
+      { ...validInput, completedBefore: validInput.completedFrom },
+      { ...validInput, completedBefore: "2027-01-03T00:00:00Z" },
+      { ...validInput, limit: 11 },
+      { ...validInput, cursor: "not-a-uuid" },
+      { ...validInput, include: "contacts" },
+    ]) {
+      expect(inputSchema.safeParse(invalid).success).toBe(false);
+    }
+
+    const inconsistentCounts = workforceTrainingCandidates();
+    inconsistentCounts.coverage.scannedCoworkers = 5;
+    avala.transport.requestSingle.mockResolvedValueOnce(inconsistentCounts);
+    await expect(
+      server.getHandler("list_coworker_training_candidates")!(validInput),
+    ).rejects.toThrow("coverage does not match");
+
+    const paidCandidate = workforceTrainingCandidates();
+    paidCandidate.candidates[0]!.production.acceptedResults = 1;
+    avala.transport.requestSingle.mockResolvedValueOnce(paidCandidate);
+    await expect(
+      server.getHandler("list_coworker_training_candidates")!(validInput),
+    ).rejects.toThrow();
+
+    const outOfOrder = workforceTrainingCandidates();
+    outOfOrder.candidates.reverse();
+    avala.transport.requestSingle.mockResolvedValueOnce(outOfOrder);
+    await expect(
+      server.getHandler("list_coworker_training_candidates")!(validInput),
+    ).rejects.toThrow("Candidates must be ordered");
+
+    const wrongWindow = workforceTrainingCandidates();
+    wrongWindow.window.completedFrom = "2026-02-01T00:00:00Z";
+    avala.transport.requestSingle.mockResolvedValueOnce(wrongWindow);
+    await expect(
+      server.getHandler("list_coworker_training_candidates")!(validInput),
+    ).rejects.toThrow("did not match the requested completion window");
+
+    const falseGlobalClaim = workforceTrainingCandidates();
+    falseGlobalClaim.hasMore = false;
+    falseGlobalClaim.nextCursor = null;
+    falseGlobalClaim.coverage.notLinkedLearningIdentities = 0;
+    falseGlobalClaim.coverage.matchedLearningIdentities = 4;
+    falseGlobalClaim.coverage.globalEarliestComplete = true;
+    avala.transport.requestSingle.mockResolvedValueOnce(falseGlobalClaim);
+    await expect(
+      server.getHandler("list_coworker_training_candidates")!({
+        ...validInput,
+        cursor: "00000000000000000000000000000001",
+      }),
+    ).rejects.toThrow("global-earliest coverage did not match");
+
+    const missedGlobalClaim = workforceTrainingCandidates();
+    missedGlobalClaim.hasMore = false;
+    missedGlobalClaim.nextCursor = null;
+    missedGlobalClaim.coverage.notLinkedLearningIdentities = 0;
+    missedGlobalClaim.coverage.matchedLearningIdentities = 4;
+    avala.transport.requestSingle.mockResolvedValueOnce(missedGlobalClaim);
+    await expect(
+      server.getHandler("list_coworker_training_candidates")!(validInput),
+    ).rejects.toThrow("global-earliest coverage did not match");
+
+    const stalledCursor = workforceTrainingCandidates();
+    stalledCursor.nextCursor = "00000000000000000000000000000001";
+    avala.transport.requestSingle.mockResolvedValueOnce(stalledCursor);
+    await expect(
+      server.getHandler("list_coworker_training_candidates")!({
+        ...validInput,
+        cursor: "00000000000000000000000000000001",
+      }),
+    ).rejects.toThrow("pagination did not advance");
+
+    const emptyContinuation = workforceTrainingCandidates();
+    emptyContinuation.coverage.scannedCoworkers = 0;
+    emptyContinuation.coverage.matchedLearningIdentities = 0;
+    emptyContinuation.coverage.notLinkedLearningIdentities = 0;
+    emptyContinuation.coverage.completedTrainingCoworkers = 0;
+    emptyContinuation.coverage.excludedWithPaidOutcomes = 0;
+    emptyContinuation.candidates = [];
+    avala.transport.requestSingle.mockResolvedValueOnce(emptyContinuation);
+    await expect(
+      server.getHandler("list_coworker_training_candidates")!(validInput),
+    ).rejects.toThrow("continuing page must scan");
+  });
+
+  it("propagates candidate join failures instead of returning an empty page", async () => {
+    const unavailable = new Error(
+      "503 coworker_training_candidates_provider_unavailable",
+    );
+    avala.transport.requestSingle.mockRejectedValue(unavailable);
+
+    await expect(
+      server.getHandler("list_coworker_training_candidates")!({
+        completedFrom: "2026-01-01T00:00:00Z",
+        completedBefore: "2026-09-01T00:00:00Z",
+      }),
+    ).rejects.toBe(unavailable);
+  });
+
+  it("pins the exact coworker UID and rejects mismatched or malformed joined records", async () => {
+    const inputSchema = server.getConfig("get_coworker_journey")
+      ?.inputSchema as {
+      shape: Record<string, unknown>;
+      safeParse: (value: unknown) => { success: boolean };
+    };
+    expect(inputSchema.shape.detail).toBeUndefined();
+    expect(inputSchema.safeParse({ coworkerUid: "not-a-uuid" }).success).toBe(
+      false,
+    );
+    expect(
+      inputSchema.safeParse({
+        coworkerUid: "00000000000000000000000000000007",
+        include: "email",
+      }).success,
+    ).toBe(false);
+
+    const mismatched = coworkerJourney();
+    mismatched.coworkerUid = "00000000000000000000000000000008";
+    avala.transport.requestSingle.mockResolvedValueOnce(mismatched);
+    await expect(
+      server.getHandler("get_coworker_journey")!({
+        coworkerUid: "00000000000000000000000000000007",
+      }),
+    ).rejects.toThrow("did not match the requested coworker");
+
+    const malformed = coworkerJourney();
+    malformed.production.results.total = -1;
+    avala.transport.requestSingle.mockResolvedValueOnce(malformed);
+    await expect(
+      server.getHandler("get_coworker_journey")!({
+        coworkerUid: "00000000000000000000000000000007",
+      }),
+    ).rejects.toThrow();
+
+    const inconsistent = coworkerJourney();
+    inconsistent.production.results.total = 4;
+    avala.transport.requestSingle.mockResolvedValueOnce(inconsistent);
+    await expect(
+      server.getHandler("get_coworker_journey")!({
+        coworkerUid: "00000000000000000000000000000007",
+      }),
+    ).rejects.toThrow("Total does not match the fixed status counts");
+  });
+
+  it("propagates joined-provider failures instead of returning empty history", async () => {
+    const unavailable = new Error(
+      "503 coworker_journey_provider_unavailable",
+    );
+    avala.transport.requestSingle.mockRejectedValue(unavailable);
+
+    await expect(
+      server.getHandler("get_coworker_journey")!({
+        coworkerUid: "00000000000000000000000000000007",
+      }),
+    ).rejects.toBe(unavailable);
   });
 
   it("lists bounded production lines with exact filters and strips identity and payload drift", async () => {

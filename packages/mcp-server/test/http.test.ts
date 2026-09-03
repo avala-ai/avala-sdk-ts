@@ -1274,6 +1274,8 @@ describe("Streamable HTTP transport", () => {
     expect(names).toContain("staff_aggregate");
     expect(names).toContain("staff_describe_table");
     expect(names).toContain("get_workforce_operations_overview");
+    expect(names).toContain("list_coworker_training_candidates");
+    expect(names).toContain("get_coworker_journey");
     expect(names).toContain("list_workforce_batches");
     expect(names).not.toContain("list_workforce_groups");
     expect(names).not.toContain("list_workforce_group_members");
@@ -1325,6 +1327,8 @@ describe("Streamable HTTP transport", () => {
     expect(names).toContain("set_workforce_batch_status");
     expect(names).toContain("set_workforce_sequence_status");
     expect(names).not.toContain("get_workforce_operations_overview");
+    expect(names).not.toContain("list_coworker_training_candidates");
+    expect(names).not.toContain("get_coworker_journey");
     expect(names).not.toContain("list_workforce_batches");
     expect(names).not.toContain("get_workforce_batch_attention");
     expect(names).not.toContain("list_workforce_batch_units");
@@ -1352,6 +1356,8 @@ describe("Streamable HTTP transport", () => {
     expect(names).not.toContain("staff_aggregate");
     expect(names).not.toContain("staff_describe_table");
     expect(names).not.toContain("get_workforce_operations_overview");
+    expect(names).not.toContain("list_coworker_training_candidates");
+    expect(names).not.toContain("get_coworker_journey");
     expect(names).not.toContain("list_workforce_batches");
     expect(names).not.toContain("list_workforce_groups");
     expect(names).not.toContain("list_workforce_group_members");

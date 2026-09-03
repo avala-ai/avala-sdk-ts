@@ -641,6 +641,521 @@ const workforceAssignmentCandidatesOutputSchema = z
   })
   .strip();
 
+const coworkerJourneyTimestampSchema = z.string().datetime({ offset: true });
+const workforceTrainingCandidatesOutputSchema = z
+  .object({
+    generatedAt: coworkerJourneyTimestampSchema,
+    window: z
+      .object({
+        completedFrom: coworkerJourneyTimestampSchema,
+        completedBefore: coworkerJourneyTimestampSchema,
+      })
+      .strip(),
+    coverage: z
+      .object({
+        scanOrder: z.literal("coworker_uid"),
+        candidateOrder: z.literal("earliest_completed_at"),
+        scannedCoworkers: z.number().int().min(0).max(10),
+        matchedLearningIdentities: z.number().int().min(0).max(10),
+        notLinkedLearningIdentities: z.number().int().min(0).max(10),
+        completedTrainingCoworkers: z.number().int().min(0).max(10),
+        excludedWithPaidOutcomes: z.number().int().min(0).max(10),
+        globalEarliestComplete: z.boolean(),
+      })
+      .strip(),
+    candidates: z
+      .array(
+        z
+          .object({
+            coworkerUid: compactUuidOutputSchema,
+            displayName: z.string().min(1).max(150),
+            training: z
+              .object({
+                completedJourneysInWindow: z.number().int().min(1).max(500),
+                earliestCompletedAt: coworkerJourneyTimestampSchema,
+              })
+              .strip(),
+            production: z
+              .object({
+                scope: z.literal("visible_non_practice"),
+                acceptedResults: z.literal(0),
+                overlookedResults: z.literal(0),
+              })
+              .strip(),
+          })
+          .strip(),
+      )
+      .max(10),
+    hasMore: z.boolean(),
+    nextCursor: compactUuidOutputSchema.nullable(),
+  })
+  .strip()
+  .superRefine((value, context) => {
+    const { coverage, candidates } = value;
+    if (
+      coverage.matchedLearningIdentities +
+        coverage.notLinkedLearningIdentities !==
+      coverage.scannedCoworkers
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["coverage", "scannedCoworkers"],
+        message: "Learning identity coverage does not match the scan count.",
+      });
+    }
+    if (
+      coverage.completedTrainingCoworkers >
+        coverage.matchedLearningIdentities ||
+      coverage.completedTrainingCoworkers !==
+        candidates.length + coverage.excludedWithPaidOutcomes
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["coverage", "completedTrainingCoworkers"],
+        message:
+          "Training completion coverage does not match candidates and paid exclusions.",
+      });
+    }
+    if (value.hasMore !== (value.nextCursor !== null)) {
+      context.addIssue({
+        code: "custom",
+        path: ["nextCursor"],
+        message: "Pagination continuation does not match hasMore.",
+      });
+    }
+    if (value.hasMore && coverage.scannedCoworkers === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["coverage", "scannedCoworkers"],
+        message: "A continuing page must scan at least one coworker.",
+      });
+    }
+    if (
+      coverage.globalEarliestComplete &&
+      (value.hasMore || coverage.notLinkedLearningIdentities !== 0)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["coverage", "globalEarliestComplete"],
+        message:
+          "A global earliest claim cannot have pagination or Learning identity gaps.",
+      });
+    }
+
+    const completedFrom = Date.parse(value.window.completedFrom);
+    const completedBefore = Date.parse(value.window.completedBefore);
+    const seenCoworkers = new Set<string>();
+    let previous: { completedAt: number; coworkerUid: string } | undefined;
+    for (const [index, candidate] of candidates.entries()) {
+      const completedAt = Date.parse(candidate.training.earliestCompletedAt);
+      if (completedAt < completedFrom || completedAt >= completedBefore) {
+        context.addIssue({
+          code: "custom",
+          path: ["candidates", index, "training", "earliestCompletedAt"],
+          message: "Candidate completion is outside the requested window.",
+        });
+      }
+      if (seenCoworkers.has(candidate.coworkerUid)) {
+        context.addIssue({
+          code: "custom",
+          path: ["candidates", index, "coworkerUid"],
+          message: "Candidate coworker UIDs must be unique within a page.",
+        });
+      }
+      seenCoworkers.add(candidate.coworkerUid);
+      if (
+        previous &&
+        (completedAt < previous.completedAt ||
+          (completedAt === previous.completedAt &&
+            candidate.coworkerUid < previous.coworkerUid))
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["candidates", index],
+          message:
+            "Candidates must be ordered by earliest completion and then coworker UID.",
+        });
+      }
+      previous = { completedAt, coworkerUid: candidate.coworkerUid };
+    }
+  });
+const coworkerJourneyLearningPerformanceSchema = z.discriminatedUnion(
+  "availability",
+  [
+    z.object({ availability: z.literal("not_computed") }).strip(),
+    z
+      .object({
+        availability: z.literal("available"),
+        modulesCompleted: nonnegativeCount,
+        totalModules: nonnegativeCount,
+        stepsCompleted: nonnegativeCount,
+        totalSteps: nonnegativeCount,
+        progressPercentage: z.number().min(0).max(100),
+        quizAttempts: nonnegativeCount,
+        quizCorrect: nonnegativeCount,
+        quizAccuracy: z.number().min(0).max(100).nullable(),
+        practiceAttempts: nonnegativeCount,
+        practicePassed: nonnegativeCount,
+        practicePassRate: z.number().min(0).max(100).nullable(),
+        proficiencyLevel: z.string().min(1).max(100).nullable(),
+        performanceStatus: z.string().min(1).max(100).nullable(),
+        atRiskIndicators: z.array(z.string().min(1).max(200)).max(50),
+        firstActivityAt: coworkerJourneyTimestampSchema.nullable(),
+        lastActivityAt: coworkerJourneyTimestampSchema.nullable(),
+        completedAt: coworkerJourneyTimestampSchema.nullable(),
+        computedAt: coworkerJourneyTimestampSchema,
+      })
+      .strip(),
+  ],
+);
+const coworkerJourneyLearningAccessSchema = z.discriminatedUnion(
+  "availability",
+  [
+    z
+      .object({
+        availability: z.literal("available"),
+        status: z.string().min(1).max(100),
+        joinedAt: coworkerJourneyTimestampSchema,
+      })
+      .strip(),
+    z
+      .object({
+        availability: z.literal("no_record"),
+        status: z.null(),
+        joinedAt: z.null(),
+      })
+      .strip(),
+  ],
+);
+const coworkerJourneyOnboardingSchema = z.discriminatedUnion(
+  "availability",
+  [
+    z
+      .object({
+        availability: z.literal("available"),
+        status: z.enum(["unknown", "not_onboarded", "onboarded"]),
+        onboardedAt: coworkerJourneyTimestampSchema.nullable(),
+        source: z.string().min(1).max(100),
+        decidedAt: coworkerJourneyTimestampSchema.nullable(),
+      })
+      .strip(),
+    z
+      .object({
+        availability: z.literal("no_record"),
+        status: z.null(),
+        onboardedAt: z.null(),
+        source: z.null(),
+        decidedAt: z.null(),
+      })
+      .strip(),
+  ],
+);
+const coworkerJourneyLearningSchema = z
+  .object({
+    identity: z
+      .object({ status: z.enum(["matched", "not_linked"]) })
+      .strip(),
+    learningAccess: coworkerJourneyLearningAccessSchema.nullable(),
+    onboarding: coworkerJourneyOnboardingSchema.nullable(),
+    training: z
+      .object({
+        summary: z
+          .object({
+            enrolledJourneys: nonnegativeCount,
+            activeJourneys: nonnegativeCount,
+            completedJourneys: nonnegativeCount,
+            droppedJourneys: nonnegativeCount,
+            firstEnrolledAt: coworkerJourneyTimestampSchema.nullable(),
+            earliestCompletedAt: coworkerJourneyTimestampSchema.nullable(),
+            lastActivityAt: coworkerJourneyTimestampSchema.nullable(),
+          })
+          .strip(),
+        journeys: z
+          .array(
+            z
+              .object({
+                uid: batchUidInputSchema,
+                slug: z.string().min(1).max(200),
+                title: z.string().min(1).max(500),
+                status: z.enum(["active", "completed", "dropped"]),
+                enrolledAt: coworkerJourneyTimestampSchema,
+                completedAt: coworkerJourneyTimestampSchema.nullable(),
+                performance: coworkerJourneyLearningPerformanceSchema,
+                nextRequiredModule: z
+                  .object({
+                    uid: batchUidInputSchema,
+                    slug: z.string().min(1).max(200),
+                    title: z.string().min(1).max(500),
+                  })
+                  .strip()
+                  .nullable(),
+              })
+              .strip(),
+          )
+          .max(20),
+      })
+      .strip()
+      .nullable(),
+    taskAccess: z
+      .array(
+        z
+          .object({
+            taskName: z.string().min(1).max(100),
+            isGranted: z.boolean(),
+            grantedAt: coworkerJourneyTimestampSchema.nullable(),
+            grantedReason: z.string().min(1).max(500).nullable(),
+            revokedAt: coworkerJourneyTimestampSchema.nullable(),
+            revokedReason: z.string().min(1).max(500).nullable(),
+            computedAt: coworkerJourneyTimestampSchema,
+          })
+          .strip(),
+      )
+      .max(100)
+      .nullable(),
+  })
+  .strip()
+  .superRefine((value, context) => {
+    const joinedFields = [
+      value.learningAccess,
+      value.onboarding,
+      value.training,
+      value.taskAccess,
+    ];
+    const shouldBeJoined = value.identity.status === "matched";
+    if (joinedFields.some((field) => (field !== null) !== shouldBeJoined)) {
+      context.addIssue({
+        code: "custom",
+        path: ["identity", "status"],
+        message:
+          "Learning identity state does not match the joined record fields.",
+      });
+    }
+    if (value.training !== null) {
+      const { summary, journeys } = value.training;
+      if (
+        summary.enrolledJourneys !== journeys.length ||
+        summary.activeJourneys +
+          summary.completedJourneys +
+          summary.droppedJourneys !==
+          summary.enrolledJourneys ||
+        summary.activeJourneys !==
+          journeys.filter((journey) => journey.status === "active").length ||
+        summary.completedJourneys !==
+          journeys.filter((journey) => journey.status === "completed").length ||
+        summary.droppedJourneys !==
+          journeys.filter((journey) => journey.status === "dropped").length
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["training", "summary"],
+          message: "Learning journey summary does not match journey records.",
+        });
+      }
+    }
+  });
+const coworkerJourneyDiagnosisStepSchema = z
+  .object({
+    code: z.enum([
+      "account_inactive",
+      "reactivate_account",
+      "work_approval_required",
+      "approve_for_work",
+      "learning_identity_not_linked",
+      "link_learning_identity",
+      "onboarding_status_unavailable",
+      "establish_onboarding_status",
+      "onboarding_incomplete",
+      "complete_onboarding",
+      "task_access_not_granted",
+      "complete_required_training",
+      "grant_qualified_task_access",
+      "assign_to_production_work",
+      "complete_assigned_work",
+    ]),
+    evidence: z
+      .array(
+        z
+          .object({
+            source: z.enum(["account", "learning", "production"]),
+            fact: z.string().min(1).max(100),
+            observed: z.string().min(1).max(200),
+          })
+          .strip(),
+      )
+      .min(1)
+      .max(10),
+  })
+  .strip();
+const workforceCoworkerJourneyOutputSchema = z
+  .object({
+    generatedAt: coworkerJourneyTimestampSchema,
+    coworkerUid: compactUuidOutputSchema,
+    displayName: z.string().min(1).max(150),
+    account: z
+      .object({
+        active: z.boolean(),
+        approvedForWork: z.boolean(),
+        phoneVerified: z.boolean(),
+        joinedAt: coworkerJourneyTimestampSchema,
+        lastLoginAt: coworkerJourneyTimestampSchema.nullable(),
+      })
+      .strip(),
+    workRoles: z
+      .object({
+        assignee: z.boolean(),
+        reviewer: z.boolean(),
+        dataCollection: z.boolean(),
+      })
+      .strip(),
+    learning: coworkerJourneyLearningSchema,
+    production: z
+      .object({
+        results: z
+          .object({
+            scope: z.literal("visible_non_practice"),
+            total: nonnegativeCount,
+            byStatus: z
+              .object({
+                pending: nonnegativeCount,
+                accepted: nonnegativeCount,
+                rejected: nonnegativeCount,
+                overlooked: nonnegativeCount,
+              })
+              .strip(),
+            firstCreatedAt: coworkerJourneyTimestampSchema.nullable(),
+            lastCreatedAt: coworkerJourneyTimestampSchema.nullable(),
+            firstAcceptedAt: coworkerJourneyTimestampSchema.nullable(),
+            lastAcceptedAt: coworkerJourneyTimestampSchema.nullable(),
+          })
+          .strip(),
+        sessions: z
+          .object({
+            scope: z.literal("non_practice"),
+            total: nonnegativeCount,
+            byStatus: z
+              .object({
+                pending: nonnegativeCount,
+                ready: nonnegativeCount,
+                assigned: nonnegativeCount,
+                finished: nonnegativeCount,
+                abandoned: nonnegativeCount,
+              })
+              .strip(),
+            firstCreatedAt: coworkerJourneyTimestampSchema.nullable(),
+            lastCreatedAt: coworkerJourneyTimestampSchema.nullable(),
+          })
+          .strip(),
+        workUnits: z
+          .object({
+            scope: z.literal("non_practice_or_unscoped"),
+            assignedUnits: z
+              .object({
+                total: nonnegativeCount,
+                byStatus: workUnitStatusOutputSchema,
+              })
+              .strip(),
+            transitions: z
+              .object({
+                submittedForReview: nonnegativeCount,
+                completed: nonnegativeCount,
+                abandoned: nonnegativeCount,
+                errored: nonnegativeCount,
+                firstActivityAt: coworkerJourneyTimestampSchema.nullable(),
+                lastActivityAt: coworkerJourneyTimestampSchema.nullable(),
+              })
+              .strip(),
+          })
+          .strip(),
+      })
+      .strip(),
+    diagnosis: z
+      .object({
+        currentStage: z.enum([
+          "account",
+          "approval",
+          "learning_identity",
+          "onboarding",
+          "training",
+          "qualification",
+          "ready_for_assignment",
+          "entering_production",
+          "production_active",
+        ]),
+        nextRequiredStep: coworkerJourneyDiagnosisStepSchema.nullable(),
+        blocker: coworkerJourneyDiagnosisStepSchema.nullable(),
+      })
+      .strip(),
+  })
+  .strip()
+  .superRefine((value, context) => {
+    const resultStatuses = value.production.results.byStatus;
+    const sessionStatuses = value.production.sessions.byStatus;
+    const unitStatuses = value.production.workUnits.assignedUnits.byStatus;
+    const countChecks: Array<[number, number, (string | number)[]]> = [
+      [
+        value.production.results.total,
+        resultStatuses.pending +
+          resultStatuses.accepted +
+          resultStatuses.rejected +
+          resultStatuses.overlooked,
+        ["production", "results", "total"],
+      ],
+      [
+        value.production.sessions.total,
+        sessionStatuses.pending +
+          sessionStatuses.ready +
+          sessionStatuses.assigned +
+          sessionStatuses.finished +
+          sessionStatuses.abandoned,
+        ["production", "sessions", "total"],
+      ],
+      [
+        value.production.workUnits.assignedUnits.total,
+        unitStatuses.unavailable +
+          unitStatuses.backlog +
+          unitStatuses.inProgress +
+          unitStatuses.inReview +
+          unitStatuses.completed +
+          unitStatuses.error,
+        ["production", "workUnits", "assignedUnits", "total"],
+      ],
+    ];
+    for (const [total, statusTotal, path] of countChecks) {
+      if (total !== statusTotal) {
+        context.addIssue({
+          code: "custom",
+          path,
+          message: "Total does not match the fixed status counts.",
+        });
+      }
+    }
+
+    const diagnosedBlockerStages = new Set([
+      "account",
+      "approval",
+      "learning_identity",
+      "onboarding",
+      "training",
+      "qualification",
+    ]);
+    const isProductionActive =
+      value.diagnosis.currentStage === "production_active";
+    const shouldHaveBlocker = diagnosedBlockerStages.has(
+      value.diagnosis.currentStage,
+    );
+    if (
+      (value.diagnosis.nextRequiredStep === null) !== isProductionActive ||
+      (value.diagnosis.blocker !== null) !== shouldHaveBlocker
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["diagnosis"],
+        message:
+          "Diagnosis stage does not match its next-step and blocker evidence.",
+      });
+    }
+  });
+
 const getWorkforceOperationsOverviewTool = defineReadCatalogTool({
   name: "get_workforce_operations_overview",
   title: "Get workforce operations overview",
@@ -672,6 +1187,149 @@ const getWorkforceOperationsOverviewTool = defineReadCatalogTool({
       windowDays: "window_days",
       attentionLimit: "attention_limit",
     },
+    response: "single",
+    scope: "workforce.read",
+    toolset: "staff",
+  },
+});
+
+const getCoworkerJourneyTool = defineReadCatalogTool({
+  name: "get_coworker_journey",
+  title: "Get coworker journey",
+  description:
+    "Staff only: retrieve one privacy-bounded coworker journey across account readiness, Learning onboarding and training, task access, and non-practice Physical AI production history. Returns a single evidence-backed current stage, next required step, and blocker; missing or unavailable joined data is explicit and never converted to zeroes. Requires an exact coworker UID and excludes usernames, contact details, family names, provider identities, KYC, pay, customer payloads, work URLs, comments, and arbitrary group or batch labels.",
+  inputSchema: z
+    .object({
+      coworkerUid: batchUidInputSchema.describe(
+        "Exact opaque coworker UID supplied by a reviewed staff workflow or another privacy-bounded workforce tool.",
+      ),
+    })
+    .strict(),
+  outputSchema: workforceCoworkerJourneyOutputSchema,
+  supportsDetail: false,
+  project: (value, _detail, args) => {
+    const journey = value as { coworkerUid: string };
+    const requestedCoworkerUid = String(args.coworkerUid).replaceAll("-", "");
+    if (journey.coworkerUid !== requestedCoworkerUid) {
+      throw new Error(
+        "Coworker journey response did not match the requested coworker.",
+      );
+    }
+    return value;
+  },
+  route: {
+    name: "workforce-coworker-journey",
+    method: "GET",
+    path: "/admin/workforce/coworkers/{coworkerUid}/journey/",
+    response: "single",
+    scope: "workforce.read",
+    toolset: "staff",
+  },
+});
+
+const listCoworkerTrainingCandidatesTool = defineReadCatalogTool({
+  name: "list_coworker_training_candidates",
+  title: "List coworker training candidates",
+  description:
+    "Staff only: scan one bounded coworker page for people who completed Learning in a required half-open time window but have no visible, non-practice accepted or paid-without-review production result. Start without cursor and follow every nextCursor until hasMore is false; aggregate every page and sort all candidates by earliestCompletedAt then coworkerUid before naming the global earliest. Any notLinkedLearningIdentities count or unscanned page makes a global claim incomplete. After selecting a candidate, call get_coworker_journey with its exact coworkerUid to walk the joined record and report the single evidence-backed blocker. Returns safe first-name/fallback labels and coverage counts; excludes contacts, family names, provider identities, KYC, pay details, customer payloads, work URLs, comments, and arbitrary group or batch labels.",
+  inputSchema: z
+    .object({
+      completedFrom: coworkerJourneyTimestampSchema.describe(
+        "Inclusive Learning completion-window start with a UTC offset.",
+      ),
+      completedBefore: coworkerJourneyTimestampSchema.describe(
+        "Exclusive Learning completion-window end with a UTC offset; at most 366 days after completedFrom.",
+      ),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(10)
+        .optional()
+        .describe("Maximum coworkers to scan in this page (server default and max 10)."),
+      cursor: batchUidInputSchema
+        .optional()
+        .describe(
+          "Opaque nextCursor from the previous scan page. Omit on the first page.",
+        ),
+    })
+    .strict()
+    .superRefine((value, context) => {
+      const completedFrom = Date.parse(value.completedFrom);
+      const completedBefore = Date.parse(value.completedBefore);
+      if (completedFrom >= completedBefore) {
+        context.addIssue({
+          code: "custom",
+          path: ["completedBefore"],
+          message: "Completion window must end after completedFrom.",
+        });
+      } else if (completedBefore - completedFrom > 366 * 24 * 60 * 60 * 1000) {
+        context.addIssue({
+          code: "custom",
+          path: ["completedBefore"],
+          message: "Completion window cannot exceed 366 days.",
+        });
+      }
+    }),
+  outputSchema: workforceTrainingCandidatesOutputSchema,
+  supportsDetail: false,
+  project: (value, _detail, args) => {
+    const page = value as {
+      window: { completedFrom: string; completedBefore: string };
+      coverage: {
+        globalEarliestComplete: boolean;
+        notLinkedLearningIdentities: number;
+      };
+      hasMore: boolean;
+      nextCursor: string | null;
+    };
+    if (
+      Date.parse(page.window.completedFrom) !==
+        Date.parse(String(args.completedFrom)) ||
+      Date.parse(page.window.completedBefore) !==
+        Date.parse(String(args.completedBefore))
+    ) {
+      throw new Error(
+        "Coworker training candidate response did not match the requested completion window.",
+      );
+    }
+    const requestedCursor =
+      typeof args.cursor === "string"
+        ? args.cursor.replaceAll("-", "")
+        : undefined;
+    const expectedGlobalEarliestComplete =
+      requestedCursor === undefined &&
+      !page.hasMore &&
+      page.coverage.notLinkedLearningIdentities === 0;
+    if (
+      page.coverage.globalEarliestComplete !== expectedGlobalEarliestComplete
+    ) {
+      throw new Error(
+        "Coworker training candidate global-earliest coverage did not match the scan.",
+      );
+    }
+    if (
+      requestedCursor !== undefined &&
+      page.nextCursor !== null &&
+      page.nextCursor <= requestedCursor
+    ) {
+      throw new Error(
+        "Coworker training candidate pagination did not advance past the requested cursor.",
+      );
+    }
+    return value;
+  },
+  route: {
+    name: "workforce-coworker-training-candidates",
+    method: "GET",
+    path: "/admin/workforce/coworkers/training-candidates/",
+    query: {
+      completedFrom: "completed_from",
+      completedBefore: "completed_before",
+      limit: "limit",
+      cursor: "cursor",
+    },
+    defaultLimit: 10,
     response: "single",
     scope: "workforce.read",
     toolset: "staff",
@@ -2276,6 +2934,8 @@ const assignWorkforceWorkUnitTool = defineMutationCatalogTool({
 
 export const WORKFORCE_READ_CATALOG_TOOLS = [
   getWorkforceOperationsOverviewTool,
+  listCoworkerTrainingCandidatesTool,
+  getCoworkerJourneyTool,
   listWorkforceBatchesTool,
   listWorkforceGroupsTool,
   listWorkforceGroupMembersTool,
@@ -2307,6 +2967,8 @@ export function registerWorkforceTools(
   allowedMutationTools?: ReadonlySet<string>,
 ): void {
   registerReadCatalogTool(server, getClient, getWorkforceOperationsOverviewTool);
+  registerReadCatalogTool(server, getClient, listCoworkerTrainingCandidatesTool);
+  registerReadCatalogTool(server, getClient, getCoworkerJourneyTool);
   registerReadCatalogTool(server, getClient, listWorkforceBatchesTool);
   registerReadCatalogTool(server, getClient, listWorkforceGroupsTool);
   registerReadCatalogTool(server, getClient, listWorkforceGroupMembersTool);

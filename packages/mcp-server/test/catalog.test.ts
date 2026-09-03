@@ -194,6 +194,15 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
     windowDays: 14,
     attentionLimit: 5,
   },
+  get_coworker_journey: {
+    coworkerUid: "00000000000000000000000000000007",
+  },
+  list_coworker_training_candidates: {
+    completedFrom: "2026-01-01T00:00:00Z",
+    completedBefore: "2026-09-01T00:00:00Z",
+    limit: 10,
+    cursor: "00000000000000000000000000000006",
+  },
   get_workforce_batch_attention: {
     batchUid: "00000000000000000000000000000001",
   },
@@ -791,6 +800,119 @@ describe("declarative MCP catalog", () => {
         },
       ],
     };
+    const workforceTrainingCandidates = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      window: {
+        completedFrom: "2026-01-01T00:00:00Z",
+        completedBefore: "2026-09-01T00:00:00Z",
+      },
+      coverage: {
+        scanOrder: "coworker_uid",
+        candidateOrder: "earliest_completed_at",
+        scannedCoworkers: 0,
+        matchedLearningIdentities: 0,
+        notLinkedLearningIdentities: 0,
+        completedTrainingCoworkers: 0,
+        excludedWithPaidOutcomes: 0,
+        globalEarliestComplete: false,
+      },
+      candidates: [],
+      hasMore: false,
+      nextCursor: null,
+    };
+    const coworkerJourney = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      coworkerUid: "00000000000000000000000000000007",
+      displayName: "Ari",
+      account: {
+        active: true,
+        approvedForWork: true,
+        phoneVerified: true,
+        joinedAt: "2026-01-02T20:00:00Z",
+        lastLoginAt: null,
+      },
+      workRoles: {
+        assignee: false,
+        reviewer: false,
+        dataCollection: false,
+      },
+      learning: {
+        identity: { status: "not_linked" },
+        learningAccess: null,
+        onboarding: null,
+        training: null,
+        taskAccess: null,
+      },
+      production: {
+        results: {
+          scope: "visible_non_practice",
+          total: 0,
+          byStatus: { pending: 0, accepted: 0, rejected: 0, overlooked: 0 },
+          firstCreatedAt: null,
+          lastCreatedAt: null,
+          firstAcceptedAt: null,
+          lastAcceptedAt: null,
+        },
+        sessions: {
+          scope: "non_practice",
+          total: 0,
+          byStatus: {
+            pending: 0,
+            ready: 0,
+            assigned: 0,
+            finished: 0,
+            abandoned: 0,
+          },
+          firstCreatedAt: null,
+          lastCreatedAt: null,
+        },
+        workUnits: {
+          scope: "non_practice_or_unscoped",
+          assignedUnits: {
+            total: 0,
+            byStatus: {
+              unavailable: 0,
+              backlog: 0,
+              inProgress: 0,
+              inReview: 0,
+              completed: 0,
+              error: 0,
+            },
+          },
+          transitions: {
+            submittedForReview: 0,
+            completed: 0,
+            abandoned: 0,
+            errored: 0,
+            firstActivityAt: null,
+            lastActivityAt: null,
+          },
+        },
+      },
+      diagnosis: {
+        currentStage: "learning_identity",
+        nextRequiredStep: {
+          code: "link_learning_identity",
+          evidence: [
+            {
+              source: "learning",
+              fact: "identity.status",
+              observed: "not_linked",
+            },
+          ],
+        },
+        blocker: {
+          code: "learning_identity_not_linked",
+          evidence: [
+            {
+              source: "learning",
+              fact: "identity.status",
+              observed: "not_linked",
+            },
+          ],
+        },
+      },
+    };
     const workforceBatchAttention = {
       generatedAt: "2026-08-29T20:00:00Z",
       batchUid: "00000000000000000000000000000001",
@@ -1190,6 +1312,13 @@ describe("declarative MCP catalog", () => {
           if (path.endsWith("/curation-preview/")) return curationPreview;
           if (path === "/admin/workforce/overview/")
             return workforceOperationsOverview;
+          if (path === "/admin/workforce/coworkers/training-candidates/")
+            return workforceTrainingCandidates;
+          if (
+            path ===
+            "/admin/workforce/coworkers/00000000000000000000000000000007/journey/"
+          )
+            return coworkerJourney;
           if (path === "/admin/workforce/batches/")
             return workforceBatchInventory;
           if (path === "/admin/workforce/groups/")
