@@ -12,8 +12,8 @@ completes.
 |---|---|---|---|
 | `adversarial.xml` | 9 | 7 | 2 |
 | `read-customer.xml` | 14 | 4 | 10 |
-| `read-ops.xml` | 14 | 14 | 0 |
-| **total** | **37** | **25** | **12** |
+| `read-ops.xml` | 15 | 15 | 0 |
+| **total** | **38** | **26** | **12** |
 
 Gradeable = has `<answer>` or `<rubric>` and no `<answer-todo>`.
 `<precondition>` never blocks a run. Pinned by `test/evalTasks.test.ts`.

@@ -346,11 +346,11 @@ function normaliseAnswer(text: string): string {
  * Grade one trial into one of the three behavioural outcomes (plus `incorrect`).
  *
  * The three-way split exists because a binary pass/fail throws away the signal
- * `read-ops.xml` is built to produce: those 14 tasks are unanswerable against
- * today's surface, and their rubrics treat an honest "I cannot reach that" as
- * pass-quality while treating a confident invented number as strictly worse
- * than no answer at all. Collapsing those two into "fail" makes a fabricating
- * agent and a candid one score identically.
+ * `read-ops.xml` is built to produce: its original 14 gap probes treat an honest
+ * "I cannot reach that" as pass-quality while treating a confident invented
+ * number as strictly worse than no answer at all. Positive capability probes
+ * can coexist with them. Collapsing refusal and fabrication into "fail" makes a
+ * fabricating agent and a candid one score identically.
  */
 async function grade(
   anthropic: Anthropic,

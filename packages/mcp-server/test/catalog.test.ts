@@ -203,6 +203,17 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
     limit: 10,
     cursor: "00000000000000000000000000000006",
   },
+  list_workforce_training_cohort_evidence: {
+    journeyUid: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    cohortStartedFrom: "2026-03-02T00:00:00Z",
+    cohortStartedBefore: "2026-03-09T00:00:00Z",
+    limit: 10,
+  },
+  get_workforce_coworker_reliability: {
+    observedFrom: "2026-09-01T00:00:00Z",
+    observedBefore: "2026-09-02T00:00:00Z",
+    limit: 25,
+  },
   get_workforce_batch_attention: {
     batchUid: "00000000000000000000000000000001",
   },
@@ -215,6 +226,54 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
     priority: "high",
     limit: 25,
     cursor: "00000000000000000000000000000006",
+  },
+  get_workforce_dispatch_health: {
+    organizationUid: "00000000000000000000000000000002",
+    projectUid: "00000000000000000000000000000003",
+    datasetUid: "00000000000000000000000000000004",
+    sequenceUid: "00000000000000000000000000000005",
+    priority: "high",
+    limit: 25,
+    cursor: "00000000000000000000000000000006",
+  },
+  get_workforce_dispatch_observations: {
+    observedFrom: "2026-08-01T00:00:00Z",
+    observedBefore: "2026-09-01T00:00:00Z",
+    batchUid: "00000000000000000000000000000001",
+    organizationUid: "00000000000000000000000000000002",
+    projectUid: "00000000000000000000000000000003",
+    datasetUid: "00000000000000000000000000000004",
+    sequenceUid: "00000000000000000000000000000005",
+    currentStatus: "available",
+    currentPriority: "high",
+    limit: 25,
+    cursor: "00000000000000000000000000000006",
+  },
+  get_workforce_dispatch_outcomes: {
+    releasedFrom: "2026-09-01T00:00:00Z",
+    releasedBefore: "2026-10-01T00:00:00Z",
+    thresholdDays: 7,
+    organizationUid: "00000000000000000000000000000002",
+    projectUid: "00000000000000000000000000000003",
+    datasetUid: "00000000000000000000000000000004",
+    sequenceUid: "00000000000000000000000000000005",
+    currentPriority: "high",
+    limit: 25,
+    cursor: "00000000000000000000000000000006",
+  },
+
+  list_workforce_operation_events: {
+    occurredFrom: "2026-08-01T00:00:00Z",
+    occurredBefore: "2026-09-01T00:00:00Z",
+    eventKind: "work_batch",
+    operation: "priority_changed",
+    source: "mcp",
+    batchUid: "00000000000000000000000000000001",
+    limit: 25,
+    cursor: "00000000000000000000000000000008",
+  },
+  get_workforce_operation_event: {
+    operationEventUid: "00000000000000000000000000000009",
   },
   list_workforce_groups: {
     search: "lidar",
@@ -820,6 +879,111 @@ describe("declarative MCP catalog", () => {
       hasMore: false,
       nextCursor: null,
     };
+    const workforceTrainingCohortEvidence = {
+      generatedAt: "2026-09-03T12:05:00Z",
+      learningGeneratedAt: "2026-09-03T12:00:00Z",
+      criteria: {
+        journeyUid: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        cohortStartedFrom: "2026-03-02T00:00:00Z",
+        cohortStartedBefore: "2026-03-09T00:00:00Z",
+        boundary: "half_open",
+      },
+      definitions: {
+        cohortStart: "stored_journey_enrollment",
+        cohortHistoryCoverage: "current_stored_enrollment_rows_only",
+        progressPoint:
+          "latest_completed_step_fact_in_current_journey_modules",
+        progressPointIsNot: "page_abandonment_or_actual_stall",
+        productionOutput:
+          "current_visible_non_practice_nonobsolete_task_results_after_completion",
+        productionHistoryCoverage: "current_result_rows_and_status_only",
+        sequenceResultCoverage: "not_included",
+        summaryScope: "returned_coworker_scan_page",
+      },
+      cohort: {
+        currentStoredLearningMembers: 0,
+        evidenceCoverage: "current_stored_enrollment_rows_only",
+      },
+      progressEvidence: {
+        source: "analytics_step_facts",
+        availability: "not_queried_no_matched_cohort_records",
+        sourceCompletionWatermark: null,
+      },
+      coverage: {
+        scanOrder: "coworker_uid",
+        scannedCoworkers: 0,
+        matchedLearningIdentities: 0,
+        notLinkedLearningIdentities: 0,
+        inWindowCohortMembers: 0,
+        outsideWindowEnrollments: 0,
+        notEnrolledInJourney: 0,
+        progressPointsAvailable: 0,
+        progressPointsContentUnmapped: 0,
+        progressPointsWithoutMatchingCompletedFact: 0,
+        progressPointsRollupNotComputed: 0,
+        globalReconciliationComplete: true,
+      },
+      summary: {
+        started: 0,
+        completedCurrentEnrollment: 0,
+        trainingIncomplete: 0,
+        observedCurrentlyQualifyingOutput: 0,
+        completedWithoutCurrentlyQualifyingOutput: 0,
+        completionRate: null,
+        currentOutputRateFromCompleted: null,
+        overallCurrentYield: null,
+      },
+      members: [],
+      hasMore: false,
+      nextCursor: null,
+    };
+    const workforceCoworkerReliability = {
+      generatedAt: "2026-09-03T20:00:00Z",
+      measurement: {
+        scope: "sampled_global_work_queue",
+        summaryScope: "page",
+        observationWindow: {
+          observedFrom: "2026-09-01T00:00:00Z",
+          observedBefore: "2026-09-02T00:00:00Z",
+          boundary: "half_open",
+        },
+        storageAvailableAt: "2026-08-31T00:00:00Z",
+        storageWindowStatus: "complete",
+        storageWindowComplete: true,
+        observationDefinition:
+          "A successful self-service request to the initial page of the coworker's global available-work-batches queue. Continuation pages are excluded because an empty later page does not mean the global queue was empty.",
+        samplingDefinition:
+          "Only the first response per coworker, UTC day, and outcome is retained. A later different outcome on the same day is retained separately.",
+        visibleQueueCountDefinition:
+          "Counts describe only the returned response page and are lower bounds when another page exists.",
+        outputDefinition:
+          "At least one recorded non-practice result creation or work-unit transition from IN_PROGRESS to IN_REVIEW or COMPLETED inside the same window.",
+        classificationDefinition:
+          "Task shortage requires no output plus only recorded no-eligible-work observations. Any recorded eligible queue or active assignment puts a no-output coworker in work-available; mixed evidence therefore never becomes task shortage. This is an operational follow-up signal, not proof of deliberate idleness.",
+        identityDefinition:
+          "Rows contain only the coworker's stable public UID; names, contact details, pay, rankings, customer payloads, and group details are excluded.",
+        recordingMode: "sampled_best_effort",
+        recordingCompletenessProven: false,
+        legacyBackfillPerformed: false,
+      },
+      coverage: {
+        evidenceScope: "page",
+        returnedCoworkers: 0,
+        recordedObservations: 0,
+        recordedObservationDays: 0,
+        preStorageObservations: 0,
+        coworkersWithActivityEvidenceUnavailable: 0,
+      },
+      summary: {
+        outputObserved: 0,
+        noOutputTaskShortageObserved: 0,
+        noOutputWorkAvailableObserved: 0,
+        activityEvidenceUnavailable: 0,
+      },
+      coworkers: [],
+      hasMore: false,
+      nextCursor: null,
+    };
     const coworkerJourney = {
       generatedAt: "2026-08-29T20:00:00Z",
       coworkerUid: "00000000000000000000000000000007",
@@ -1282,6 +1446,255 @@ describe("declarative MCP catalog", () => {
         removalWouldLeaveAvailableBatchUnstaffed: false,
       },
     };
+    const workforceDispatchHealth = {
+      generatedAt: "2026-08-29T20:00:00Z",
+      measurement: {
+        scope: "current_snapshot",
+        summaryScope: "page",
+        unit: "work_unit",
+        releasedDefinition:
+          "BACKLOG work unit in a currently AVAILABLE batch.",
+        claimableDefinition:
+          "Released work unit with an active, approved group member who has no IN_PROGRESS work in an AVAILABLE batch and, for allocated batches, has an active allocation.",
+        historicalWindowSupported: false,
+      },
+      summary: {
+        availableBatches: 0,
+        batchesWithBacklog: 0,
+        batchesWithClaimableWork: 0,
+        batchesWithBlockedWork: 0,
+        emptyBatches: 0,
+        releasedBacklogWorkUnits: 0,
+        claimableBacklogWorkUnits: 0,
+        blockedBacklogWorkUnits: 0,
+      },
+      batches: [],
+      hasMore: false,
+      nextCursor: null,
+      observationReceipt: {
+        persistenceStatus: "not_applicable_empty_page",
+        observationSource: "staff_dispatch_health",
+        scope: "returned_page",
+        sampling: "first_identical_state_per_batch_per_utc_hour",
+        observedAt: "2026-08-29T20:00:00Z",
+        batchesInPage: 0,
+        definition:
+          "Immutable state sampled when staff requested a dispatch-health page. Identical state is stored at most once per batch per UTC hour; different states in the same hour remain distinct. This is sampled observation, not continuous history, and gaps between successful reads are unobserved.",
+      },
+    };
+    const workforceDispatchOutcomes = {
+      generatedAt: "2026-09-15T20:00:00Z",
+      measurement: {
+        scope: "observed_release_history",
+        summaryScope: "page",
+        releaseWindow: {
+          releasedFrom: "2026-09-01T00:00:00Z",
+          releasedBefore: "2026-10-01T00:00:00Z",
+          boundary: "half_open",
+        },
+        thresholdDays: 7,
+        releaseInstrumentationStartedAt: "2026-09-01T00:00:00Z",
+        queueVisibilityStorageAvailableAt: "2026-09-01T00:00:00Z",
+        releaseDefinition:
+          "First database-observed transition of the batch into AVAILABLE after release instrumentation.",
+        queueVisibilityDefinition:
+          "First recorded server-generated queue response for a coworker authorized and approved for work, containing the batch or one of its eligible BACKLOG work units while the coworker had no active work; coworker identity is not stored and client receipt is not proven.",
+        queueVisibilityDelayDefinition:
+          "Elapsed seconds from observed release to first recorded queue visibility, rounded up. This is recorded exposure evidence, not proof that the batch could not have been visible earlier.",
+        firstClaimDefinition:
+          "Earliest recorded work-unit transition into IN_PROGRESS at or after the observed batch release.",
+        claimDelayDefinition:
+          "Elapsed seconds from observed release to first recorded claim, rounded up to preserve threshold classification.",
+        thresholdDefinition:
+          "A claim at or before release plus threshold_days is within threshold.",
+        currentContextDefinition:
+          "Batch line context, lifecycle status, priority, and staffing mode reflect report time, not release time. Filters on those fields also use current values.",
+        queueVisibilitySupported: true,
+        historicalBlockersSupported: false,
+        legacyBackfillPerformed: false,
+      },
+      coverage: {
+        releaseEvidenceScope: "filtered_population",
+        queueVisibilityEvidenceScope: "page",
+        claimEvidenceScope: "page",
+        filterScopeBatchesCreatedBeforeWindowEnd: 0,
+        observedReleaseBatchesInWindow: 0,
+        batchesWithUnobservableWindowMembership: 0,
+        releaseWindowObservationStatus: "complete",
+        releaseWindowMembershipComplete: true,
+        returnedBatches: 0,
+        queueVisibilityObservedBatches: 0,
+        queueVisibilityObservedAfterStorageGapBatches: 0,
+        queueVisibilityTimeUnavailableBatches: 0,
+        noRecordedQueueVisibilityBatches: 0,
+        claimTimeObservedBatches: 0,
+        claimTimeUnavailableBatches: 0,
+        noRecordedClaimBatches: 0,
+      },
+      summary: {
+        claimedWithinThreshold: 0,
+        claimedAfterThreshold: 0,
+        noRecordedClaimOverdue: 0,
+        noRecordedClaimPending: 0,
+        claimTimeUnavailable: 0,
+      },
+      batches: [],
+      hasMore: false,
+      nextCursor: null,
+    };
+
+    const workforceDispatchObservations = {
+      generatedAt: "2026-09-03T20:00:00Z",
+      measurement: {
+        scope: "sampled_dispatch_observation_history",
+        summaryScope: "page",
+        observationWindow: {
+          observedFrom: "2026-08-01T00:00:00Z",
+          observedBefore: "2026-09-01T00:00:00Z",
+          boundary: "half_open",
+        },
+        storageAvailableAt: "2026-08-01T00:00:00Z",
+        observationSource: "staff_dispatch_health",
+        sampling: "first_identical_state_per_batch_per_utc_hour",
+        observationDefinition:
+          "Immutable state sampled when staff requested a dispatch-health page. Identical state is stored at most once per batch per UTC hour; different states in the same hour remain distinct. This is sampled observation, not continuous history, and gaps between successful reads are unobserved.",
+        absenceDefinition:
+          "No observation means no staff dispatch-health response recorded that returned batch state in the interval. It does not prove the line was healthy, unchanged, unavailable to coworkers, or continuously monitored.",
+        currentContextDefinition:
+          "Batch lifecycle, priority, staffing mode, and line context reflect report time, not observation time. Filters on those fields also use current values.",
+        continuousHistorySupported: false,
+        legacyBackfillPerformed: false,
+      },
+      coverage: {
+        evidenceScope: "page",
+        storageWindowStatus: "available",
+        returnedObservations: 0,
+        returnedDistinctBatches: 0,
+        observedEvidenceRows: 0,
+        preStorageAnomalyRows: 0,
+      },
+      summary: {
+        statusObservations: {
+          empty: 0,
+          drained: 0,
+          blocked: 0,
+          partiallyBlocked: 0,
+          claimable: 0,
+        },
+        blockerObservations: {
+          noWorkUnits: 0,
+          noEligibleGroupMembers: 0,
+          noEligibleAllocatedGroupMembers: 0,
+          eligibleCoworkersBusy: 0,
+        },
+      },
+      observations: [],
+      hasMore: false,
+      nextCursor: null,
+    };
+
+    const workforceOperationEvent = {
+      generatedAt: "2026-09-03T20:00:00Z",
+      eventUid: "00000000000000000000000000000009",
+      eventKind: "work_batch",
+      operation: "priority_changed",
+      occurredAt: "2026-09-03T19:59:00Z",
+      target: {
+        batchUid: "00000000000000000000000000000001",
+        sequenceUid: null,
+        groupUid: null,
+        coworkerUid: null,
+        workUnitUid: null,
+        allocationUid: null,
+      },
+      effect: {
+        previousStatus: null,
+        currentStatus: null,
+        previousPriority: "medium",
+        currentPriority: "high",
+        previousStaffingMode: null,
+        currentStaffingMode: null,
+        previousMembership: null,
+        currentMembership: null,
+        previousAllocation: null,
+        currentAllocation: null,
+        previousAssigned: null,
+        currentAssigned: null,
+        workUnitsCreated: null,
+      },
+      provenance: {
+        source: "mcp",
+        actorRecorded: true,
+        clientRecorded: true,
+        reasonRecorded: true,
+      },
+      verification: { status: "complete", issues: [] },
+    };
+    const workforceOperationEventHistory = {
+      generatedAt: "2026-09-03T20:00:00Z",
+      measurement: {
+        scope: "immutable_workforce_operation_history",
+        summaryScope: "page",
+        occurrenceWindow: {
+          occurredFrom: "2026-08-01T00:00:00Z",
+          occurredBefore: "2026-09-01T00:00:00Z",
+          boundary: "half_open",
+        },
+        ordering: "ascending_opaque_event_uid",
+        absenceDefinition:
+          "No returned event means no immutable operation record matched the requested filters and window. It does not prove that no change occurred before the relevant ledger existed or through an uninstrumented mutation path.",
+        storageDefinition:
+          "A ledger window is available when its database table existed for the full requested interval. This describes storage availability, not proof that every mutation path emitted an event.",
+        legacyBackfillPerformed: false,
+      },
+      coverage: {
+        evidenceScope: "page",
+        queriedEventKinds: ["work_batch"],
+        ledgerWindows: {
+          workBatch: {
+            queried: true,
+            storageAvailableAt: "2026-07-01T00:00:00Z",
+            storageWindowStatus: "available",
+          },
+          sequence: {
+            queried: false,
+            storageAvailableAt: "2026-07-02T00:00:00Z",
+            storageWindowStatus: "available",
+          },
+          groupMembership: {
+            queried: false,
+            storageAvailableAt: "2026-07-03T00:00:00Z",
+            storageWindowStatus: "available",
+          },
+        },
+        returnedEvents: 1,
+        verification: { complete: 1, partial: 0, unavailable: 0 },
+      },
+      summary: {
+        eventKinds: { workBatch: 1, sequence: 0, groupMembership: 0 },
+        operations: {
+          batchCreated: 0,
+          priorityChanged: 1,
+          statusChanged: 0,
+          workUnitAssigned: 0,
+          workUnitDeassigned: 0,
+          coworkerAllocated: 0,
+          coworkerDeallocated: 0,
+          memberAdded: 0,
+          memberRemoved: 0,
+          unknown: 0,
+        },
+      },
+      events: [
+        {
+          eventEvidenceStatus: "observed",
+          ...workforceOperationEvent,
+          occurredAt: "2026-08-10T10:15:00Z",
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    };
     const transport = {
       requestPage: vi.fn(
         async (path: string, query?: Record<string, string>) => {
@@ -1316,11 +1729,31 @@ describe("declarative MCP catalog", () => {
             return workforceTrainingCandidates;
           if (
             path ===
+            "/admin/workforce/coworkers/training-cohort-evidence/"
+          )
+            return workforceTrainingCohortEvidence;
+          if (path === "/admin/workforce/coworkers/reliability/")
+            return workforceCoworkerReliability;
+          if (
+            path ===
             "/admin/workforce/coworkers/00000000000000000000000000000007/journey/"
           )
             return coworkerJourney;
           if (path === "/admin/workforce/batches/")
             return workforceBatchInventory;
+          if (path === "/admin/workforce/dispatch-health/")
+            return workforceDispatchHealth;
+          if (path === "/admin/workforce/dispatch-observations/")
+            return workforceDispatchObservations;
+          if (path === "/admin/workforce/dispatch-outcomes/")
+            return workforceDispatchOutcomes;
+          if (path === "/admin/workforce/operation-events/")
+            return workforceOperationEventHistory;
+          if (
+            path ===
+            "/admin/workforce/operation-events/00000000000000000000000000000009/"
+          )
+            return workforceOperationEvent;
           if (path === "/admin/workforce/groups/")
             return workforceGroupCatalog;
           if (

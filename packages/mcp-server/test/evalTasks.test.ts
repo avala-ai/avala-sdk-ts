@@ -17,10 +17,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const TASKS_DIR = join(HERE, "..", "eval", "tasks");
 
 describe("task file contract", () => {
-  it("parses the committed set to exactly 25 gradeable / 12 ungradeable", async () => {
+  it("parses the committed set to exactly 27 gradeable / 12 ungradeable", async () => {
     const { tasks, skipped } = await loadTasks(TASKS_DIR);
-    expect(tasks.length + skipped.length).toBe(37);
-    expect(tasks.length).toBe(25);
+    expect(tasks.length + skipped.length).toBe(39);
+    expect(tasks.length).toBe(27);
     expect(skipped.length).toBe(12);
   });
 
@@ -32,7 +32,7 @@ describe("task file contract", () => {
     });
     expect(bySuite("adversarial")).toEqual({ runnable: 7, skipped: 2 });
     expect(bySuite("read-customer")).toEqual({ runnable: 4, skipped: 10 });
-    expect(bySuite("read-ops")).toEqual({ runnable: 14, skipped: 0 });
+    expect(bySuite("read-ops")).toEqual({ runnable: 16, skipped: 0 });
   });
 
   it("gives every task a declared, unique id", async () => {
@@ -51,14 +51,30 @@ describe("task file contract", () => {
     const count = (predicate: (task: (typeof all)[number]) => unknown) =>
       all.filter(predicate).length;
 
-    expect(all).toHaveLength(37);
-    expect(tasks).toHaveLength(25);
+    expect(all).toHaveLength(39);
+    expect(tasks).toHaveLength(27);
     expect(skipped).toHaveLength(12);
     expect(count((task) => task.answer)).toBe(0);
-    expect(count((task) => task.rubric)).toBe(25);
+    expect(count((task) => task.rubric)).toBe(27);
     expect(count((task) => task.answerTodo)).toBe(12);
     expect(count((task) => task.precondition)).toBe(4);
-    expect(new Set(all.map((task) => task.id)).size).toBe(37);
+    expect(new Set(all.map((task) => task.id)).size).toBe(39);
+  });
+
+  it("keeps operation-history reconciliation evidence-safe", async () => {
+    const { tasks } = await loadTasks(TASKS_DIR);
+    const history = tasks.find(
+      (task) => task.id === "workforce-operation-history-reconciliation",
+    );
+
+    expect(history).toMatchObject({
+      suite: "read-ops",
+      category: "mutation-verification",
+      grading: "rubric",
+    });
+    expect(history?.rubric).toContain("list_workforce_operation_events");
+    expect(history?.rubric).toContain("preserving all other filters");
+    expect(history?.rubric).toContain("not that no change occurred");
   });
 
   it("keeps the sf-lidar readiness regression gradeable", async () => {

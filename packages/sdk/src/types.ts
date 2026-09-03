@@ -272,6 +272,7 @@ export interface Organization {
   slug: string;
   handle: string | null;
   description: string | null;
+  readme: string | null;
   logo: string | null;
   website: string | null;
   industry: string | null;

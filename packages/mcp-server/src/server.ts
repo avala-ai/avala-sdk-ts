@@ -74,6 +74,7 @@ export type { GetClient } from "./client.js";
 const SERVER_INSTRUCTIONS = [
   "Manage the Avala Physical AI data loop through tenant-safe REST-backed tools.",
   "Inspect resources before changing them, use the narrowest available tool, and preserve returned identifiers for follow-up calls.",
+  "After any workforce mutation, preserve operationEventUid and call get_workforce_operation_event; report the effect as verified only when its explicit verification status supports that claim. Use list_workforce_operation_events only when a receipt UID must be discovered, preserve every filter across pages, and never treat an empty result as proof that no change occurred.",
   "Media and export reads return opaque asset handles instead of bearer URLs; resolve_asset_handle uses protocol elicitation and releases a URL only after confirmation.",
   "The product MCP at mcp.avala.ai is distinct from the public documentation MCP at avala.ai/docs/mcp.",
 ].join(" ");

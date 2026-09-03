@@ -14,9 +14,9 @@ import {
  * registers tools through the same `registerTools`, so this count is the
  * stdio/HTTP parity baseline: if it moves, both transports moved together.
  */
-const FULL_TOOL_COUNT = 89;
+const FULL_TOOL_COUNT = 96;
 const HOSTED_READ_TOOL_COUNT = 47;
-const STAFF_TOOL_COUNT = 17;
+const STAFF_TOOL_COUNT = 24;
 const SIGNED_EXPORT_URL =
   "https://bucket.s3.amazonaws.com/export.zip" +
   "?X-Amz-Date=20260829T080000Z&X-Amz-Expires=3600" +
@@ -113,8 +113,17 @@ describe("MCP server", () => {
     expect(server.names).toContain("staff_describe_table");
     expect(server.names).toContain("get_workforce_operations_overview");
     expect(server.names).toContain("list_coworker_training_candidates");
+    expect(server.names).toContain(
+      "list_workforce_training_cohort_evidence",
+    );
+    expect(server.names).toContain("get_workforce_coworker_reliability");
     expect(server.names).toContain("get_coworker_journey");
     expect(server.names).toContain("list_workforce_batches");
+    expect(server.names).toContain("get_workforce_dispatch_health");
+    expect(server.names).toContain("get_workforce_dispatch_observations");
+    expect(server.names).toContain("get_workforce_dispatch_outcomes");
+    expect(server.names).toContain("list_workforce_operation_events");
+    expect(server.names).toContain("get_workforce_operation_event");
     expect(server.names).toContain("list_workforce_groups");
     expect(server.names).toContain("list_workforce_group_members");
     expect(server.names).toContain(
@@ -157,8 +166,17 @@ describe("MCP server", () => {
     expect(server.names).toContain("staff_describe_table");
     expect(server.names).toContain("get_workforce_operations_overview");
     expect(server.names).toContain("list_coworker_training_candidates");
+    expect(server.names).toContain(
+      "list_workforce_training_cohort_evidence",
+    );
+    expect(server.names).toContain("get_workforce_coworker_reliability");
     expect(server.names).toContain("get_coworker_journey");
     expect(server.names).toContain("list_workforce_batches");
+    expect(server.names).toContain("get_workforce_dispatch_health");
+    expect(server.names).toContain("get_workforce_dispatch_observations");
+    expect(server.names).toContain("get_workforce_dispatch_outcomes");
+    expect(server.names).toContain("list_workforce_operation_events");
+    expect(server.names).toContain("get_workforce_operation_event");
     expect(server.names).toContain("list_workforce_groups");
     expect(server.names).toContain("list_workforce_group_members");
     expect(server.names).toContain(
@@ -190,8 +208,16 @@ describe("MCP server", () => {
     expect(server.names).not.toContain("staff_describe_table");
     expect(server.names).not.toContain("get_workforce_operations_overview");
     expect(server.names).not.toContain("list_coworker_training_candidates");
+    expect(server.names).not.toContain(
+      "list_workforce_training_cohort_evidence",
+    );
+    expect(server.names).not.toContain("get_workforce_coworker_reliability");
     expect(server.names).not.toContain("get_coworker_journey");
     expect(server.names).not.toContain("list_workforce_batches");
+    expect(server.names).not.toContain("get_workforce_dispatch_health");
+    expect(server.names).not.toContain("get_workforce_dispatch_outcomes");
+    expect(server.names).not.toContain("list_workforce_operation_events");
+    expect(server.names).not.toContain("get_workforce_operation_event");
     expect(server.names).not.toContain("list_workforce_groups");
     expect(server.names).not.toContain("list_workforce_group_members");
     expect(server.names).not.toContain(
@@ -228,8 +254,16 @@ describe("MCP server", () => {
     expect(server.names).not.toContain("staff_describe_table");
     expect(server.names).toContain("get_workforce_operations_overview");
     expect(server.names).toContain("list_coworker_training_candidates");
+    expect(server.names).toContain(
+      "list_workforce_training_cohort_evidence",
+    );
+    expect(server.names).toContain("get_workforce_coworker_reliability");
     expect(server.names).toContain("get_coworker_journey");
     expect(server.names).toContain("list_workforce_batches");
+    expect(server.names).toContain("get_workforce_dispatch_health");
+    expect(server.names).toContain("get_workforce_dispatch_outcomes");
+    expect(server.names).toContain("list_workforce_operation_events");
+    expect(server.names).toContain("get_workforce_operation_event");
     expect(server.names).toContain("list_workforce_groups");
     expect(server.names).toContain("list_workforce_group_members");
     expect(server.names).toContain(
@@ -263,8 +297,16 @@ describe("MCP server", () => {
     });
     expect(server.names).not.toContain("get_workforce_operations_overview");
     expect(server.names).not.toContain("list_coworker_training_candidates");
+    expect(server.names).not.toContain(
+      "list_workforce_training_cohort_evidence",
+    );
+    expect(server.names).toContain("get_workforce_coworker_reliability");
     expect(server.names).not.toContain("get_coworker_journey");
     expect(server.names).not.toContain("list_workforce_batches");
+    expect(server.names).not.toContain("get_workforce_dispatch_health");
+    expect(server.names).not.toContain("get_workforce_dispatch_outcomes");
+    expect(server.names).toContain("list_workforce_operation_events");
+    expect(server.names).toContain("get_workforce_operation_event");
     expect(server.names).not.toContain("get_workforce_batch_attention");
     expect(server.names).not.toContain("list_workforce_batch_units");
     expect(server.names).not.toContain("get_workforce_sequence_status");
@@ -298,8 +340,16 @@ describe("MCP server", () => {
     });
     expect(server.names).toContain("get_workforce_operations_overview");
     expect(server.names).toContain("list_coworker_training_candidates");
+    expect(server.names).toContain(
+      "list_workforce_training_cohort_evidence",
+    );
+    expect(server.names).not.toContain("get_workforce_coworker_reliability");
     expect(server.names).toContain("get_coworker_journey");
     expect(server.names).toContain("list_workforce_batches");
+    expect(server.names).toContain("get_workforce_dispatch_health");
+    expect(server.names).toContain("get_workforce_dispatch_outcomes");
+    expect(server.names).not.toContain("list_workforce_operation_events");
+    expect(server.names).not.toContain("get_workforce_operation_event");
     expect(server.names).toContain("get_workforce_batch_attention");
     expect(server.names).toContain("list_workforce_batch_units");
     expect(server.names).toContain("get_workforce_sequence_status");

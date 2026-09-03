@@ -8,6 +8,7 @@ describe("organizations resource", () => {
     slug: "acme-corp",
     handle: "acme",
     description: "An example organization",
+    readme: "# Acme operating notes",
     logo: null,
     website: "https://acme.com",
     industry: "technology",
@@ -79,6 +80,7 @@ describe("organizations resource", () => {
 
     expect(org.uid).toBe("org-uid-001");
     expect(org.name).toBe("Acme Corp");
+    expect(org.readme).toBe("# Acme operating notes");
     expect(org.isActive).toBe(true);
     expect(org.datasetCount).toBe(10);
 

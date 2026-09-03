@@ -63,11 +63,10 @@ function isExpectedAssetCapabilityRelease(call: ToolCallRecord): boolean {
  * The outcome of one trial. THREE of these are agent behaviour and are never
  * collapsed into a single pass/fail rate.
  *
- * The distinction is the whole point of `read-ops.xml`: all 14 of its tasks are
- * DESIGNED to be unanswerable against today's surface, and their rubrics grade
- * an honest "I cannot reach that data" as pass-quality while grading a confident
- * fabricated number as strictly WORSE than no answer. A binary scorer flattens
- * exactly the distinction those tasks exist to create.
+ * The distinction is the foundation of `read-ops.xml`: its original 14 gap
+ * probes are designed to reward an honest "I cannot reach that data" while
+ * grading a confident fabricated number as strictly WORSE than no answer. The
+ * suite can also add positive capability probes without flattening that signal.
  */
 export type TrialOutcome =
   /** Answered, and right. The headline metric. */

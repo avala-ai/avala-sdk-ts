@@ -154,6 +154,7 @@ function makeMockAvala(
             throw new Error(`Unexpected mutation path: ${path}`);
           }
           return {
+            operationEventUid: "34".repeat(16),
             batchUid: "12".repeat(16),
             batchStatus: "available",
             previousPriority: body.expected_priority,
@@ -1029,6 +1030,7 @@ describe("Streamable HTTP transport", () => {
     }>(completedResponse);
     expect(completed.result.resultType).toBe("complete");
     expect(completed.result.structuredContent).toMatchObject({
+      operationEventUid: "34".repeat(16),
       batchUid,
       batchStatus: "available",
       previousPriority: "medium",
@@ -1154,6 +1156,7 @@ describe("Streamable HTTP transport", () => {
     }>(completedResponse);
     expect(completed.result.resultType).toBe("complete");
     expect(completed.result.structuredContent).toMatchObject({
+      operationEventUid: "34".repeat(16),
       batchUid,
       previousPriority: "medium",
       priority: "high",
@@ -1275,8 +1278,14 @@ describe("Streamable HTTP transport", () => {
     expect(names).toContain("staff_describe_table");
     expect(names).toContain("get_workforce_operations_overview");
     expect(names).toContain("list_coworker_training_candidates");
+    expect(names).toContain("list_workforce_training_cohort_evidence");
+    expect(names).not.toContain("get_workforce_coworker_reliability");
     expect(names).toContain("get_coworker_journey");
     expect(names).toContain("list_workforce_batches");
+    expect(names).toContain("get_workforce_dispatch_health");
+    expect(names).toContain("get_workforce_dispatch_observations");
+    expect(names).toContain("get_workforce_dispatch_outcomes");
+    expect(names).not.toContain("list_workforce_operation_events");
     expect(names).not.toContain("list_workforce_groups");
     expect(names).not.toContain("list_workforce_group_members");
     expect(names).not.toContain("preview_workforce_group_membership_impact");
@@ -1311,6 +1320,8 @@ describe("Streamable HTTP transport", () => {
     const names = (
       await mcpResult<{ result: { tools: { name: string }[] } }>(res)
     ).result.tools.map((tool) => tool.name);
+    expect(names).toContain("list_workforce_operation_events");
+    expect(names).toContain("get_workforce_operation_event");
     expect(names).toContain("list_workforce_assignment_candidates");
     expect(names).toContain("list_workforce_batch_staffing_candidates");
     expect(names).toContain("list_workforce_batch_coworker_activity");
@@ -1328,8 +1339,13 @@ describe("Streamable HTTP transport", () => {
     expect(names).toContain("set_workforce_sequence_status");
     expect(names).not.toContain("get_workforce_operations_overview");
     expect(names).not.toContain("list_coworker_training_candidates");
+    expect(names).not.toContain("list_workforce_training_cohort_evidence");
+    expect(names).toContain("get_workforce_coworker_reliability");
     expect(names).not.toContain("get_coworker_journey");
     expect(names).not.toContain("list_workforce_batches");
+    expect(names).not.toContain("get_workforce_dispatch_health");
+    expect(names).not.toContain("get_workforce_dispatch_observations");
+    expect(names).not.toContain("get_workforce_dispatch_outcomes");
     expect(names).not.toContain("get_workforce_batch_attention");
     expect(names).not.toContain("list_workforce_batch_units");
     expect(names).not.toContain("get_workforce_sequence_status");
@@ -1352,13 +1368,20 @@ describe("Streamable HTTP transport", () => {
     const names = (
       await mcpResult<{ result: { tools: { name: string }[] } }>(res)
     ).result.tools.map((tool) => tool.name);
+    expect(names).not.toContain("list_workforce_operation_events");
+    expect(names).not.toContain("get_workforce_operation_event");
     expect(names).not.toContain("staff_query");
     expect(names).not.toContain("staff_aggregate");
     expect(names).not.toContain("staff_describe_table");
     expect(names).not.toContain("get_workforce_operations_overview");
     expect(names).not.toContain("list_coworker_training_candidates");
+    expect(names).not.toContain("list_workforce_training_cohort_evidence");
+    expect(names).not.toContain("get_workforce_coworker_reliability");
     expect(names).not.toContain("get_coworker_journey");
     expect(names).not.toContain("list_workforce_batches");
+    expect(names).not.toContain("get_workforce_dispatch_health");
+    expect(names).not.toContain("get_workforce_dispatch_observations");
+    expect(names).not.toContain("get_workforce_dispatch_outcomes");
     expect(names).not.toContain("list_workforce_groups");
     expect(names).not.toContain("list_workforce_group_members");
     expect(names).not.toContain("preview_workforce_group_membership_impact");

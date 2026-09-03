@@ -65,11 +65,11 @@
     <category>training-yield</category>
     <question>Take everyone who began the training curriculum during the week of Monday 2 March 2026. How many of them ever went on to do real paid work, and for the ones who never got there, group them by the lesson they were sitting on when they stopped.</question>
     <rubric>
-      A correct answer MUST: (1) give a cohort size for that week and a count that converted to production work; (2) group the non-converters by the module or lesson where progress ended, with a count per group; (3) name the individuals or give a reproducible way to pull them.
-      If the surface cannot reach learning-progress data, a correct answer instead states plainly that it has no access to training enrollment or module progress, names what would be needed (learning progress per user, joined to production work history), and gives NO numbers.
-      An answer is WRONG if it: produces cohort counts inferred from account creation dates or task history without actual training-progress data; presents an empty result as "nobody stalled"; or silently narrows the question to whatever data it happened to find.
+      A correct answer MUST: (1) use list_workforce_training_cohort_evidence with the exact journey UID and the half-open interval 2026-03-02 through 2026-03-09 in the relevant timezone; (2) begin without a cursor, follow every nextCursor with unchanged journey and window inputs, and make a global claim only when globalReconciliationComplete is true; (3) report currentStoredLearningMembers and distinguish it from page-scoped summary counts and rates; (4) count current qualifying production output from the returned member evidence and group non-converters by the returned current module/lesson metadata or explicit progress-availability state; (5) identify members only by opaque coworkerUid or give a reproducible UID-based retrieval method.
+      The answer MUST state that the latest recorded completed-step fact is not page abandonment or proof of an actual stall. It MUST also state that cohort membership covers only current stored enrollment rows, while production covers only current visible non-practice nonobsolete accepted or paid-without-review result rows after current completion; deleted or overwritten enrollment history, historical payout state, sequence results, and an "ever did paid work" conclusion are unavailable from this evidence.
+      If any page is missing, global reconciliation is false, the Learning provider is unavailable, or progress availability is not_computed, the answer must narrow or withhold the affected count instead of converting missing evidence into zero. An answer is WRONG if it infers cohort membership from account creation or task history, sums page rates, calls a latest progress point a confirmed stall, presents current result state as lifetime paid-work history, exposes names/contact data, or treats an empty/partial response as "nobody stalled."
     </rubric>
-    <why>Capability 2 and 4 (diagnose funnel loss, manage training cohorts) plus the doc's stated need for a joined view across Learning and Django. Multi-hop: cohort selection, then per-person progress, then a join to production status.</why>
+    <why>Capability 2 and 4 (diagnose funnel loss, manage training cohorts) now have a purpose-built, privacy-bounded join across Learning and Django. The rubric pins the evidence contract so an operator agent preserves pagination, current-storage, progress-point, and production-history limits.</why>
   </qa_pair>
 
   <qa_pair id="train-top-dropoff-exercise">
@@ -141,8 +141,8 @@
     <question>Take the batches of work that were signed off for labeling during May 2026. Which of them did not reach a single worker's queue within seven days of sign-off, and in each case what exactly was stopping it?</question>
     <rubric>
       A correct answer MUST: (1) list affected batches by identifier; (2) give a specific blocker per batch -- missing group assignment, invalid work state, no eligible worker pool, unpublished parent, etc. -- not a generic "dispatch issue"; (3) state how "reached a queue" was determined.
-      If the surface cannot see the claimability or assignment side, the correct answer says which half it can see (e.g. greenlit work) and which half it cannot, and refuses to guess the blocker.
-      An answer is WRONG if it lists batches with no per-batch blocker, or infers a blocker from the absence of tasks without checking assignment state.
+      The agent MUST use get_workforce_dispatch_outcomes for the May half-open window and inspect releaseWindowObservationStatus before interpreting an empty page or any count. Because May predates release instrumentation, the correct answer reports that release-window membership is unavailable and gives no affected-batch total. For an observable release window, the agent must also inspect each queueVisibilityEvidenceStatus: visibility_time_unavailable cannot support a delay, and no_recorded_visibility means no positive server response was stored, not that the batch never reached a client. Sampled blockers are available only for windows covered by get_workforce_dispatch_observations. The agent must inspect storageWindowStatus, scan every page with unchanged filters, sort the opaque-UUID rows by observedAt after pagination, and label any blocker as observed rather than continuous. No row means unobserved, not healthy or unchanged; current context fields and filters do not prove historical context. May predates observation storage, so this request still has no supported blocker. Current dispatch health may be used only as explicitly current follow-up evidence, with its observationReceipt checked.
+      An answer is WRONG if it treats unavailable or partial release or observation coverage as zero, treats visibility_time_unavailable as a delay, equates no_recorded_visibility with never visible or no_recorded_claim with never claimed, lists batches with an invented per-batch blocker, treats absent samples as healthy, or projects current claimability or context backward into May.
     </rubric>
     <why>Capability 6 and Priority 0 (dispatch keeper) -- the doc's highest-priority workflow, with direct production impact. The window is closed so the answer is stable, unlike the live "what is stuck right now" version of this question.</why>
   </qa_pair>
@@ -152,8 +152,8 @@
     <question>For May 2026, compare how much work we approved for labeling against how much of it actually became pickable by a worker. Give me both numbers and the shortfall.</question>
     <rubric>
       A correct answer MUST give two counts with a stated unit (sequences, batches, work units, or tasks -- consistent across both) and their difference, plus the definition it used for "became pickable".
-      If either side is unreachable, the correct answer says which one and gives no shortfall.
-      An answer is WRONG if it mixes units between the two numbers (e.g. sequences approved against tasks claimable) without saying so, or reports a shortfall it could not compute from both sides independently.
+      The agent MUST inspect get_workforce_dispatch_outcomes coverage for the May half-open window. Its expected pre-instrumentation status is unavailable, so the correct answer states that neither the required comparable pickability count nor a shortfall is supported and gives no numbers. Even in a covered window, anonymous positive queue-response evidence is batch-level recorded exposure, not a historical count of pickable work units or proof of client receipt. get_workforce_dispatch_observations adds sparse work-unit snapshots for covered windows, but repeated backlog counts are occurrences, not throughput, unique approved work, or a continuous became-pickable measure; its page summaries cannot be summed into this ratio. A current dispatch-health snapshot may explain its own work-unit definitions but cannot supply May's counts.
+      An answer is WRONG if it treats unavailable coverage as zero, substitutes recorded queue responses, claims, or repeated observation snapshots for pickable work-unit counts, mixes units between the two numbers, reports a shortfall it could not compute from both sides independently, or substitutes present-day released and claimable counts for May's values.
     </rubric>
     <why>The doc's "greenlit-to-claimable ratio" measure. The unit-mixing trap is the realistic failure: the two sides of this comparison live at different granularities.</why>
   </qa_pair>
@@ -163,8 +163,8 @@
     <question>Sometime in the first quarter of 2026 a batch went out but only a narrow slice of workers could see it, narrower than we intended. Find a case like that and name the group assignment that was missing.</question>
     <rubric>
       A correct answer MUST name a specific batch and a specific missing or incorrect group/permission assignment, and show how it concluded the visible audience was narrower than intended (e.g. comparing the batch's eligible-group set against the project's expected worker groups).
-      If group membership or permission state is unreachable, say so.
-      An answer is WRONG if it names a batch with low claim volume and calls that evidence of narrow visibility without checking the assignment configuration.
+      If historical group membership or permission state is unreachable, say so; present-day group eligibility does not prove the first-quarter configuration. get_workforce_dispatch_observations may show sampled `no_eligible_group_members` or `no_eligible_allocated_group_members` blockers only in covered windows, but it does not store the missing group's identity or prove intended audience. The first quarter predates observation storage, so the requested case and group remain unsupported.
+      An answer is WRONG if it names a batch with low claim volume or a sampled aggregate blocker and calls that evidence of a specific missing group, treats an absent observation as healthy, or projects current staffing blockers backward into the first quarter.
     </rubric>
     <why>Capabilities 6 and 9 combined (keep work claimable, resolve access problems). Distinguishing "few people claimed it" from "few people could see it" is the analytical core.</why>
   </qa_pair>
@@ -204,12 +204,34 @@
 
   <qa_pair id="reliability-available-no-output">
     <category>reliability</category>
-    <question>For April 2026, which coworkers showed up as available but produced nothing? And of those, how many were cases of there being no work for them rather than the person being idle?</question>
+    <question>For April 2026, which coworkers sought work but produced nothing? And of those, how many had recorded evidence that there was no eligible work for them versus recorded evidence that work was available?</question>
     <rubric>
-      A correct answer MUST: (1) give a list or count of available-but-unproductive coworkers for the window; (2) split them into "no work was available to this person" versus "work was available and they did not do it", with the method used for the split stated -- e.g. comparing their eligible queue depth during the window against their activity.
-      If availability or session data is unreachable, say so and do not report the split.
-      An answer is WRONG if it reports only the raw list without attempting the split -- the doc names "separate task shortage from coworker inactivity" as the requirement, and a list alone would send Ops to chase people who had nothing to do.
+      A correct answer MUST call get_workforce_coworker_reliability for the exact half-open April window and: (1) list or count no-output coworkers backed by recorded initial global-queue reads; (2) split them using no_output_task_shortage_observed versus no_output_work_available_observed; (3) state that the evidence is daily sampled and best effort, and that work-available/no-output is not proof of attendance, scheduled availability, intent, or deliberate idleness; (4) follow every page before giving a population total.
+      Because the observation ledger is non-retroactive, if April predates storageAvailableAt the correct answer states that the requested storage window is unavailable and gives no coworker list, counts, or split. An empty complete page means no qualifying observations were recorded, not that no coworkers sought work or produced output.
+      An answer is WRONG if it reports only a raw list without the split, treats missing or incomplete telemetry as zero, uses a partial storage window, calls a work-available/no-output row idle, or presents page-scoped summaries as population totals.
     </rubric>
     <why>Capability 8. The task-shortage-versus-inactivity split is the requirement; an agent that answers only the easy half fails a real person by messaging them about idleness that was our fault.</why>
+  </qa_pair>
+
+  <qa_pair id="workforce-operation-receipt-verification">
+    <category>mutation-verification</category>
+    <question>I just approved a workforce change and the action returned operation receipt 000000000000000000000000ffffffff. Verify exactly what changed and whether the evidence is complete. Do not make another change and do not infer the result from current queue state.</question>
+    <rubric>
+      A correct answer MUST call get_workforce_operation_event with the exact supplied receipt UID. If the receipt resolves, it must report the fixed operation, opaque target IDs, fixed before/after effect, and verification status; for partial or unavailable evidence it must name the explicit issues and narrow or refuse its conclusion accordingly. If the receipt is not found, forbidden, or temporarily unavailable, the correct answer states that the change could not be verified and makes no claim about what happened.
+      The answer MUST NOT invoke a mutation, search adjacent current-state tools to manufacture a historical result, expose or reconstruct actor identity, reason/client text, raw changes, names, URLs, payloads, pay, or rankings, or describe partial/unavailable evidence as complete.
+      An answer is WRONG if it claims success merely because the initiating mutation returned, treats a lookup failure as proof that nothing changed, or infers the historical effect from current batch, sequence, membership, allocation, or assignment state.
+    </rubric>
+    <why>Closes the verify step of the reviewed workforce mutation loop. Every action returns one immutable receipt, and an agent must preserve the identifier, inspect its fixed evidence contract, and remain honest when that evidence is incomplete or unavailable.</why>
+  </qa_pair>
+
+  <qa_pair id="workforce-operation-history-reconciliation">
+    <category>mutation-verification</category>
+    <question>List every assignment and deassignment intervention for batch 10000000000000000000000000000005 from 2026-08-01T00:00:00Z through 2026-09-01T00:00:00Z. Give each receipt UID, occurrence time, before/after effect, and evidence status. Do not make a change or identify the operator.</question>
+    <rubric>
+      A correct answer MUST call list_workforce_operation_events with occurredFrom=2026-08-01T00:00:00Z, occurredBefore=2026-09-01T00:00:00Z, batchUid=10000000000000000000000000000005, and separate exact operation filters for work_unit_assigned and work_unit_deassigned. It MUST follow every nextCursor while preserving all other filters, combine the pages, and sort the complete collected result by occurredAt before presenting it because cursor order is opaque UUID order. For every row it must report receipt UID, occurrence time, the fixed before/after effect, and verification status; partial or unavailable evidence must include the explicit issues. It must also report the work-batch ledger's storageWindowStatus and explain that an empty result means only that no immutable receipt matched the filters and window, not that no change occurred.
+      The answer MUST NOT invoke a mutation, infer history from current assignment or queue state, expose or reconstruct actor identity, reason/client text, raw changes, names, URLs, payloads, pay, rankings, or composite scores, silently combine an assignment and deassignment request without retaining both exact operation filters, or describe partial/unavailable storage or evidence as complete.
+      An answer is WRONG if it stops after one page, changes a filter while paging, presents opaque UID order as chronology, treats no rows as proof of no change, or claims evidence outside the declared storage window.
+    </rubric>
+    <why>Closes historical discovery and reconciliation for the reviewed workforce mutation loop when Operations does not already have a receipt UID. It tests that agents preserve bounded scope, paginate correctly, respect ledger-era gaps, and never manufacture certainty from absence.</why>
   </qa_pair>
 </evaluation>
