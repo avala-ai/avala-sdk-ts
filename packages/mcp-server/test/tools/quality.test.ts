@@ -311,7 +311,8 @@ describe("quality tools", () => {
   });
 
   it("registers the quality target and acceptance tools", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(5);
+    expect(server.registerTool).toHaveBeenCalledTimes(6);
+    expect(server.getHandler("inspect_customer_qc_context")).toBeDefined();
     expect(server.getHandler("list_quality_targets")).toBeDefined();
     expect(server.getHandler("get_result_acceptance")).toBeDefined();
     expect(server.getHandler("get_campaign_acceptance_summary")).toBeDefined();

@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-09-04T15:00:00+03:00",
+  "criteria": {
+    "min_hours_in_stage": 24.0,
+    "inactive_after_hours": 72.0
+  },
+  "coverage": {
+    "scan_order": "coworker_uid",
+    "rank_order": "stage_proximity_then_hours_desc_then_coworker_uid",
+    "scanned_coworkers": 3,
+    "blocked_coworkers": 2,
+    "not_blocked_coworkers": 0,
+    "identity_conflicts": 1,
+    "filtered_below_min_hours": 1,
+    "blocked_by_stage": {
+      "account": 0,
+      "approval": 1,
+      "learning_identity": 0,
+      "onboarding": 0,
+      "training": 0,
+      "qualification": 0,
+      "ready_for_assignment": 1
+    },
+    "global_scan_complete": false
+  },
+  "coworkers": [
+    {
+      "evaluation_status": "evaluated",
+      "coworker_uid": "00000000000000000000000000000001",
+      "display_name": "Ava",
+      "current_stage": "ready_for_assignment",
+      "stage_entered_at": "2026-09-01T15:00:00+03:00",
+      "stage_entered_source": "learning.task_access.granted_at",
+      "hours_in_stage": 72.0,
+      "stage_duration_unknown": false,
+      "last_activity_at": null,
+      "activity_status": "unknown",
+      "block_kind": "system_or_operations",
+      "next_required_step": {
+        "code": "assign_to_production_work",
+        "evidence": [
+          {
+            "source": "production",
+            "fact": "actionable_assignments",
+            "observed": "0"
+          }
+        ]
+      },
+      "blocker": null,
+      "proposed_action": {
+        "code": "assign_to_production_work",
+        "owner": "operations",
+        "requires_human_approval": true,
+        "mcp_tool": "assign_workforce_work_unit"
+      },
+      "expected_capacity_effect": {
+        "availability": "not_computed"
+      }
+    },
+    {
+      "evaluation_status": "identity_conflict",
+      "coworker_uid": "00000000000000000000000000000002",
+      "display_name": "Ava",
+      "code": "coworker_journey_identity_conflict",
+      "retryable": false
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}

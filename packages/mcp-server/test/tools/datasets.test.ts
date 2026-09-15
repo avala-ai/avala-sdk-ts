@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Client } from "@modelcontextprotocol/client";
+import { InMemoryTransport, McpServer } from "@modelcontextprotocol/server";
 import {
   assetIdentityForUrl,
   createAssetHandleService,
@@ -396,7 +398,6 @@ describe("dataset tools", () => {
       dataType: "lidar",
       visibility: "private",
       createMetadata: undefined,
-      providerConfig: undefined,
       ownerName: undefined,
     });
     const parsed = JSON.parse(result.content[0].text);
@@ -404,7 +405,33 @@ describe("dataset tools", () => {
     expect(parsed.name).toBe("New Dataset");
   });
 
-  it("create_dataset passes provider config and owner", async () => {
+  it("rejects retired providerConfig through MCP before creating anything", async () => {
+    const realServer = new McpServer({ name: "dataset-compatibility-test", version: "1.0.0" });
+    registerDatasetTools(realServer, (() => avala) as never, true, assetHandles);
+    const client = new Client({ name: "stale-client-test", version: "1.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await realServer.connect(serverTransport);
+    await client.connect(clientTransport);
+    const args = { name: "Storage Dataset", slug: "storage-dataset", dataType: "image" };
+    avala.datasets.create.mockResolvedValue({ uid: "created", ...args });
+    try {
+      const refused = await client.callTool({
+        name: "create_dataset",
+        arguments: { ...args, providerConfig: { provider: "aws_s3" } },
+      });
+      expect(refused.isError).toBe(true);
+      expect(avala.datasets.create).not.toHaveBeenCalled();
+
+      const accepted = await client.callTool({ name: "create_dataset", arguments: args });
+      expect(accepted.isError).not.toBe(true);
+      expect(avala.datasets.create).toHaveBeenCalledTimes(1);
+    } finally {
+      await client.close();
+      await realServer.close();
+    }
+  });
+
+  it("create_dataset passes owner without accepting provider credentials", async () => {
     avala.datasets.create.mockResolvedValue({
       uid: "s3-ds",
       name: "S3 Dataset",
@@ -418,13 +445,11 @@ describe("dataset tools", () => {
       name: "S3 Dataset",
       slug: "s3-dataset",
       dataType: "image",
-      providerConfig: { provider: "aws_s3", s3_bucket_name: "my-bucket" },
       ownerName: "my-org",
     });
 
     expect(avala.datasets.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        providerConfig: { provider: "aws_s3", s3_bucket_name: "my-bucket" },
         ownerName: "my-org",
       }),
     );
@@ -715,6 +740,7 @@ describe("dataset tools", () => {
       frameCount: 1,
       cameraCount: 1,
     });
+    expect(concise.structuredContent).toEqual(JSON.parse(concise.content[0].text));
   });
 
   it("get_calibration explains an empty camera rig", async () => {

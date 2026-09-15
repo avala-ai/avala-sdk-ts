@@ -125,13 +125,22 @@ See [MCP Setup Guide](https://avala.ai/docs/integrations/mcp-setup) for configur
 
 ## Development
 
-This is a pnpm monorepo. To get started:
+This is a Bun workspace. To get started (Node 20+ and npm are also required):
 
 ```bash
-pnpm install
-pnpm -r build
-pnpm -r test
+bun install --frozen-lockfile
+bun run build
+bun run test
+bun run lint
 ```
+
+`bun run test` includes `bun run test:package`: build both packages, pack them
+with npm, install the tarballs into a disposable directory outside the workspace,
+and initialize/list tools through the installed MCP executable using Node.
+This needs access to the public npm registry for third-party dependencies, but
+uses no real Avala credentials and makes no Avala API calls. The SDK and MCP
+versions and the MCP server's exact SDK dependency must match; npm does not
+rewrite `workspace:*` when packing.
 
 ## Documentation
 

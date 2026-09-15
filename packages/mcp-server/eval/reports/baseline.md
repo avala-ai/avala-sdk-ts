@@ -6,14 +6,30 @@ deliberately not a table of zeros — a report full of zeros reads like a result
 `make eval` overwrites this file with the real numbers on the first run that
 completes.
 
+Rubric grading now receives the actor-visible tool responses with their call
+arguments and outcomes, after shared credential/PII scrubbing. JSON is parsed
+before key-path redaction; free-form prose still has only value-based detection.
+Evidence is capped at 64 KiB per item and 256 KiB for the complete grading prompt.
+Missing successful-call evidence or excess size produces an unscored harness
+error, including before an exact-answer shortcut; evidence is never silently
+truncated. Known answers use normalized equality, not substring matching.
+Synthetic injected-grader tests verify evidence delivery, redaction and error
+handling; they do not measure model grading accuracy or hosted workflows.
+Valid JSON numeric tokens must preserve their decimal value through parsing and
+serialization; lossy fractions, underflow, negative zero and unsafe integers are
+unscored errors. Equivalent decimal/exponent spellings and decimal strings remain
+supported. Failed calls retain observed HTTP status codes and fixed categories
+from the failure detector, while their raw bodies and dynamic paths are withheld.
+Those signals do not establish the underlying cause or whether an entity exists.
+
 ## Task set (parsed from the committed XML and pinned by `test/evalTasks.test.ts`)
 
 | file | pairs | gradeable | ungradeable |
 |---|---|---|---|
 | `adversarial.xml` | 9 | 7 | 2 |
 | `read-customer.xml` | 14 | 4 | 10 |
-| `read-ops.xml` | 15 | 15 | 0 |
-| **total** | **38** | **26** | **12** |
+| `read-ops.xml` | 18 | 18 | 0 |
+| **total** | **41** | **29** | **12** |
 
 Gradeable = has `<answer>` or `<rubric>` and no `<answer-todo>`.
 `<precondition>` never blocks a run. Pinned by `test/evalTasks.test.ts`.

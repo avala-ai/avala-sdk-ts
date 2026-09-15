@@ -12,6 +12,7 @@ import {
   registerReadCatalogTool,
 } from "../catalog.js";
 import { z } from "zod";
+import { MUTATION_ANNOTATIONS } from "../annotations.js";
 
 const sanitizedRecordSchema = z.record(z.string(), z.unknown());
 
@@ -152,6 +153,11 @@ export function registerExportTools(
           project: z.string().optional().describe("Project UID to export"),
           dataset: z.string().optional().describe("Dataset UID to export"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "exports.create",
+          "avala.ai/toolset": "exports",
+        },
       },
       async ({ project, dataset }) => {
         const avala = getClient("create_export");

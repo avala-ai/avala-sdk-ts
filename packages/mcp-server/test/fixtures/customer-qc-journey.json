@@ -1,0 +1,186 @@
+{
+  "provenance": "Synthetic offline fixture; not recorded customer data or a hosted acceptance baseline.",
+  "question": "For the synthetic warehouse collection, identify the two oldest currently open critical annotation problems created by 2026-09-01T00:00:00Z, using that timestamp only to compute ages. Inspect exact sequence, project, object and frame evidence, then the current workflow context for each selected sequence's cuboids deliverable in the explicitly supplied synthetic organization. Keep issue reports separate from workflow metadata. Do not change any work or treat available transitions as approval authority.",
+  "asOf": "2026-09-01T00:00:00Z",
+  "owner": "synthetic-tenant",
+  "datasetSlug": "synthetic-warehouse",
+  "organizationUid": "00000000-0000-0000-0000-000000000001",
+  "deliverableId": "cuboids",
+  "workflowContexts": [
+    {
+      "sequence_uid": "00000000-0000-0000-0000-000000000003",
+      "workflow_revision_uid": "00000000-0000-0000-0000-000000000004",
+      "workflow_state": "customer_review",
+      "available_decisions": [
+        { "state": "customer_approved", "outcome": "approved" }
+      ],
+      "blockers": [
+        "annotation_revision_fence_missing",
+        "independent_proposal_approval_missing"
+      ],
+      "context_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "sequence_uid": "00000000-0000-0000-0000-000000000005",
+      "workflow_revision_uid": "00000000-0000-0000-0000-000000000006",
+      "workflow_state": "in_progress",
+      "available_decisions": [],
+      "blockers": [
+        "annotation_revision_fence_missing",
+        "independent_proposal_approval_missing",
+        "customer_review_not_available"
+      ],
+      "context_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "datasetPages": [
+    {
+      "next": "https://fixture.invalid/api/v1/datasets/?limit=1&cursor=second-page",
+      "previous": null,
+      "results": [
+        {
+          "uid": "dataset-distractor",
+          "name": "Synthetic warehouse in another organization",
+          "slug": "synthetic-warehouse",
+          "item_count": 20,
+          "data_type": "lidar",
+          "owner_name": "synthetic-other-tenant"
+        }
+      ]
+    },
+    {
+      "next": null,
+      "previous": null,
+      "results": [
+        {
+          "uid": "00000000-0000-0000-0000-000000000002",
+          "name": "Synthetic warehouse",
+          "slug": "synthetic-warehouse",
+          "item_count": 10,
+          "data_type": "lidar",
+          "owner_name": "synthetic-tenant"
+        }
+      ]
+    }
+  ],
+  "issueDefaults": {
+    "project": { "uid": "project-qc", "name": "Synthetic QC project" },
+    "priority": "high",
+    "severity": "critical",
+    "description": "Inspect the labeled object's class against source frames.",
+    "status": "open",
+    "tool": { "uid": "tool-cuboid", "name": "Cuboid", "default": true },
+    "problem": { "uid": "problem-class", "title": "Wrong class" },
+    "wrong_class": "car",
+    "correct_class": "truck",
+    "should_re_annotate": true,
+    "should_delete": false,
+    "coordinates": { "x": 1, "y": 2, "z": 3 },
+    "query_params": { "camera": "front" },
+    "closed_at": null,
+    "reporter": { "username": "synthetic-reporter-should-be-omitted" }
+  },
+  "issues": [
+    {
+      "uid": "issue-newer",
+      "dataset_item_uid": "item-newer",
+      "sequence_uid": "00000000-0000-0000-0000-000000000005",
+      "object_uid": "object-newer",
+      "frames_affected": "8",
+      "created_at": "2026-08-30T00:00:00Z"
+    },
+    {
+      "uid": "issue-closed",
+      "dataset_item_uid": "item-closed",
+      "sequence_uid": "00000000-0000-0000-0000-000000000003",
+      "object_uid": "object-closed",
+      "frames_affected": "1",
+      "created_at": "2026-08-01T00:00:00Z",
+      "closed_at": "2026-08-10T00:00:00Z",
+      "status": "completed"
+    },
+    {
+      "uid": "issue-second",
+      "dataset_item_uid": "item-second",
+      "sequence_uid": "00000000-0000-0000-0000-000000000005",
+      "object_uid": "object-second",
+      "frames_affected": "6,7",
+      "created_at": "2026-08-25T00:00:00Z"
+    },
+    {
+      "uid": "issue-closed-after-age-reference",
+      "dataset_item_uid": "item-closed-later",
+      "sequence_uid": "00000000-0000-0000-0000-000000000003",
+      "object_uid": "object-closed-later",
+      "frames_affected": "1",
+      "created_at": "2026-08-03T00:00:00Z",
+      "closed_at": "2026-09-03T00:00:00Z",
+      "status": "completed"
+    },
+    {
+      "uid": "issue-moderate",
+      "dataset_item_uid": "item-moderate",
+      "sequence_uid": "00000000-0000-0000-0000-000000000003",
+      "object_uid": "object-moderate",
+      "frames_affected": "2",
+      "created_at": "2026-08-02T00:00:00Z",
+      "severity": "moderate"
+    },
+    {
+      "uid": "issue-oldest",
+      "dataset_item_uid": "item-oldest",
+      "sequence_uid": "00000000-0000-0000-0000-000000000003",
+      "object_uid": "object-oldest",
+      "frames_affected": "3,4",
+      "created_at": "2026-08-20T00:00:00Z"
+    },
+    {
+      "uid": "issue-after-window",
+      "dataset_item_uid": "item-future",
+      "sequence_uid": "00000000-0000-0000-0000-000000000005",
+      "object_uid": "object-future",
+      "frames_affected": "9",
+      "created_at": "2026-09-02T00:00:00Z"
+    }
+  ],
+  "nullableIssues": [
+    {
+      "uid": "issue-item-only",
+      "dataset_item_uid": "item-without-sequence",
+      "sequence_uid": null,
+      "project": null,
+      "object_uid": null,
+      "frames_affected": null,
+      "created_at": "2026-08-05T00:00:00Z"
+    },
+    {
+      "uid": "issue-without-project",
+      "dataset_item_uid": null,
+      "sequence_uid": "00000000-0000-0000-0000-000000000003",
+      "project": null,
+      "object_uid": "object-without-project",
+      "frames_affected": "3,4",
+      "created_at": "2026-08-06T00:00:00Z"
+    }
+  ],
+  "expected": [
+    {
+      "uid": "issue-oldest",
+      "ageDays": 12,
+      "sequenceUid": "00000000-0000-0000-0000-000000000003",
+      "projectUid": "project-qc",
+      "datasetItemUid": "item-oldest",
+      "objectUid": "object-oldest",
+      "framesAffected": "3,4"
+    },
+    {
+      "uid": "issue-second",
+      "ageDays": 7,
+      "sequenceUid": "00000000-0000-0000-0000-000000000005",
+      "projectUid": "project-qc",
+      "datasetItemUid": "item-second",
+      "objectUid": "object-second",
+      "framesAffected": "6,7"
+    }
+  ]
+}

@@ -13,11 +13,14 @@
     "avala-mcp-server": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "skills"
   ],
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
+    "test:package": "bun run --cwd ../sdk build && bun run build && bun scripts/verify-package-install.ts",
+    "test:release": "bun scripts/verify-package-install.ts --registry-version",
     "lint": "tsc --project ../sdk/tsconfig.json --emitDeclarationOnly && tsc --noEmit && tsc --project scripts/tsconfig.json && tsc --project eval/tsconfig.json",
     "docs:generate": "bun scripts/generate-mcp-docs.ts",
     "docs:check": "bun scripts/generate-mcp-docs.ts --check",
@@ -26,7 +29,7 @@
     "eval:record": "bun eval/runner.ts --live --trials 1 --concurrency 1"
   },
   "dependencies": {
-    "@avala-ai/sdk": "workspace:*",
+    "@avala-ai/sdk": "0.7.4",
     "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "jose": "^6.2.1",

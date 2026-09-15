@@ -6,6 +6,7 @@ import {
   registerReadCatalogTool,
 } from "../catalog.js";
 import { z } from "zod";
+import { MUTATION_ANNOTATIONS } from "../annotations.js";
 
 const webhookOutputSchema = z
   .object({
@@ -72,6 +73,11 @@ export function registerWebhookTools(
             .array(z.string())
             .describe("List of event types to subscribe to"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "webhooks.write",
+          "avala.ai/toolset": "webhooks",
+        },
       },
       async ({ targetUrl, events }) => {
         const avala = getClient("create_webhook");
@@ -96,6 +102,11 @@ export function registerWebhookTools(
             .string()
             .describe("The unique identifier (UUID) of the webhook to delete"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "webhooks.write",
+          "avala.ai/toolset": "webhooks",
+        },
       },
       async ({ uid }) => {
         const avala = getClient("delete_webhook");

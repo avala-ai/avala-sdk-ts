@@ -125,6 +125,31 @@ describe("stats tools", () => {
     expect(parsed.exports.count).toBe(0);
   });
 
+  it("returns successful sections with an actionable degraded marker", async () => {
+    const upstreamError = Object.assign(new Error("upstream unavailable"), {
+      statusCode: 503,
+    });
+    avala.datasets.list.mockRejectedValue(upstreamError);
+    avala.projects.listMine.mockResolvedValue({ items: [], hasMore: false });
+    avala.exports.list.mockResolvedValue({
+      items: [{ uid: "exp-1" }],
+      hasMore: false,
+    });
+
+    const result = await server.getHandler("get_workspace_stats")!({});
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed.datasets).toBeUndefined();
+    expect(result.structuredContent).toEqual(parsed);
+    expect(parsed.projects.count).toBe(0);
+    expect(parsed.projects.countStatus).toBe("exact");
+    expect(parsed.exports.count).toBe(1);
+    expect(parsed.degraded).toBe(true);
+    expect(parsed.unavailable).toEqual([
+      expect.objectContaining({ part: "datasets", status: 503 }),
+    ]);
+  });
+
   it("never presents a one-row cursor probe as an exact total", async () => {
     const partial = {
       items: [{ uid: "first" }],

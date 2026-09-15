@@ -207,10 +207,27 @@ describe("workflow tools", () => {
       expect(parsed.devices.online).toBe(2);
       expect(parsed.devices.offline).toBe(1);
       expect(parsed.devices.maintenance).toBe(1);
+      expect(parsed.devices.hasMore).toBe(false);
       expect(parsed.alerts.totalOpen).toBe(3);
       expect(parsed.alerts.bySeverity.critical).toBe(2);
       expect(parsed.alerts.bySeverity.warning).toBe(1);
+      expect(parsed.alerts.hasMore).toBe(false);
       expect(parsed.recordings.recentCount).toBe(2);
+      expect(parsed.recordings.hasMore).toBe(false);
+      expect(result.structuredContent).toEqual(parsed);
+    });
+
+    it("marks every capped fleet section as incomplete", async () => {
+      avala.transport.requestPage.mockResolvedValue({
+        items: [{ uid: "first", status: "online", severity: "warning" }],
+        hasMore: true,
+      });
+      const result = await server.getHandler("get_fleet_health")!({});
+      const parsed = JSON.parse(result.content[0].text);
+      for (const section of ["devices", "alerts", "recordings"]) {
+        expect(parsed[section].hasMore).toBe(true);
+        expect(parsed[section].note).toMatch(/Capped/);
+      }
       expect(result.structuredContent).toEqual(parsed);
     });
 
@@ -260,8 +277,9 @@ describe("workflow tools", () => {
         online: 0,
         offline: 0,
         maintenance: 0,
+        hasMore: false,
       });
-      expect(body.recordings).toEqual({ recentCount: 0 });
+      expect(body.recordings).toEqual({ recentCount: 0, hasMore: false });
 
       const unavailable = body.unavailable as { part: string; status: number; remedy: string }[];
       expect(unavailable).toHaveLength(1);
@@ -328,11 +346,38 @@ describe("workflow tools", () => {
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.project.name).toBe("My Project");
       expect(parsed.project.status).toBe("active");
+      expect(parsed.qualityTargets.returnedCount).toBe(2);
       expect(parsed.qualityTargets.total).toBe(2);
       expect(parsed.qualityTargets.breached).toBe(1);
+      expect(parsed.qualityTargets.hasMore).toBe(false);
       expect(parsed.qualityTargets.targets[0].name).toBe("Accuracy");
       expect(parsed.qualityTargets.targets[1].isBreached).toBe(true);
       expect(parsed.consensus.meanScore).toBe(0.85);
+    });
+
+    it("preserves the page-count alias and reports unavailable and capped evidence", async () => {
+      avala.projects.getMine.mockRejectedValue(
+        Object.assign(new Error("private upstream detail"), { statusCode: 403 }),
+      );
+      avala.qualityTargets.list.mockResolvedValue({
+        items: [{ uid: "qt-1", name: "Accuracy", metric: "accuracy", isBreached: false }],
+        hasMore: true,
+      });
+      avala.consensus.getSummary.mockResolvedValue({});
+
+      const result = await server.getHandler("get_project_quality_summary")!({ projectUid: "proj-1" });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.project).toBeUndefined();
+      expect(parsed.degraded).toBe(true);
+      expect(parsed.unavailable).toEqual([
+        expect.objectContaining({ part: "project", status: 403 }),
+      ]);
+      expect(parsed.qualityTargets).toMatchObject({
+        returnedCount: 1, total: 1, breached: 0, hasMore: true,
+      });
+      expect(parsed.qualityTargets.note).toMatch(/Capped at 50/);
+      expect(result.content[0].text).not.toContain("private upstream detail");
+      expect(result.structuredContent).toEqual(parsed);
     });
   });
 

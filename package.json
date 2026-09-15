@@ -2,7 +2,8 @@
   "private": true,
   "scripts": {
     "build": "bun run --filter '*' build",
-    "test": "bun run --filter '*' test",
+    "test": "bun run --filter '*' test && bun run test:package",
+    "test:package": "bun run --cwd packages/mcp-server test:package",
     "lint": "bun run --filter '*' lint"
   },
   "workspaces": [

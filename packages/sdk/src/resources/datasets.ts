@@ -120,6 +120,7 @@ export interface CreateDatasetOptions {
   name: string;
   slug: string;
   dataType: string;
+  /** Defaults to private; public and unlisted are supported by compatible connector-create APIs. */
   visibility?: string;
   createMetadata?: boolean;
   providerConfig?: Record<string, unknown>;
@@ -144,6 +145,7 @@ export class DatasetsResource extends BaseResource {
     dataType?: string;
     name?: string;
     status?: string;
+    /** Filter authorized workspace results; private/unlisted/public on supporting servers. Grants no access. */
     visibility?: string;
     limit?: number;
     cursor?: string;

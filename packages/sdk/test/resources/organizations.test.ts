@@ -89,6 +89,7 @@ describe("organizations resource", () => {
   });
 
   it("creates an organization with snake_case body", async () => {
+    // Existing payloads omit the new optional profile metadata.
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -108,6 +109,8 @@ describe("organizations resource", () => {
     });
 
     expect(org.name).toBe("Acme Corp");
+    expect(org.organizationType).toBeUndefined();
+    expect(org.githubUrl).toBeUndefined();
 
     const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     const body = JSON.parse(callArgs[1].body);
@@ -115,6 +118,28 @@ describe("organizations resource", () => {
     expect(body.description).toBe("An example organization");
     expect(body.website).toBe("https://acme.com");
     expect(body.industry).toBe("technology");
+  });
+
+  it.each([null, "", "profile-value"])("preserves optional profile metadata: %s", async (value) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: () => Promise.resolve({
+        ...mockOrganization,
+        organization_type: value,
+        x_url: value,
+        hugging_face_url: value,
+        github_url: value,
+        linkedin_url: value,
+      }),
+    }));
+    const org = await new Avala({ apiKey: "test-key" }).organizations.get("acme-corp");
+    expect(org.organizationType).toBe(value);
+    expect(org.xUrl).toBe(value);
+    expect(org.huggingFaceUrl).toBe(value);
+    expect(org.githubUrl).toBe(value);
+    expect(org.linkedinUrl).toBe(value);
   });
 
   it("deletes an organization", async () => {

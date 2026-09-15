@@ -1,0 +1,29 @@
+{
+  "generated_at": "2026-09-09T15:00:00+03:00",
+  "measurement": {
+    "source": "stored_organization_billing",
+    "provider_live_status_verified": false,
+    "invoice_amounts_supported": false,
+    "settlement_verification": "unavailable"
+  },
+  "organizations": [
+    {
+      "organization_uid": "10000000000040008000000000000001",
+      "billing_record_status": "present",
+      "subscription_status": "past_due",
+      "current_period_start": "2026-09-01T03:00:00+03:00",
+      "current_period_end": "2026-10-01T03:00:00+03:00",
+      "record_updated_at": "2026-09-09T14:00:00+03:00"
+    },
+    {
+      "organization_uid": "20000000000040008000000000000001",
+      "billing_record_status": "missing",
+      "subscription_status": null,
+      "current_period_start": null,
+      "current_period_end": null,
+      "record_updated_at": null
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}

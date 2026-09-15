@@ -1,3 +1,9 @@
+import { readFileSync } from "node:fs";
+import { snakeToCamel } from "../../sdk/src/http.js";
+import {
+  customerQcTarget,
+  customerQcWireContext,
+} from "./fixtures/customer-qc-context.js";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
@@ -97,6 +103,7 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 }>;
 
 const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
+  inspect_customer_qc_context: customerQcTarget,
   list_datasets: { limit: 5, cursor: "next-page" },
   get_dataset: { uid: "00000000-0000-0000-0000-000000000001" },
   list_sequences: { owner: "robotics-team", slug: "warehouse-bags", limit: 10 },
@@ -197,6 +204,7 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
   get_coworker_journey: {
     coworkerUid: "00000000000000000000000000000007",
   },
+  list_blocked_onboarding_coworkers: { limit: 10 },
   list_coworker_training_candidates: {
     completedFrom: "2026-01-01T00:00:00Z",
     completedBefore: "2026-09-01T00:00:00Z",
@@ -383,6 +391,7 @@ function expectedToolsetForRoute(
   scopeDomain: string | null | undefined,
 ): string | undefined {
   if (route.name.startsWith("workforce-")) return "staff";
+  if (route.name === "customer-qc-context") return "quality";
   if (route.path.includes("/consensus/")) return "consensus";
   if (route.app === "quality_control") return "quality";
   if (route.path.includes("/sequences/")) return "sequences";
@@ -400,6 +409,54 @@ function manifestPathPattern(path: string): RegExp {
 }
 
 describe("declarative MCP catalog", () => {
+  it.each([
+    { extra: {}, expected: { "avala.ai/required-scope": "datasets.read" } },
+    {
+      extra: { additionalScopes: ["qc.read"] },
+      expected: { "avala.ai/required-scopes": ["datasets.read", "qc.read"] },
+    },
+    {
+      extra: { alternativeScopes: ["operations.proposal.read"] },
+      expected: {
+        "avala.ai/required-any-scopes": ["datasets.read", "operations.proposal.read"],
+      },
+    },
+    {
+      extra: { alternativeScopes: ["operations.proposal.read"], additionalScopes: ["qc.read"] },
+      expected: {
+        "avala.ai/required-any-scopes": ["datasets.read", "operations.proposal.read"],
+        "avala.ai/required-scopes": ["qc.read"],
+      },
+    },
+  ])(
+    "keeps additional scopes conjunctive without changing alternative semantics: %j",
+    ({ extra, expected }) => {
+      const server = { registerTool: vi.fn() };
+      registerReadCatalogTool(
+        server as never,
+        (() => { throw new Error("no I/O at registration"); }) as never,
+        defineReadCatalogTool({
+          name: "scope_example",
+          title: "Scope example",
+          description: "Scope example",
+          inputSchema: z.object({}),
+          outputSchema: z.object({}),
+          route: {
+            name: "scope-example", method: "GET", path: "/example/",
+            response: "single", scope: "datasets.read", toolset: "quality",
+            ...extra,
+          },
+        }),
+      );
+      expect(server.registerTool.mock.calls[0]![1]._meta).toEqual({
+        "avala.ai/rest-route": "scope-example",
+        "avala.ai/rest-method": "GET",
+        "avala.ai/toolset": "quality",
+        ...expected,
+      });
+    },
+  );
+
   it("registers and executes every catalog read through its declared transport", async () => {
     const registrations = new Map<
       string,
@@ -1748,6 +1805,8 @@ describe("declarative MCP catalog", () => {
           calls.push({ method: "GET", path, query });
           if (path.endsWith("/annotation-issues/metrics/"))
             return annotationIssueMetrics;
+          if (path.startsWith("/customer-qc/"))
+            return snakeToCamel(customerQcWireContext);
           if (
             path.endsWith(
               "/results/00000000-0000-0000-0000-000000000019/acceptance/",
@@ -1761,6 +1820,8 @@ describe("declarative MCP catalog", () => {
           if (path.endsWith("/curation-preview/")) return curationPreview;
           if (path === "/admin/workforce/overview/")
             return workforceOperationsOverview;
+          if (path === "/admin/workforce/coworkers/onboarding-blockers/")
+            return snakeToCamel(JSON.parse(readFileSync(new URL("./fixtures/onboarding-blockers.json", import.meta.url), "utf8")));
           if (path === "/admin/workforce/coworkers/training-candidates/")
             return workforceTrainingCandidates;
           if (
@@ -1902,8 +1963,13 @@ describe("declarative MCP catalog", () => {
           : scopeDomain
             ? [SCOPE_BY_DOMAIN[scopeDomain]]
             : [];
-        expect(expectedScopes).toHaveLength(1);
-        expect(definition.route.scope).toBe(expectedScopes[0]);
+        expect(
+          [
+            definition.route.scope,
+            ...(definition.route.alternativeScopes ?? []),
+            ...(definition.route.additionalScopes ?? []),
+          ].sort(),
+        ).toEqual([...expectedScopes].sort());
         const expectedToolset = expectedToolsetForRoute(
           manifestRoute!,
           scopeDomain,
@@ -1927,7 +1993,21 @@ describe("declarative MCP catalog", () => {
       expect(config._meta).toMatchObject({
         "avala.ai/rest-route": definition.route.name,
         "avala.ai/rest-method": definition.route.method,
-        "avala.ai/required-scope": definition.route.scope,
+        ...(definition.route.alternativeScopes
+          ? {
+              "avala.ai/required-any-scopes": [
+                definition.route.scope,
+                ...definition.route.alternativeScopes,
+              ],
+            }
+          : definition.route.additionalScopes
+            ? {
+                "avala.ai/required-scopes": [
+                  definition.route.scope,
+                  ...definition.route.additionalScopes,
+                ],
+              }
+            : { "avala.ai/required-scope": definition.route.scope }),
         "avala.ai/toolset": definition.route.toolset,
       });
 
@@ -2244,6 +2324,7 @@ describe("declarative MCP catalog", () => {
   });
 
   it("executes composite reads only through declared routes", async () => {
+    // Additional scopes remain conjunctive even when used by a composite.
     const definition = defineCompositeReadCatalogTool({
       name: "get_example_health",
       title: "Get example health",
@@ -2273,6 +2354,7 @@ describe("declarative MCP catalog", () => {
           fixedQuery: { status: "open" },
           response: "list",
           scope: "fleet.read",
+          additionalScopes: ["qc.read"],
           toolset: "fleet",
         },
       ],
@@ -2339,9 +2421,8 @@ describe("declarative MCP catalog", () => {
     expect(config!._meta).toEqual({
       "avala.ai/rest-routes": ["example-device-list", "example-alert-list"],
       "avala.ai/rest-methods": ["GET", "GET"],
-      "avala.ai/required-scopes": ["fleet.read"],
+      "avala.ai/required-scopes": ["fleet.read", "qc.read"],
       "avala.ai/toolsets": ["fleet"],
-      "avala.ai/required-scope": "fleet.read",
       "avala.ai/toolset": "fleet",
     });
     await expect(handler!({ useUnknown: true })).rejects.toThrow(

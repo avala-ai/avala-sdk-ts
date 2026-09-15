@@ -35,6 +35,7 @@ import {
   resolveReadDetail,
 } from "../readDetail.js";
 import { z } from "zod";
+import { MUTATION_ANNOTATIONS } from "../annotations.js";
 
 const datasetOutputSchema = z
   .object({
@@ -97,6 +98,25 @@ const sequenceDetailOutputSchema = z
       .record(z.string(), z.unknown())
       .nullable()
       .optional(),
+  })
+  .passthrough();
+
+const frameOutputSchema = z
+  .object({
+    frameIndex: z.number().int().nonnegative(),
+    key: z.string().nullable().optional(),
+    model: z.string().nullable().optional(),
+    cameraModel: z.string().nullable().optional(),
+    devicePosition: z.record(z.string(), z.unknown()).nullable().optional(),
+    deviceHeading: z.record(z.string(), z.unknown()).nullable().optional(),
+    images: z.array(z.record(z.string(), z.unknown())).optional(),
+  })
+  .passthrough();
+
+const calibrationOutputSchema = z
+  .object({
+    sequenceUid: z.string(),
+    cameras: z.array(z.record(z.string(), z.unknown())).optional(),
   })
   .passthrough();
 
@@ -316,7 +336,9 @@ const datasetListFiltersSchema = {
   visibility: z
     .string()
     .optional()
-    .describe("Filter by visibility: 'private' or 'public'"),
+    .describe(
+      "Filter authorized workspace datasets by visibility: 'private', 'unlisted', or 'public' on supporting servers. A known Unlisted link does not grant workspace access.",
+    ),
 };
 
 const listDatasetsInputSchema = z.object({
@@ -1258,6 +1280,13 @@ export function registerDatasetTools(
         include_attribution: includeAttributionInputField,
         detail: detailInputField,
       }),
+      outputSchema: frameOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       _meta: {
         "avala.ai/required-scope": "datasets.read",
         "avala.ai/toolset": "sequences",
@@ -1313,6 +1342,7 @@ export function registerDatasetTools(
             text: JSON.stringify(presented, null, 2),
           },
         ],
+        structuredContent: presented as Record<string, unknown>,
       };
     },
   );
@@ -1330,6 +1360,13 @@ export function registerDatasetTools(
         sequenceUid: z.string().describe("Sequence UUID"),
         detail: detailInputField,
       }),
+      outputSchema: calibrationOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       _meta: {
         "avala.ai/required-scope": "datasets.read",
         "avala.ai/toolset": "sequences",
@@ -1354,6 +1391,7 @@ export function registerDatasetTools(
             text: JSON.stringify(presented, null, 2),
           },
         ],
+        structuredContent: presented as Record<string, unknown>,
       };
     },
   );
@@ -1390,7 +1428,9 @@ export function registerDatasetTools(
       {
         description:
           "Create a new dataset for annotation. Supports image, video, lidar, and mcap data types.",
-        inputSchema: z.object({
+        // Retired providerConfig must fail before a mutation, rather than be
+        // stripped and silently create a dataset with different storage.
+        inputSchema: z.strictObject({
           name: z.string().describe("Display name for the dataset"),
           slug: z.string().describe("URL-friendly identifier for the dataset"),
           dataType: z
@@ -1400,23 +1440,22 @@ export function registerDatasetTools(
             .string()
             .optional()
             .describe(
-              "Dataset visibility: 'private' or 'public' (default: 'private')",
+              "Dataset visibility: 'private', 'public', or 'unlisted' on supporting servers (default: 'private'). Unlisted permits known-link previews, not broad discovery or additional workspace access.",
             ),
           createMetadata: z
             .boolean()
             .optional()
             .describe("Whether to create dataset metadata (default: true)"),
-          providerConfig: z
-            .record(z.string(), z.unknown())
-            .optional()
-            .describe(
-              "Cloud storage provider configuration (S3 bucket, region, prefix, credentials)",
-            ),
           ownerName: z
             .string()
             .optional()
             .describe("Dataset owner username or email"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "datasets.write",
+          "avala.ai/toolset": "datasets",
+        },
       },
       async ({
         name,
@@ -1424,7 +1463,6 @@ export function registerDatasetTools(
         dataType,
         visibility,
         createMetadata,
-        providerConfig,
         ownerName,
       }) => {
         const avala = getClient("create_dataset");
@@ -1434,7 +1472,6 @@ export function registerDatasetTools(
           dataType,
           visibility,
           createMetadata,
-          providerConfig,
           ownerName,
         });
         return {

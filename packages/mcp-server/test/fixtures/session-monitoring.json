@@ -1,0 +1,54 @@
+{
+  "generated_at": "2026-09-09T15:00:00+03:00",
+  "measurement": {
+    "count_coverage": "bounded_recent_sessions_per_status",
+    "count_interpretation": "exact_if_complete_otherwise_lower_bound",
+    "sample_order": "created_at_desc_ties_unspecified",
+    "per_status_scan_limit": 1000,
+    "scope": "session_definition_all_projects",
+    "ended_from": "2026-09-08T15:00:00+03:00",
+    "ended_before": "2026-09-09T15:00:00+03:00",
+    "boundary": "half_open",
+    "terminal_time_source": "ended_at",
+    "unknown_end_time_scope": "sampled_current_terminal_sessions",
+    "task_completion_throughput_supported": false,
+    "infrastructure_health_supported": false,
+    "queue_visibility_verified": false
+  },
+  "definitions": [
+    {
+      "session_definition_uid": "10000000000040008000000000000001",
+      "counts_complete": true,
+      "status_counts_complete": {
+        "pending": true,
+        "ready": true,
+        "assigned": true,
+        "finished": true,
+        "abandoned": true
+      },
+      "task_name": "box",
+      "is_review_task": false,
+      "can_be_assigned": true,
+      "can_be_matched": true,
+      "current_sessions": {
+        "pending": 1,
+        "ready": 2,
+        "assigned": 3,
+        "finished": 4,
+        "abandoned": 5
+      },
+      "attention": {
+        "expired_assigned": 1,
+        "expired_ready": 0,
+        "terminal_redrive_pending": 2
+      },
+      "terminal_sessions_in_window": {
+        "finished": 2,
+        "abandoned": 1
+      },
+      "terminal_sessions_with_unknown_end_time": 1
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}

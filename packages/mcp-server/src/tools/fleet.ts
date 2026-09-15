@@ -6,6 +6,7 @@ import {
   registerReadCatalogTool,
 } from "../catalog.js";
 import { z } from "zod";
+import { MUTATION_ANNOTATIONS } from "../annotations.js";
 
 import { safeStringify } from "../redact.js";
 
@@ -351,6 +352,11 @@ export function registerFleetTools(
           firmwareVersion: z.string().optional().describe("Firmware version"),
           tags: z.array(z.string()).optional().describe("Tags for the device"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "fleet.write",
+          "avala.ai/toolset": "fleet",
+        },
       },
       async ({ name, type, firmwareVersion, tags }) => {
         const avala = getClient("fleet_register_device");
@@ -381,6 +387,11 @@ export function registerFleetTools(
             .string()
             .describe("The unique identifier of the alert to acknowledge"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "fleet.write",
+          "avala.ai/toolset": "fleet",
+        },
       },
       async ({ uid }) => {
         const avala = getClient("fleet_acknowledge_alert");

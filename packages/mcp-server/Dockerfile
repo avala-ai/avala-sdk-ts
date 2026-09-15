@@ -26,12 +26,12 @@
 #     -t avala-mcp-server \
 #     sdks/typescript
 #
-# @avala-ai/mcp-server depends on @avala-ai/sdk as "workspace:*" (see
-# ../mcp-server/package.json), and @avala-ai/sdk's package.json "main" /
+# @avala-ai/mcp-server pins the matching @avala-ai/sdk release version. Bun
+# links that version to the local SDK workspace, whose package.json "main" /
 # "module" fields point at its OWN dist/ output — so the SDK package must be
 # present and built before mcp-server's build runs, which is why both
-# packages have to travel in one build context. (Plan §4.6 floats decoupling
-# this to a published version range later; today it is still workspace:*.)
+# packages have to travel in one build context. The exact version also works
+# in standalone npm tarballs, where workspace:* is not supported.
 #
 # Production publication is wired through scripts/build_images.sh,
 # push_images.sh, and variables.sh under the `mcp-server` selector. Keep that

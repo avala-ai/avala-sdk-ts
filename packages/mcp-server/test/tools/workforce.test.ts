@@ -5685,7 +5685,10 @@ describe("workforce operations tool", () => {
     ).toMatchObject({
       "avala.ai/rest-route": "workforce-work-unit-assignment-candidates",
       "avala.ai/rest-method": "GET",
-      "avala.ai/required-scope": "workforce.write",
+      "avala.ai/required-any-scopes": [
+        "workforce.write",
+        "operations.proposal.read",
+      ],
       "avala.ai/toolset": "staff",
     });
     expect(result.structuredContent).not.toHaveProperty("groupName");
@@ -7459,312 +7462,6 @@ describe("workforce operations tool", () => {
     );
   });
 
-  it("maps a confirmed deassignment to the exact expected-state route without coworker identity", async () => {
-    const mutationServer = createMockServer();
-    const requestCreate = vi.fn().mockResolvedValue({
-      operationEventUid: "00000000000000000000000000000009",
-      batchUid: "00000000000000000000000000000001",
-      lineContext: {
-        organizationUid: "00000000000000000000000000000002",
-        projectUid: "00000000000000000000000000000003",
-        datasetUid: "00000000000000000000000000000004",
-        sequenceUid: "00000000000000000000000000000005",
-      },
-      workUnitUid: "00000000000000000000000000000006",
-      previousStatus: "in_progress",
-      status: "backlog",
-      assigned: false,
-      updatedAt: "2026-08-29T20:01:00Z",
-      reason: "Release stalled work for reassignment.",
-      previousAssigneeUid: "must be stripped",
-    });
-    registerWorkforceTools(
-      mutationServer as never,
-      (() => ({ transport: { requestCreate } })) as never,
-      {
-        confirmation: createMutationConfirmationService("deassign-test-key"),
-        credentialBinding: "staff-credential",
-      },
-    );
-    const handler = mutationServer.getHandler(
-      "deassign_workforce_work_unit",
-    )!;
-    const mutationArgs = {
-      workUnitUid: "00000000000000000000000000000006",
-      expectedBatchUid: "00000000000000000000000000000001",
-      expectedLineContext: {
-        organizationUid: "00000000000000000000000000000002",
-        projectUid: "00000000000000000000000000000003",
-        datasetUid: "00000000000000000000000000000004",
-        sequenceUid: "00000000000000000000000000000005",
-      },
-      expectedStatus: "in_progress",
-      expectedUpdatedAt: "2026-08-29T19:58:00Z",
-      reason: "Release stalled work for reassignment.",
-    } as const;
-    const context = (
-      inputResponses?: Record<string, unknown>,
-      requestState?: string,
-    ) => ({
-      mcpReq: {
-        envelope: {},
-        inputResponses,
-        requestState: () => requestState,
-        elicitInput: vi.fn(),
-      },
-    });
-
-    const pending = await handler(mutationArgs, context());
-    expect(requestCreate).not.toHaveBeenCalled();
-    expect(pending.resultType).toBe("input_required");
-    expect(pending.requestState).toMatch(/^mc_/);
-    expect(
-      (
-        pending.inputRequests?.confirmAvalaMutation as {
-          params: { message: string };
-        }
-      ).params.message,
-    ).toContain("interrupts the current assignment");
-    if (!pending.requestState) throw new Error("Missing confirmation state.");
-
-    const result = await handler(
-      mutationArgs,
-      context(
-        {
-          confirmAvalaMutation: {
-            action: "accept",
-            content: { confirm: true },
-          },
-        },
-        pending.requestState,
-      ),
-    );
-
-    expect(requestCreate).toHaveBeenCalledWith(
-      "/admin/workforce/work-units/00000000000000000000000000000006/deassign/",
-      {
-        expected_batch_uid: "00000000000000000000000000000001",
-        expected_line_context: {
-          organization_uid: "00000000000000000000000000000002",
-          project_uid: "00000000000000000000000000000003",
-          dataset_uid: "00000000000000000000000000000004",
-          sequence_uid: "00000000000000000000000000000005",
-        },
-        expected_status: "in_progress",
-        expected_updated_at: "2026-08-29T19:58:00Z",
-        reason: "Release stalled work for reassignment.",
-      },
-      { idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/) },
-    );
-    expect(
-      mutationServer.getConfig("deassign_workforce_work_unit"),
-    ).toMatchObject({
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: true,
-        idempotentHint: true,
-      },
-      _meta: {
-        "avala.ai/rest-route": "workforce-work-unit-deassign",
-        "avala.ai/rest-method": "POST",
-        "avala.ai/required-scope": "workforce.write",
-        "avala.ai/toolset": "staff",
-        "avala.ai/requires-confirmation": true,
-      },
-    });
-    expect(result.structuredContent).not.toHaveProperty(
-      "previousAssigneeUid",
-    );
-    expect(result.structuredContent).toMatchObject({
-      workUnitUid: "00000000000000000000000000000006",
-      previousStatus: "in_progress",
-      status: "backlog",
-      assigned: false,
-    });
-    expect(result.structuredContent?.reversalGuidance).toContain(
-      "never receives their identity",
-    );
-  });
-
-  it("maps a confirmed assignment to the exact candidate and expected state", async () => {
-    const mutationServer = createMockServer();
-    const requestCreate = vi.fn().mockResolvedValue({
-      operationEventUid: "00000000000000000000000000000009",
-      batchUid: "00000000000000000000000000000001",
-      batchStatus: "available",
-      lineContext: {
-        organizationUid: "00000000000000000000000000000002",
-        projectUid: "00000000000000000000000000000003",
-        datasetUid: "00000000000000000000000000000004",
-        sequenceUid: "00000000000000000000000000000005",
-      },
-      workUnitUid: "00000000000000000000000000000006",
-      coworkerUid: "00000000000000000000000000000007",
-      previousStatus: "backlog",
-      status: "in_progress",
-      assigned: true,
-      updatedAt: "2026-08-29T20:01:00Z",
-      reason: "Cover the review queue before delivery.",
-      coworkerProfile: { email: "must be stripped" },
-    });
-    registerWorkforceTools(
-      mutationServer as never,
-      (() => ({ transport: { requestCreate } })) as never,
-      {
-        confirmation: createMutationConfirmationService("assign-test-key"),
-        credentialBinding: "staff-credential",
-      },
-    );
-    const handler = mutationServer.getHandler("assign_workforce_work_unit")!;
-    const mutationArgs = {
-      workUnitUid: "00000000000000000000000000000006",
-      coworkerUid: "00000000000000000000000000000007",
-      expectedBatchUid: "00000000000000000000000000000001",
-      expectedBatchStatus: "available",
-      expectedLineContext: {
-        organizationUid: "00000000000000000000000000000002",
-        projectUid: "00000000000000000000000000000003",
-        datasetUid: "00000000000000000000000000000004",
-        sequenceUid: "00000000000000000000000000000005",
-      },
-      expectedStatus: "backlog",
-      expectedAssigned: false,
-      expectedUpdatedAt: "2026-08-29T19:58:00Z",
-      reason: "Cover the review queue before delivery.",
-    } as const;
-    const context = (
-      inputResponses?: Record<string, unknown>,
-      requestState?: string,
-    ) => ({
-      mcpReq: {
-        envelope: {},
-        inputResponses,
-        requestState: () => requestState,
-        elicitInput: vi.fn(),
-      },
-    });
-
-    const inputSchema = mutationServer.getConfig("assign_workforce_work_unit")
-      ?.inputSchema as {
-      safeParse: (value: unknown) => { success: boolean };
-    };
-    expect(inputSchema.safeParse(mutationArgs).success).toBe(true);
-    expect(
-      inputSchema.safeParse({ ...mutationArgs, expectedAssigned: true }).success,
-    ).toBe(false);
-    expect(
-      inputSchema.safeParse({ ...mutationArgs, expectedBatchStatus: "archived" })
-        .success,
-    ).toBe(false);
-    expect(
-      inputSchema.safeParse({
-        ...mutationArgs,
-        expectedLineContext: {
-          ...mutationArgs.expectedLineContext,
-          organizationUid: null,
-        },
-      }).success,
-    ).toBe(false);
-    expect(
-      inputSchema.safeParse({
-        ...mutationArgs,
-        expectedLineContext: {
-          ...mutationArgs.expectedLineContext,
-          customerUid: "00000000000000000000000000000009",
-        },
-      }).success,
-    ).toBe(false);
-    expect(
-      inputSchema.safeParse({ ...mutationArgs, exposeCoworkerProfile: true })
-        .success,
-    ).toBe(false);
-
-    const pending = await handler(mutationArgs, context());
-    expect(requestCreate).not.toHaveBeenCalled();
-    expect(pending.resultType).toBe("input_required");
-    expect(pending.requestState).toMatch(/^mc_/);
-    expect(
-      (
-        pending.inputRequests?.confirmAvalaMutation as {
-          params: { message: string };
-        }
-      ).params.message,
-    ).toContain("changes the production queue");
-    expect(
-      (
-        pending.inputRequests?.confirmAvalaMutation as {
-          params: { message: string };
-        }
-      ).params.message,
-    ).toContain("00000000000000000000000000000007");
-    expect(
-      (
-        pending.inputRequests?.confirmAvalaMutation as {
-          params: { message: string };
-        }
-      ).params.message,
-    ).toContain("organization=00000000000000000000000000000002");
-    if (!pending.requestState) throw new Error("Missing confirmation state.");
-
-    const result = await handler(
-      mutationArgs,
-      context(
-        {
-          confirmAvalaMutation: {
-            action: "accept",
-            content: { confirm: true },
-          },
-        },
-        pending.requestState,
-      ),
-    );
-
-    expect(requestCreate).toHaveBeenCalledWith(
-      "/admin/workforce/work-units/00000000000000000000000000000006/assign/",
-      {
-        coworker_uid: "00000000000000000000000000000007",
-        expected_batch_uid: "00000000000000000000000000000001",
-        expected_batch_status: "available",
-        expected_line_context: {
-          organization_uid: "00000000000000000000000000000002",
-          project_uid: "00000000000000000000000000000003",
-          dataset_uid: "00000000000000000000000000000004",
-          sequence_uid: "00000000000000000000000000000005",
-        },
-        expected_status: "backlog",
-        expected_assigned: false,
-        expected_updated_at: "2026-08-29T19:58:00Z",
-        reason: "Cover the review queue before delivery.",
-      },
-      { idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/) },
-    );
-    expect(mutationServer.getConfig("assign_workforce_work_unit")).toMatchObject({
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: true,
-        idempotentHint: true,
-      },
-      _meta: {
-        "avala.ai/rest-route": "workforce-work-unit-assign",
-        "avala.ai/rest-method": "POST",
-        "avala.ai/required-scope": "workforce.write",
-        "avala.ai/toolset": "staff",
-        "avala.ai/requires-confirmation": true,
-      },
-    });
-    expect(result.structuredContent).not.toHaveProperty("coworkerProfile");
-    expect(result.structuredContent).toMatchObject({
-      workUnitUid: "00000000000000000000000000000006",
-      coworkerUid: "00000000000000000000000000000007",
-      previousStatus: "backlog",
-      status: "in_progress",
-      assigned: true,
-    });
-    expect(result.structuredContent?.reversalGuidance).toContain(
-      "deassign_workforce_work_unit",
-    );
-  });
-
   it("registers only the explicitly allowed workforce mutation subset", () => {
     const mutationServer = createMockServer();
     registerWorkforceTools(
@@ -7774,15 +7471,15 @@ describe("workforce operations tool", () => {
         confirmation: createMutationConfirmationService("subset-test-key"),
         credentialBinding: "staff-credential",
       },
-      new Set(["deassign_workforce_work_unit"]),
+      new Set(["set_workforce_batch_priority"]),
     );
 
     expect(
       mutationServer.getHandler("deassign_workforce_work_unit"),
-    ).toBeDefined();
+    ).toBeUndefined();
     expect(
       mutationServer.getHandler("set_workforce_batch_priority"),
-    ).toBeUndefined();
+    ).toBeDefined();
     expect(
       mutationServer.getHandler("set_workforce_batch_status"),
     ).toBeUndefined();
@@ -7798,9 +7495,7 @@ describe("workforce operations tool", () => {
     expect(
       mutationServer.getHandler("change_workforce_batch_allocation"),
     ).toBeUndefined();
-    expect(
-      mutationServer.getHandler("create_workforce_batch"),
-    ).toBeUndefined();
+    expect(mutationServer.getHandler("create_workforce_batch")).toBeUndefined();
   });
 
   it("exposes an immutable operation receipt from every workforce mutation", () => {
@@ -7823,8 +7518,6 @@ describe("workforce operations tool", () => {
       "set_workforce_batch_priority",
       "set_workforce_batch_status",
       "set_workforce_sequence_status",
-      "assign_workforce_work_unit",
-      "deassign_workforce_work_unit",
     ]) {
       const outputSchema = mutationServer.getConfig(name)?.outputSchema as {
         shape: Record<string, unknown>;

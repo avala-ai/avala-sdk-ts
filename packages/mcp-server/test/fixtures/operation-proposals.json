@@ -1,0 +1,1262 @@
+{
+  "created": {
+    "uid": "1faccec9-3740-4875-a3cb-868dd4223c81",
+    "version": 1,
+    "operation": "assign_work_unit",
+    "state": "created",
+    "state_semantics": "historical_lifecycle_current_verification_separate",
+    "requester_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+    "request_id": "e9a17351-f613-4f48-8f48-7f64b2586ac4",
+    "request_hash": "d8098cf70a315b185c21a628281a93455401e9012739bf2074d366699b87ca23",
+    "reversal_of_uid": null,
+    "created_at": "2026-09-05T14:54:01.805647+03:00",
+    "expires_at": "2026-09-05T15:54:01.805301+03:00",
+    "reason": "Restore exact dispatch.",
+    "rule_version": "dispatch_assignment_v1",
+    "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+    "snapshot": {
+      "work_unit_uid": "2deb08ea31054444ad119a7ab12ffcb3",
+      "coworker_uid": "11ca1ba468b74c2292cc33f75206893c",
+      "batch_uid": "ff29b0f9b54741a3bcb73b6180366f6d",
+      "group_uid": "27c46e1d420a448a96e7d003b0e194e1",
+      "line_context": {
+        "organization_uid": "bc45aacde3af40caa17ef92ed6e187fe",
+        "project_uid": null,
+        "dataset_uid": null,
+        "sequence_uid": null
+      },
+      "unit_status": "backlog",
+      "unit_updated_at": "2026-09-05T14:54:01.547929+03:00",
+      "batch_status": "available",
+      "batch_updated_at": "2026-09-05T14:54:01.546362+03:00",
+      "staffing_mode": "group_pool",
+      "assigned": false,
+      "coworker_active": true,
+      "coworker_type": "coworker",
+      "approved_for_work": true,
+      "group_member": true,
+      "allocated": true,
+      "has_active_work": false,
+      "expected_result": {
+        "assignee_uid": "11ca1ba468b74c2292cc33f75206893c",
+        "status": "in_progress"
+      },
+      "impact_limits": {
+        "work_units": 1,
+        "coworkers": 1,
+        "payment_mutation": false,
+        "capacity_estimate": "unknown"
+      },
+      "verification_conditions": [
+        "assigned_work_visible",
+        "assignment_revision_matches",
+        "scope_unchanged",
+        "dispatch_eligibility_current"
+      ],
+      "recovery": {
+        "previous_status": "backlog",
+        "previous_assignee_uid": null,
+        "automatic_reversal": "blocked_without_progress_observability"
+      }
+    },
+    "snapshot_canonical_json": "{\"allocated\":true,\"approved_for_work\":true,\"assigned\":false,\"batch_status\":\"available\",\"batch_uid\":\"ff29b0f9b54741a3bcb73b6180366f6d\",\"batch_updated_at\":\"2026-09-05T14:54:01.546362+03:00\",\"coworker_active\":true,\"coworker_type\":\"coworker\",\"coworker_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"expected_result\":{\"assignee_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"status\":\"in_progress\"},\"group_member\":true,\"group_uid\":\"27c46e1d420a448a96e7d003b0e194e1\",\"has_active_work\":false,\"impact_limits\":{\"capacity_estimate\":\"unknown\",\"coworkers\":1,\"payment_mutation\":false,\"work_units\":1},\"line_context\":{\"dataset_uid\":null,\"organization_uid\":\"bc45aacde3af40caa17ef92ed6e187fe\",\"project_uid\":null,\"sequence_uid\":null},\"recovery\":{\"automatic_reversal\":\"blocked_without_progress_observability\",\"previous_assignee_uid\":null,\"previous_status\":\"backlog\"},\"staffing_mode\":\"group_pool\",\"unit_status\":\"backlog\",\"unit_updated_at\":\"2026-09-05T14:54:01.547929+03:00\",\"verification_conditions\":[\"assigned_work_visible\",\"assignment_revision_matches\",\"scope_unchanged\",\"dispatch_eligibility_current\"],\"work_unit_uid\":\"2deb08ea31054444ad119a7ab12ffcb3\"}",
+    "evaluation": null,
+    "approval": {
+      "requested_at": null,
+      "approved_at": null,
+      "expires_at": null,
+      "approver_uid": null,
+      "digest": null,
+      "review_path": "/admin/work_batch/operationproposal/1faccec9-3740-4875-a3cb-868dd4223c81/review/"
+    },
+    "dispatch_status": "not_requested",
+    "executed_at": null,
+    "execution": null,
+    "verified_at": null,
+    "verification": null
+  },
+  "evaluate": {
+    "uid": "1faccec9-3740-4875-a3cb-868dd4223c81",
+    "version": 1,
+    "operation": "assign_work_unit",
+    "state": "evaluated",
+    "state_semantics": "historical_lifecycle_current_verification_separate",
+    "requester_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+    "request_id": "e9a17351-f613-4f48-8f48-7f64b2586ac4",
+    "request_hash": "d8098cf70a315b185c21a628281a93455401e9012739bf2074d366699b87ca23",
+    "reversal_of_uid": null,
+    "created_at": "2026-09-05T14:54:01.805647+03:00",
+    "expires_at": "2026-09-05T15:54:01.805301+03:00",
+    "reason": "Restore exact dispatch.",
+    "rule_version": "dispatch_assignment_v1",
+    "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+    "snapshot": {
+      "work_unit_uid": "2deb08ea31054444ad119a7ab12ffcb3",
+      "coworker_uid": "11ca1ba468b74c2292cc33f75206893c",
+      "batch_uid": "ff29b0f9b54741a3bcb73b6180366f6d",
+      "group_uid": "27c46e1d420a448a96e7d003b0e194e1",
+      "line_context": {
+        "organization_uid": "bc45aacde3af40caa17ef92ed6e187fe",
+        "project_uid": null,
+        "dataset_uid": null,
+        "sequence_uid": null
+      },
+      "unit_status": "backlog",
+      "unit_updated_at": "2026-09-05T14:54:01.547929+03:00",
+      "batch_status": "available",
+      "batch_updated_at": "2026-09-05T14:54:01.546362+03:00",
+      "staffing_mode": "group_pool",
+      "assigned": false,
+      "coworker_active": true,
+      "coworker_type": "coworker",
+      "approved_for_work": true,
+      "group_member": true,
+      "allocated": true,
+      "has_active_work": false,
+      "expected_result": {
+        "assignee_uid": "11ca1ba468b74c2292cc33f75206893c",
+        "status": "in_progress"
+      },
+      "impact_limits": {
+        "work_units": 1,
+        "coworkers": 1,
+        "payment_mutation": false,
+        "capacity_estimate": "unknown"
+      },
+      "verification_conditions": [
+        "assigned_work_visible",
+        "assignment_revision_matches",
+        "scope_unchanged",
+        "dispatch_eligibility_current"
+      ],
+      "recovery": {
+        "previous_status": "backlog",
+        "previous_assignee_uid": null,
+        "automatic_reversal": "blocked_without_progress_observability"
+      }
+    },
+    "snapshot_canonical_json": "{\"allocated\":true,\"approved_for_work\":true,\"assigned\":false,\"batch_status\":\"available\",\"batch_uid\":\"ff29b0f9b54741a3bcb73b6180366f6d\",\"batch_updated_at\":\"2026-09-05T14:54:01.546362+03:00\",\"coworker_active\":true,\"coworker_type\":\"coworker\",\"coworker_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"expected_result\":{\"assignee_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"status\":\"in_progress\"},\"group_member\":true,\"group_uid\":\"27c46e1d420a448a96e7d003b0e194e1\",\"has_active_work\":false,\"impact_limits\":{\"capacity_estimate\":\"unknown\",\"coworkers\":1,\"payment_mutation\":false,\"work_units\":1},\"line_context\":{\"dataset_uid\":null,\"organization_uid\":\"bc45aacde3af40caa17ef92ed6e187fe\",\"project_uid\":null,\"sequence_uid\":null},\"recovery\":{\"automatic_reversal\":\"blocked_without_progress_observability\",\"previous_assignee_uid\":null,\"previous_status\":\"backlog\"},\"staffing_mode\":\"group_pool\",\"unit_status\":\"backlog\",\"unit_updated_at\":\"2026-09-05T14:54:01.547929+03:00\",\"verification_conditions\":[\"assigned_work_visible\",\"assignment_revision_matches\",\"scope_unchanged\",\"dispatch_eligibility_current\"],\"work_unit_uid\":\"2deb08ea31054444ad119a7ab12ffcb3\"}",
+    "evaluation": {
+      "decision": "PASS",
+      "rules": [
+        {
+          "code": "rule_version_current",
+          "result": "PASS"
+        },
+        {
+          "code": "snapshot_integrity",
+          "result": "PASS"
+        },
+        {
+          "code": "request_integrity",
+          "result": "PASS"
+        },
+        {
+          "code": "proposal_unexpired",
+          "result": "PASS"
+        },
+        {
+          "code": "snapshot_unchanged",
+          "result": "PASS"
+        },
+        {
+          "code": "organization_known",
+          "result": "PASS"
+        },
+        {
+          "code": "batch_available",
+          "result": "PASS"
+        },
+        {
+          "code": "unit_backlog_unassigned",
+          "result": "PASS"
+        },
+        {
+          "code": "coworker_active_approved",
+          "result": "PASS"
+        },
+        {
+          "code": "group_qualified",
+          "result": "PASS"
+        },
+        {
+          "code": "batch_allocated",
+          "result": "PASS"
+        },
+        {
+          "code": "coworker_available",
+          "result": "PASS"
+        },
+        {
+          "code": "supported_operation",
+          "result": "PASS"
+        }
+      ],
+      "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+      "rule_version": "dispatch_assignment_v1"
+    },
+    "approval": {
+      "requested_at": null,
+      "approved_at": null,
+      "expires_at": null,
+      "approver_uid": null,
+      "digest": null,
+      "review_path": "/admin/work_batch/operationproposal/1faccec9-3740-4875-a3cb-868dd4223c81/review/"
+    },
+    "dispatch_status": "not_requested",
+    "executed_at": null,
+    "execution": null,
+    "verified_at": null,
+    "verification": null
+  },
+  "request-approval": {
+    "uid": "1faccec9-3740-4875-a3cb-868dd4223c81",
+    "version": 1,
+    "operation": "assign_work_unit",
+    "state": "approval_requested",
+    "state_semantics": "historical_lifecycle_current_verification_separate",
+    "requester_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+    "request_id": "e9a17351-f613-4f48-8f48-7f64b2586ac4",
+    "request_hash": "d8098cf70a315b185c21a628281a93455401e9012739bf2074d366699b87ca23",
+    "reversal_of_uid": null,
+    "created_at": "2026-09-05T14:54:01.805647+03:00",
+    "expires_at": "2026-09-05T15:54:01.805301+03:00",
+    "reason": "Restore exact dispatch.",
+    "rule_version": "dispatch_assignment_v1",
+    "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+    "snapshot": {
+      "work_unit_uid": "2deb08ea31054444ad119a7ab12ffcb3",
+      "coworker_uid": "11ca1ba468b74c2292cc33f75206893c",
+      "batch_uid": "ff29b0f9b54741a3bcb73b6180366f6d",
+      "group_uid": "27c46e1d420a448a96e7d003b0e194e1",
+      "line_context": {
+        "organization_uid": "bc45aacde3af40caa17ef92ed6e187fe",
+        "project_uid": null,
+        "dataset_uid": null,
+        "sequence_uid": null
+      },
+      "unit_status": "backlog",
+      "unit_updated_at": "2026-09-05T14:54:01.547929+03:00",
+      "batch_status": "available",
+      "batch_updated_at": "2026-09-05T14:54:01.546362+03:00",
+      "staffing_mode": "group_pool",
+      "assigned": false,
+      "coworker_active": true,
+      "coworker_type": "coworker",
+      "approved_for_work": true,
+      "group_member": true,
+      "allocated": true,
+      "has_active_work": false,
+      "expected_result": {
+        "assignee_uid": "11ca1ba468b74c2292cc33f75206893c",
+        "status": "in_progress"
+      },
+      "impact_limits": {
+        "work_units": 1,
+        "coworkers": 1,
+        "payment_mutation": false,
+        "capacity_estimate": "unknown"
+      },
+      "verification_conditions": [
+        "assigned_work_visible",
+        "assignment_revision_matches",
+        "scope_unchanged",
+        "dispatch_eligibility_current"
+      ],
+      "recovery": {
+        "previous_status": "backlog",
+        "previous_assignee_uid": null,
+        "automatic_reversal": "blocked_without_progress_observability"
+      }
+    },
+    "snapshot_canonical_json": "{\"allocated\":true,\"approved_for_work\":true,\"assigned\":false,\"batch_status\":\"available\",\"batch_uid\":\"ff29b0f9b54741a3bcb73b6180366f6d\",\"batch_updated_at\":\"2026-09-05T14:54:01.546362+03:00\",\"coworker_active\":true,\"coworker_type\":\"coworker\",\"coworker_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"expected_result\":{\"assignee_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"status\":\"in_progress\"},\"group_member\":true,\"group_uid\":\"27c46e1d420a448a96e7d003b0e194e1\",\"has_active_work\":false,\"impact_limits\":{\"capacity_estimate\":\"unknown\",\"coworkers\":1,\"payment_mutation\":false,\"work_units\":1},\"line_context\":{\"dataset_uid\":null,\"organization_uid\":\"bc45aacde3af40caa17ef92ed6e187fe\",\"project_uid\":null,\"sequence_uid\":null},\"recovery\":{\"automatic_reversal\":\"blocked_without_progress_observability\",\"previous_assignee_uid\":null,\"previous_status\":\"backlog\"},\"staffing_mode\":\"group_pool\",\"unit_status\":\"backlog\",\"unit_updated_at\":\"2026-09-05T14:54:01.547929+03:00\",\"verification_conditions\":[\"assigned_work_visible\",\"assignment_revision_matches\",\"scope_unchanged\",\"dispatch_eligibility_current\"],\"work_unit_uid\":\"2deb08ea31054444ad119a7ab12ffcb3\"}",
+    "evaluation": {
+      "decision": "PASS",
+      "rules": [
+        {
+          "code": "rule_version_current",
+          "result": "PASS"
+        },
+        {
+          "code": "snapshot_integrity",
+          "result": "PASS"
+        },
+        {
+          "code": "request_integrity",
+          "result": "PASS"
+        },
+        {
+          "code": "proposal_unexpired",
+          "result": "PASS"
+        },
+        {
+          "code": "snapshot_unchanged",
+          "result": "PASS"
+        },
+        {
+          "code": "organization_known",
+          "result": "PASS"
+        },
+        {
+          "code": "batch_available",
+          "result": "PASS"
+        },
+        {
+          "code": "unit_backlog_unassigned",
+          "result": "PASS"
+        },
+        {
+          "code": "coworker_active_approved",
+          "result": "PASS"
+        },
+        {
+          "code": "group_qualified",
+          "result": "PASS"
+        },
+        {
+          "code": "batch_allocated",
+          "result": "PASS"
+        },
+        {
+          "code": "coworker_available",
+          "result": "PASS"
+        },
+        {
+          "code": "supported_operation",
+          "result": "PASS"
+        }
+      ],
+      "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+      "rule_version": "dispatch_assignment_v1"
+    },
+    "approval": {
+      "requested_at": "2026-09-05T14:54:01.977217+03:00",
+      "approved_at": null,
+      "expires_at": null,
+      "approver_uid": null,
+      "digest": null,
+      "review_path": "/admin/work_batch/operationproposal/1faccec9-3740-4875-a3cb-868dd4223c81/review/"
+    },
+    "dispatch_status": "not_requested",
+    "executed_at": null,
+    "execution": null,
+    "verified_at": null,
+    "verification": null
+  },
+  "approved": {
+    "uid": "1faccec9-3740-4875-a3cb-868dd4223c81",
+    "version": 1,
+    "operation": "assign_work_unit",
+    "state": "approved",
+    "state_semantics": "historical_lifecycle_current_verification_separate",
+    "requester_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+    "request_id": "e9a17351-f613-4f48-8f48-7f64b2586ac4",
+    "request_hash": "d8098cf70a315b185c21a628281a93455401e9012739bf2074d366699b87ca23",
+    "reversal_of_uid": null,
+    "created_at": "2026-09-05T14:54:01.805647+03:00",
+    "expires_at": "2026-09-05T15:54:01.805301+03:00",
+    "reason": "Restore exact dispatch.",
+    "rule_version": "dispatch_assignment_v1",
+    "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+    "snapshot": {
+      "work_unit_uid": "2deb08ea31054444ad119a7ab12ffcb3",
+      "coworker_uid": "11ca1ba468b74c2292cc33f75206893c",
+      "batch_uid": "ff29b0f9b54741a3bcb73b6180366f6d",
+      "group_uid": "27c46e1d420a448a96e7d003b0e194e1",
+      "line_context": {
+        "organization_uid": "bc45aacde3af40caa17ef92ed6e187fe",
+        "project_uid": null,
+        "dataset_uid": null,
+        "sequence_uid": null
+      },
+      "unit_status": "backlog",
+      "unit_updated_at": "2026-09-05T14:54:01.547929+03:00",
+      "batch_status": "available",
+      "batch_updated_at": "2026-09-05T14:54:01.546362+03:00",
+      "staffing_mode": "group_pool",
+      "assigned": false,
+      "coworker_active": true,
+      "coworker_type": "coworker",
+      "approved_for_work": true,
+      "group_member": true,
+      "allocated": true,
+      "has_active_work": false,
+      "expected_result": {
+        "assignee_uid": "11ca1ba468b74c2292cc33f75206893c",
+        "status": "in_progress"
+      },
+      "impact_limits": {
+        "work_units": 1,
+        "coworkers": 1,
+        "payment_mutation": false,
+        "capacity_estimate": "unknown"
+      },
+      "verification_conditions": [
+        "assigned_work_visible",
+        "assignment_revision_matches",
+        "scope_unchanged",
+        "dispatch_eligibility_current"
+      ],
+      "recovery": {
+        "previous_status": "backlog",
+        "previous_assignee_uid": null,
+        "automatic_reversal": "blocked_without_progress_observability"
+      }
+    },
+    "snapshot_canonical_json": "{\"allocated\":true,\"approved_for_work\":true,\"assigned\":false,\"batch_status\":\"available\",\"batch_uid\":\"ff29b0f9b54741a3bcb73b6180366f6d\",\"batch_updated_at\":\"2026-09-05T14:54:01.546362+03:00\",\"coworker_active\":true,\"coworker_type\":\"coworker\",\"coworker_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"expected_result\":{\"assignee_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"status\":\"in_progress\"},\"group_member\":true,\"group_uid\":\"27c46e1d420a448a96e7d003b0e194e1\",\"has_active_work\":false,\"impact_limits\":{\"capacity_estimate\":\"unknown\",\"coworkers\":1,\"payment_mutation\":false,\"work_units\":1},\"line_context\":{\"dataset_uid\":null,\"organization_uid\":\"bc45aacde3af40caa17ef92ed6e187fe\",\"project_uid\":null,\"sequence_uid\":null},\"recovery\":{\"automatic_reversal\":\"blocked_without_progress_observability\",\"previous_assignee_uid\":null,\"previous_status\":\"backlog\"},\"staffing_mode\":\"group_pool\",\"unit_status\":\"backlog\",\"unit_updated_at\":\"2026-09-05T14:54:01.547929+03:00\",\"verification_conditions\":[\"assigned_work_visible\",\"assignment_revision_matches\",\"scope_unchanged\",\"dispatch_eligibility_current\"],\"work_unit_uid\":\"2deb08ea31054444ad119a7ab12ffcb3\"}",
+    "evaluation": {
+      "decision": "PASS",
+      "rules": [
+        {
+          "code": "rule_version_current",
+          "result": "PASS"
+        },
+        {
+          "code": "snapshot_integrity",
+          "result": "PASS"
+        },
+        {
+          "code": "request_integrity",
+          "result": "PASS"
+        },
+        {
+          "code": "proposal_unexpired",
+          "result": "PASS"
+        },
+        {
+          "code": "snapshot_unchanged",
+          "result": "PASS"
+        },
+        {
+          "code": "organization_known",
+          "result": "PASS"
+        },
+        {
+          "code": "batch_available",
+          "result": "PASS"
+        },
+        {
+          "code": "unit_backlog_unassigned",
+          "result": "PASS"
+        },
+        {
+          "code": "coworker_active_approved",
+          "result": "PASS"
+        },
+        {
+          "code": "group_qualified",
+          "result": "PASS"
+        },
+        {
+          "code": "batch_allocated",
+          "result": "PASS"
+        },
+        {
+          "code": "coworker_available",
+          "result": "PASS"
+        },
+        {
+          "code": "supported_operation",
+          "result": "PASS"
+        }
+      ],
+      "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+      "rule_version": "dispatch_assignment_v1"
+    },
+    "approval": {
+      "requested_at": "2026-09-05T14:54:01.977217+03:00",
+      "approved_at": "2026-09-05T14:54:02.083200+03:00",
+      "expires_at": "2026-09-05T15:24:02.083201+03:00",
+      "approver_uid": "d7807ceb-a12a-4117-a7b1-bbf7b4253bc0",
+      "digest": "328306aff986b7362b55c8a1d9885efd769f340badbb7f941c341ab950374fd1",
+      "review_path": "/admin/work_batch/operationproposal/1faccec9-3740-4875-a3cb-868dd4223c81/review/"
+    },
+    "dispatch_status": "not_requested",
+    "executed_at": null,
+    "execution": null,
+    "verified_at": null,
+    "verification": null
+  },
+  "queued": {
+    "uid": "1faccec9-3740-4875-a3cb-868dd4223c81",
+    "version": 1,
+    "operation": "assign_work_unit",
+    "state": "queued",
+    "state_semantics": "historical_lifecycle_current_verification_separate",
+    "requester_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+    "request_id": "e9a17351-f613-4f48-8f48-7f64b2586ac4",
+    "request_hash": "d8098cf70a315b185c21a628281a93455401e9012739bf2074d366699b87ca23",
+    "reversal_of_uid": null,
+    "created_at": "2026-09-05T14:54:01.805647+03:00",
+    "expires_at": "2026-09-05T15:54:01.805301+03:00",
+    "reason": "Restore exact dispatch.",
+    "rule_version": "dispatch_assignment_v1",
+    "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+    "snapshot": {
+      "work_unit_uid": "2deb08ea31054444ad119a7ab12ffcb3",
+      "coworker_uid": "11ca1ba468b74c2292cc33f75206893c",
+      "batch_uid": "ff29b0f9b54741a3bcb73b6180366f6d",
+      "group_uid": "27c46e1d420a448a96e7d003b0e194e1",
+      "line_context": {
+        "organization_uid": "bc45aacde3af40caa17ef92ed6e187fe",
+        "project_uid": null,
+        "dataset_uid": null,
+        "sequence_uid": null
+      },
+      "unit_status": "backlog",
+      "unit_updated_at": "2026-09-05T14:54:01.547929+03:00",
+      "batch_status": "available",
+      "batch_updated_at": "2026-09-05T14:54:01.546362+03:00",
+      "staffing_mode": "group_pool",
+      "assigned": false,
+      "coworker_active": true,
+      "coworker_type": "coworker",
+      "approved_for_work": true,
+      "group_member": true,
+      "allocated": true,
+      "has_active_work": false,
+      "expected_result": {
+        "assignee_uid": "11ca1ba468b74c2292cc33f75206893c",
+        "status": "in_progress"
+      },
+      "impact_limits": {
+        "work_units": 1,
+        "coworkers": 1,
+        "payment_mutation": false,
+        "capacity_estimate": "unknown"
+      },
+      "verification_conditions": [
+        "assigned_work_visible",
+        "assignment_revision_matches",
+        "scope_unchanged",
+        "dispatch_eligibility_current"
+      ],
+      "recovery": {
+        "previous_status": "backlog",
+        "previous_assignee_uid": null,
+        "automatic_reversal": "blocked_without_progress_observability"
+      }
+    },
+    "snapshot_canonical_json": "{\"allocated\":true,\"approved_for_work\":true,\"assigned\":false,\"batch_status\":\"available\",\"batch_uid\":\"ff29b0f9b54741a3bcb73b6180366f6d\",\"batch_updated_at\":\"2026-09-05T14:54:01.546362+03:00\",\"coworker_active\":true,\"coworker_type\":\"coworker\",\"coworker_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"expected_result\":{\"assignee_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"status\":\"in_progress\"},\"group_member\":true,\"group_uid\":\"27c46e1d420a448a96e7d003b0e194e1\",\"has_active_work\":false,\"impact_limits\":{\"capacity_estimate\":\"unknown\",\"coworkers\":1,\"payment_mutation\":false,\"work_units\":1},\"line_context\":{\"dataset_uid\":null,\"organization_uid\":\"bc45aacde3af40caa17ef92ed6e187fe\",\"project_uid\":null,\"sequence_uid\":null},\"recovery\":{\"automatic_reversal\":\"blocked_without_progress_observability\",\"previous_assignee_uid\":null,\"previous_status\":\"backlog\"},\"staffing_mode\":\"group_pool\",\"unit_status\":\"backlog\",\"unit_updated_at\":\"2026-09-05T14:54:01.547929+03:00\",\"verification_conditions\":[\"assigned_work_visible\",\"assignment_revision_matches\",\"scope_unchanged\",\"dispatch_eligibility_current\"],\"work_unit_uid\":\"2deb08ea31054444ad119a7ab12ffcb3\"}",
+    "evaluation": {
+      "decision": "PASS",
+      "rules": [
+        {
+          "code": "rule_version_current",
+          "result": "PASS"
+        },
+        {
+          "code": "snapshot_integrity",
+          "result": "PASS"
+        },
+        {
+          "code": "request_integrity",
+          "result": "PASS"
+        },
+        {
+          "code": "proposal_unexpired",
+          "result": "PASS"
+        },
+        {
+          "code": "snapshot_unchanged",
+          "result": "PASS"
+        },
+        {
+          "code": "organization_known",
+          "result": "PASS"
+        },
+        {
+          "code": "batch_available",
+          "result": "PASS"
+        },
+        {
+          "code": "unit_backlog_unassigned",
+          "result": "PASS"
+        },
+        {
+          "code": "coworker_active_approved",
+          "result": "PASS"
+        },
+        {
+          "code": "group_qualified",
+          "result": "PASS"
+        },
+        {
+          "code": "batch_allocated",
+          "result": "PASS"
+        },
+        {
+          "code": "coworker_available",
+          "result": "PASS"
+        },
+        {
+          "code": "supported_operation",
+          "result": "PASS"
+        }
+      ],
+      "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+      "rule_version": "dispatch_assignment_v1"
+    },
+    "approval": {
+      "requested_at": "2026-09-05T14:54:01.977217+03:00",
+      "approved_at": "2026-09-05T14:54:02.083200+03:00",
+      "expires_at": "2026-09-05T15:24:02.083201+03:00",
+      "approver_uid": "d7807ceb-a12a-4117-a7b1-bbf7b4253bc0",
+      "digest": "328306aff986b7362b55c8a1d9885efd769f340badbb7f941c341ab950374fd1",
+      "review_path": "/admin/work_batch/operationproposal/1faccec9-3740-4875-a3cb-868dd4223c81/review/"
+    },
+    "dispatch_status": "pending",
+    "executed_at": null,
+    "execution": null,
+    "verified_at": null,
+    "verification": null
+  },
+  "verification_before_execution": {
+    "code": "proposal_has_not_executed",
+    "detail": "The proposal cannot perform this transition."
+  },
+  "retry_events": {
+    "proposal_uid": "1faccec9-3740-4875-a3cb-868dd4223c81",
+    "version": 1,
+    "events": [
+      {
+        "uid": "68c3ec85-47a4-47f9-9998-4149976cd573",
+        "sequence": 1162,
+        "kind": "created",
+        "version": 1,
+        "actor_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+        "actor_source": "authenticated_user",
+        "created_at": "2026-09-05T14:54:01.806684+03:00",
+        "evidence": {
+          "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562"
+        }
+      },
+      {
+        "uid": "bec84ba3-a12c-46c6-850e-03a64377dd61",
+        "sequence": 1163,
+        "kind": "evaluated",
+        "version": 1,
+        "actor_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+        "actor_source": "authenticated_user",
+        "created_at": "2026-09-05T14:54:01.900391+03:00",
+        "evidence": {
+          "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+          "decision": "PASS",
+          "rules": [
+            {
+              "code": "rule_version_current",
+              "result": "PASS"
+            },
+            {
+              "code": "snapshot_integrity",
+              "result": "PASS"
+            },
+            {
+              "code": "request_integrity",
+              "result": "PASS"
+            },
+            {
+              "code": "proposal_unexpired",
+              "result": "PASS"
+            },
+            {
+              "code": "snapshot_unchanged",
+              "result": "PASS"
+            },
+            {
+              "code": "organization_known",
+              "result": "PASS"
+            },
+            {
+              "code": "batch_available",
+              "result": "PASS"
+            },
+            {
+              "code": "unit_backlog_unassigned",
+              "result": "PASS"
+            },
+            {
+              "code": "coworker_active_approved",
+              "result": "PASS"
+            },
+            {
+              "code": "group_qualified",
+              "result": "PASS"
+            },
+            {
+              "code": "batch_allocated",
+              "result": "PASS"
+            },
+            {
+              "code": "coworker_available",
+              "result": "PASS"
+            },
+            {
+              "code": "supported_operation",
+              "result": "PASS"
+            }
+          ],
+          "rule_version": "dispatch_assignment_v1"
+        }
+      },
+      {
+        "uid": "69c863af-fa00-4047-ae17-37052e52542a",
+        "sequence": 1164,
+        "kind": "approval_requested",
+        "version": 1,
+        "actor_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+        "actor_source": "authenticated_user",
+        "created_at": "2026-09-05T14:54:01.979193+03:00",
+        "evidence": {}
+      },
+      {
+        "uid": "8f9deb54-df6a-463a-b62e-a2ff3db564a3",
+        "sequence": 1165,
+        "kind": "approved",
+        "version": 1,
+        "actor_uid": "d7807ceb-a12a-4117-a7b1-bbf7b4253bc0",
+        "actor_source": "authenticated_user",
+        "created_at": "2026-09-05T14:54:02.085060+03:00",
+        "evidence": {
+          "approval_digest": "328306aff986b7362b55c8a1d9885efd769f340badbb7f941c341ab950374fd1"
+        }
+      },
+      {
+        "uid": "57b9a1c4-219e-407e-8b0c-07d9249c4402",
+        "sequence": 1166,
+        "kind": "execution_requested",
+        "version": 1,
+        "actor_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+        "actor_source": "authenticated_user",
+        "created_at": "2026-09-05T14:54:02.099269+03:00",
+        "evidence": {}
+      },
+      {
+        "uid": "36324285-854b-4459-8a58-ebcde3c005fc",
+        "sequence": 1167,
+        "kind": "execution_retry_requested",
+        "version": 1,
+        "actor_uid": null,
+        "actor_source": "system",
+        "created_at": "2026-09-05T14:54:02.350762+03:00",
+        "evidence": {
+          "code": "transient_database_error"
+        }
+      }
+    ],
+    "next_after": null,
+    "has_more": false
+  },
+  "verified": {
+    "uid": "1faccec9-3740-4875-a3cb-868dd4223c81",
+    "version": 1,
+    "operation": "assign_work_unit",
+    "state": "verified",
+    "state_semantics": "historical_lifecycle_current_verification_separate",
+    "requester_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+    "request_id": "e9a17351-f613-4f48-8f48-7f64b2586ac4",
+    "request_hash": "d8098cf70a315b185c21a628281a93455401e9012739bf2074d366699b87ca23",
+    "reversal_of_uid": null,
+    "created_at": "2026-09-05T14:54:01.805647+03:00",
+    "expires_at": "2026-09-05T15:54:01.805301+03:00",
+    "reason": "Restore exact dispatch.",
+    "rule_version": "dispatch_assignment_v1",
+    "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+    "snapshot": {
+      "work_unit_uid": "2deb08ea31054444ad119a7ab12ffcb3",
+      "coworker_uid": "11ca1ba468b74c2292cc33f75206893c",
+      "batch_uid": "ff29b0f9b54741a3bcb73b6180366f6d",
+      "group_uid": "27c46e1d420a448a96e7d003b0e194e1",
+      "line_context": {
+        "organization_uid": "bc45aacde3af40caa17ef92ed6e187fe",
+        "project_uid": null,
+        "dataset_uid": null,
+        "sequence_uid": null
+      },
+      "unit_status": "backlog",
+      "unit_updated_at": "2026-09-05T14:54:01.547929+03:00",
+      "batch_status": "available",
+      "batch_updated_at": "2026-09-05T14:54:01.546362+03:00",
+      "staffing_mode": "group_pool",
+      "assigned": false,
+      "coworker_active": true,
+      "coworker_type": "coworker",
+      "approved_for_work": true,
+      "group_member": true,
+      "allocated": true,
+      "has_active_work": false,
+      "expected_result": {
+        "assignee_uid": "11ca1ba468b74c2292cc33f75206893c",
+        "status": "in_progress"
+      },
+      "impact_limits": {
+        "work_units": 1,
+        "coworkers": 1,
+        "payment_mutation": false,
+        "capacity_estimate": "unknown"
+      },
+      "verification_conditions": [
+        "assigned_work_visible",
+        "assignment_revision_matches",
+        "scope_unchanged",
+        "dispatch_eligibility_current"
+      ],
+      "recovery": {
+        "previous_status": "backlog",
+        "previous_assignee_uid": null,
+        "automatic_reversal": "blocked_without_progress_observability"
+      }
+    },
+    "snapshot_canonical_json": "{\"allocated\":true,\"approved_for_work\":true,\"assigned\":false,\"batch_status\":\"available\",\"batch_uid\":\"ff29b0f9b54741a3bcb73b6180366f6d\",\"batch_updated_at\":\"2026-09-05T14:54:01.546362+03:00\",\"coworker_active\":true,\"coworker_type\":\"coworker\",\"coworker_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"expected_result\":{\"assignee_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"status\":\"in_progress\"},\"group_member\":true,\"group_uid\":\"27c46e1d420a448a96e7d003b0e194e1\",\"has_active_work\":false,\"impact_limits\":{\"capacity_estimate\":\"unknown\",\"coworkers\":1,\"payment_mutation\":false,\"work_units\":1},\"line_context\":{\"dataset_uid\":null,\"organization_uid\":\"bc45aacde3af40caa17ef92ed6e187fe\",\"project_uid\":null,\"sequence_uid\":null},\"recovery\":{\"automatic_reversal\":\"blocked_without_progress_observability\",\"previous_assignee_uid\":null,\"previous_status\":\"backlog\"},\"staffing_mode\":\"group_pool\",\"unit_status\":\"backlog\",\"unit_updated_at\":\"2026-09-05T14:54:01.547929+03:00\",\"verification_conditions\":[\"assigned_work_visible\",\"assignment_revision_matches\",\"scope_unchanged\",\"dispatch_eligibility_current\"],\"work_unit_uid\":\"2deb08ea31054444ad119a7ab12ffcb3\"}",
+    "evaluation": {
+      "decision": "PASS",
+      "rules": [
+        {
+          "code": "rule_version_current",
+          "result": "PASS"
+        },
+        {
+          "code": "snapshot_integrity",
+          "result": "PASS"
+        },
+        {
+          "code": "request_integrity",
+          "result": "PASS"
+        },
+        {
+          "code": "proposal_unexpired",
+          "result": "PASS"
+        },
+        {
+          "code": "snapshot_unchanged",
+          "result": "PASS"
+        },
+        {
+          "code": "organization_known",
+          "result": "PASS"
+        },
+        {
+          "code": "batch_available",
+          "result": "PASS"
+        },
+        {
+          "code": "unit_backlog_unassigned",
+          "result": "PASS"
+        },
+        {
+          "code": "coworker_active_approved",
+          "result": "PASS"
+        },
+        {
+          "code": "group_qualified",
+          "result": "PASS"
+        },
+        {
+          "code": "batch_allocated",
+          "result": "PASS"
+        },
+        {
+          "code": "coworker_available",
+          "result": "PASS"
+        },
+        {
+          "code": "supported_operation",
+          "result": "PASS"
+        }
+      ],
+      "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+      "rule_version": "dispatch_assignment_v1"
+    },
+    "approval": {
+      "requested_at": "2026-09-05T14:54:01.977217+03:00",
+      "approved_at": "2026-09-05T14:54:02.083200+03:00",
+      "expires_at": "2026-09-05T15:24:02.083201+03:00",
+      "approver_uid": "d7807ceb-a12a-4117-a7b1-bbf7b4253bc0",
+      "digest": "328306aff986b7362b55c8a1d9885efd769f340badbb7f941c341ab950374fd1",
+      "review_path": "/admin/work_batch/operationproposal/1faccec9-3740-4875-a3cb-868dd4223c81/review/"
+    },
+    "dispatch_status": "consumed",
+    "executed_at": "2026-09-05T14:54:02.516856+03:00",
+    "execution": {
+      "unit_updated_at": "2026-09-05T14:54:02.509220+03:00",
+      "operation_event_uid": "a4ca50f1-23cd-4447-b6b5-b1f39f5ce697"
+    },
+    "verified_at": "2026-09-05T14:54:02.521755+03:00",
+    "verification": {
+      "status": "verified",
+      "assigned_work_visible": true,
+      "dispatch_eligibility_current": true,
+      "assignment_revision_matches": true,
+      "scope_unchanged": true,
+      "production_activity": "not_measured"
+    }
+  },
+  "events": {
+    "proposal_uid": "1faccec9-3740-4875-a3cb-868dd4223c81",
+    "version": 1,
+    "events": [
+      {
+        "uid": "68c3ec85-47a4-47f9-9998-4149976cd573",
+        "sequence": 1162,
+        "kind": "created",
+        "version": 1,
+        "actor_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+        "actor_source": "authenticated_user",
+        "created_at": "2026-09-05T14:54:01.806684+03:00",
+        "evidence": {
+          "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562"
+        }
+      },
+      {
+        "uid": "bec84ba3-a12c-46c6-850e-03a64377dd61",
+        "sequence": 1163,
+        "kind": "evaluated",
+        "version": 1,
+        "actor_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+        "actor_source": "authenticated_user",
+        "created_at": "2026-09-05T14:54:01.900391+03:00",
+        "evidence": {
+          "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+          "decision": "PASS",
+          "rules": [
+            {
+              "code": "rule_version_current",
+              "result": "PASS"
+            },
+            {
+              "code": "snapshot_integrity",
+              "result": "PASS"
+            },
+            {
+              "code": "request_integrity",
+              "result": "PASS"
+            },
+            {
+              "code": "proposal_unexpired",
+              "result": "PASS"
+            },
+            {
+              "code": "snapshot_unchanged",
+              "result": "PASS"
+            },
+            {
+              "code": "organization_known",
+              "result": "PASS"
+            },
+            {
+              "code": "batch_available",
+              "result": "PASS"
+            },
+            {
+              "code": "unit_backlog_unassigned",
+              "result": "PASS"
+            },
+            {
+              "code": "coworker_active_approved",
+              "result": "PASS"
+            },
+            {
+              "code": "group_qualified",
+              "result": "PASS"
+            },
+            {
+              "code": "batch_allocated",
+              "result": "PASS"
+            },
+            {
+              "code": "coworker_available",
+              "result": "PASS"
+            },
+            {
+              "code": "supported_operation",
+              "result": "PASS"
+            }
+          ],
+          "rule_version": "dispatch_assignment_v1"
+        }
+      }
+    ],
+    "next_after": 1163,
+    "has_more": true
+  },
+  "reversal_blocked": {
+    "uid": "1832d829-3450-48e3-b8f0-3c06cd8807bf",
+    "version": 1,
+    "operation": "reverse_assignment",
+    "state": "blocked",
+    "state_semantics": "historical_lifecycle_current_verification_separate",
+    "requester_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+    "request_id": "9349725c-5605-410f-8b4a-3eb3c359e123",
+    "request_hash": "6ed4fa7751b83df42d35b4d1a95b9acb3d0fcc70f33e60ec5b61cbeb8fa6dcac",
+    "reversal_of_uid": "1faccec9-3740-4875-a3cb-868dd4223c81",
+    "created_at": "2026-09-05T14:54:02.797105+03:00",
+    "expires_at": "2026-09-05T15:54:02.796879+03:00",
+    "reason": "Request safe reversal.",
+    "rule_version": "dispatch_assignment_v1",
+    "snapshot_hash": "71d183ed66c8eb18be127092bbf2f375a7cf764a9b627bbca3706e6991f90e4e",
+    "snapshot": {
+      "work_unit_uid": "2deb08ea31054444ad119a7ab12ffcb3",
+      "coworker_uid": "11ca1ba468b74c2292cc33f75206893c",
+      "batch_uid": "ff29b0f9b54741a3bcb73b6180366f6d",
+      "group_uid": "27c46e1d420a448a96e7d003b0e194e1",
+      "line_context": {
+        "organization_uid": "bc45aacde3af40caa17ef92ed6e187fe",
+        "project_uid": null,
+        "dataset_uid": null,
+        "sequence_uid": null
+      },
+      "unit_status": "in_progress",
+      "unit_updated_at": "2026-09-05T14:54:02.509220+03:00",
+      "batch_status": "available",
+      "batch_updated_at": "2026-09-05T14:54:01.546362+03:00",
+      "staffing_mode": "group_pool",
+      "assigned": true,
+      "coworker_active": true,
+      "coworker_type": "coworker",
+      "approved_for_work": true,
+      "group_member": true,
+      "allocated": true,
+      "has_active_work": true,
+      "expected_result": {
+        "assignee_uid": "11ca1ba468b74c2292cc33f75206893c",
+        "status": "in_progress"
+      },
+      "impact_limits": {
+        "work_units": 1,
+        "coworkers": 1,
+        "payment_mutation": false,
+        "capacity_estimate": "unknown"
+      },
+      "verification_conditions": [
+        "assigned_work_visible",
+        "assignment_revision_matches",
+        "scope_unchanged",
+        "dispatch_eligibility_current"
+      ],
+      "recovery": {
+        "previous_status": "in_progress",
+        "previous_assignee_uid": "11ca1ba468b74c2292cc33f75206893c",
+        "automatic_reversal": "blocked_without_progress_observability"
+      },
+      "original_proposal_uid": "1faccec937404875a3cb868dd4223c81",
+      "original_snapshot": {
+        "work_unit_uid": "2deb08ea31054444ad119a7ab12ffcb3",
+        "coworker_uid": "11ca1ba468b74c2292cc33f75206893c",
+        "batch_uid": "ff29b0f9b54741a3bcb73b6180366f6d",
+        "group_uid": "27c46e1d420a448a96e7d003b0e194e1",
+        "line_context": {
+          "organization_uid": "bc45aacde3af40caa17ef92ed6e187fe",
+          "project_uid": null,
+          "dataset_uid": null,
+          "sequence_uid": null
+        },
+        "unit_status": "backlog",
+        "unit_updated_at": "2026-09-05T14:54:01.547929+03:00",
+        "batch_status": "available",
+        "batch_updated_at": "2026-09-05T14:54:01.546362+03:00",
+        "staffing_mode": "group_pool",
+        "assigned": false,
+        "coworker_active": true,
+        "coworker_type": "coworker",
+        "approved_for_work": true,
+        "group_member": true,
+        "allocated": true,
+        "has_active_work": false,
+        "expected_result": {
+          "assignee_uid": "11ca1ba468b74c2292cc33f75206893c",
+          "status": "in_progress"
+        },
+        "impact_limits": {
+          "work_units": 1,
+          "coworkers": 1,
+          "payment_mutation": false,
+          "capacity_estimate": "unknown"
+        },
+        "verification_conditions": [
+          "assigned_work_visible",
+          "assignment_revision_matches",
+          "scope_unchanged",
+          "dispatch_eligibility_current"
+        ],
+        "recovery": {
+          "previous_status": "backlog",
+          "previous_assignee_uid": null,
+          "automatic_reversal": "blocked_without_progress_observability"
+        }
+      },
+      "original_execution": {
+        "unit_updated_at": "2026-09-05T14:54:02.509220+03:00",
+        "operation_event_uid": "a4ca50f1-23cd-4447-b6b5-b1f39f5ce697"
+      }
+    },
+    "snapshot_canonical_json": "{\"allocated\":true,\"approved_for_work\":true,\"assigned\":true,\"batch_status\":\"available\",\"batch_uid\":\"ff29b0f9b54741a3bcb73b6180366f6d\",\"batch_updated_at\":\"2026-09-05T14:54:01.546362+03:00\",\"coworker_active\":true,\"coworker_type\":\"coworker\",\"coworker_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"expected_result\":{\"assignee_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"status\":\"in_progress\"},\"group_member\":true,\"group_uid\":\"27c46e1d420a448a96e7d003b0e194e1\",\"has_active_work\":true,\"impact_limits\":{\"capacity_estimate\":\"unknown\",\"coworkers\":1,\"payment_mutation\":false,\"work_units\":1},\"line_context\":{\"dataset_uid\":null,\"organization_uid\":\"bc45aacde3af40caa17ef92ed6e187fe\",\"project_uid\":null,\"sequence_uid\":null},\"original_execution\":{\"operation_event_uid\":\"a4ca50f1-23cd-4447-b6b5-b1f39f5ce697\",\"unit_updated_at\":\"2026-09-05T14:54:02.509220+03:00\"},\"original_proposal_uid\":\"1faccec937404875a3cb868dd4223c81\",\"original_snapshot\":{\"allocated\":true,\"approved_for_work\":true,\"assigned\":false,\"batch_status\":\"available\",\"batch_uid\":\"ff29b0f9b54741a3bcb73b6180366f6d\",\"batch_updated_at\":\"2026-09-05T14:54:01.546362+03:00\",\"coworker_active\":true,\"coworker_type\":\"coworker\",\"coworker_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"expected_result\":{\"assignee_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"status\":\"in_progress\"},\"group_member\":true,\"group_uid\":\"27c46e1d420a448a96e7d003b0e194e1\",\"has_active_work\":false,\"impact_limits\":{\"capacity_estimate\":\"unknown\",\"coworkers\":1,\"payment_mutation\":false,\"work_units\":1},\"line_context\":{\"dataset_uid\":null,\"organization_uid\":\"bc45aacde3af40caa17ef92ed6e187fe\",\"project_uid\":null,\"sequence_uid\":null},\"recovery\":{\"automatic_reversal\":\"blocked_without_progress_observability\",\"previous_assignee_uid\":null,\"previous_status\":\"backlog\"},\"staffing_mode\":\"group_pool\",\"unit_status\":\"backlog\",\"unit_updated_at\":\"2026-09-05T14:54:01.547929+03:00\",\"verification_conditions\":[\"assigned_work_visible\",\"assignment_revision_matches\",\"scope_unchanged\",\"dispatch_eligibility_current\"],\"work_unit_uid\":\"2deb08ea31054444ad119a7ab12ffcb3\"},\"recovery\":{\"automatic_reversal\":\"blocked_without_progress_observability\",\"previous_assignee_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"previous_status\":\"in_progress\"},\"staffing_mode\":\"group_pool\",\"unit_status\":\"in_progress\",\"unit_updated_at\":\"2026-09-05T14:54:02.509220+03:00\",\"verification_conditions\":[\"assigned_work_visible\",\"assignment_revision_matches\",\"scope_unchanged\",\"dispatch_eligibility_current\"],\"work_unit_uid\":\"2deb08ea31054444ad119a7ab12ffcb3\"}",
+    "evaluation": {
+      "decision": "BLOCK",
+      "rules": [
+        {
+          "code": "progress_observability_unavailable",
+          "result": "BLOCK"
+        }
+      ],
+      "snapshot_hash": "71d183ed66c8eb18be127092bbf2f375a7cf764a9b627bbca3706e6991f90e4e",
+      "rule_version": "dispatch_assignment_v1"
+    },
+    "approval": {
+      "requested_at": null,
+      "approved_at": null,
+      "expires_at": null,
+      "approver_uid": null,
+      "digest": null,
+      "review_path": "/admin/work_batch/operationproposal/1832d829-3450-48e3-b8f0-3c06cd8807bf/review/"
+    },
+    "dispatch_status": "not_requested",
+    "executed_at": null,
+    "execution": null,
+    "verified_at": null,
+    "verification": null
+  },
+  "verification_current_changed": {
+    "uid": "1faccec9-3740-4875-a3cb-868dd4223c81",
+    "version": 1,
+    "operation": "assign_work_unit",
+    "state": "verified",
+    "state_semantics": "historical_lifecycle_current_verification_separate",
+    "requester_uid": "657f3aeb-dee2-4df4-ab71-8c8b123bf4f3",
+    "request_id": "e9a17351-f613-4f48-8f48-7f64b2586ac4",
+    "request_hash": "d8098cf70a315b185c21a628281a93455401e9012739bf2074d366699b87ca23",
+    "reversal_of_uid": null,
+    "created_at": "2026-09-05T14:54:01.805647+03:00",
+    "expires_at": "2026-09-05T15:54:01.805301+03:00",
+    "reason": "Restore exact dispatch.",
+    "rule_version": "dispatch_assignment_v1",
+    "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+    "snapshot": {
+      "work_unit_uid": "2deb08ea31054444ad119a7ab12ffcb3",
+      "coworker_uid": "11ca1ba468b74c2292cc33f75206893c",
+      "batch_uid": "ff29b0f9b54741a3bcb73b6180366f6d",
+      "group_uid": "27c46e1d420a448a96e7d003b0e194e1",
+      "line_context": {
+        "organization_uid": "bc45aacde3af40caa17ef92ed6e187fe",
+        "project_uid": null,
+        "dataset_uid": null,
+        "sequence_uid": null
+      },
+      "unit_status": "backlog",
+      "unit_updated_at": "2026-09-05T14:54:01.547929+03:00",
+      "batch_status": "available",
+      "batch_updated_at": "2026-09-05T14:54:01.546362+03:00",
+      "staffing_mode": "group_pool",
+      "assigned": false,
+      "coworker_active": true,
+      "coworker_type": "coworker",
+      "approved_for_work": true,
+      "group_member": true,
+      "allocated": true,
+      "has_active_work": false,
+      "expected_result": {
+        "assignee_uid": "11ca1ba468b74c2292cc33f75206893c",
+        "status": "in_progress"
+      },
+      "impact_limits": {
+        "work_units": 1,
+        "coworkers": 1,
+        "payment_mutation": false,
+        "capacity_estimate": "unknown"
+      },
+      "verification_conditions": [
+        "assigned_work_visible",
+        "assignment_revision_matches",
+        "scope_unchanged",
+        "dispatch_eligibility_current"
+      ],
+      "recovery": {
+        "previous_status": "backlog",
+        "previous_assignee_uid": null,
+        "automatic_reversal": "blocked_without_progress_observability"
+      }
+    },
+    "snapshot_canonical_json": "{\"allocated\":true,\"approved_for_work\":true,\"assigned\":false,\"batch_status\":\"available\",\"batch_uid\":\"ff29b0f9b54741a3bcb73b6180366f6d\",\"batch_updated_at\":\"2026-09-05T14:54:01.546362+03:00\",\"coworker_active\":true,\"coworker_type\":\"coworker\",\"coworker_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"expected_result\":{\"assignee_uid\":\"11ca1ba468b74c2292cc33f75206893c\",\"status\":\"in_progress\"},\"group_member\":true,\"group_uid\":\"27c46e1d420a448a96e7d003b0e194e1\",\"has_active_work\":false,\"impact_limits\":{\"capacity_estimate\":\"unknown\",\"coworkers\":1,\"payment_mutation\":false,\"work_units\":1},\"line_context\":{\"dataset_uid\":null,\"organization_uid\":\"bc45aacde3af40caa17ef92ed6e187fe\",\"project_uid\":null,\"sequence_uid\":null},\"recovery\":{\"automatic_reversal\":\"blocked_without_progress_observability\",\"previous_assignee_uid\":null,\"previous_status\":\"backlog\"},\"staffing_mode\":\"group_pool\",\"unit_status\":\"backlog\",\"unit_updated_at\":\"2026-09-05T14:54:01.547929+03:00\",\"verification_conditions\":[\"assigned_work_visible\",\"assignment_revision_matches\",\"scope_unchanged\",\"dispatch_eligibility_current\"],\"work_unit_uid\":\"2deb08ea31054444ad119a7ab12ffcb3\"}",
+    "evaluation": {
+      "decision": "PASS",
+      "rules": [
+        {
+          "code": "rule_version_current",
+          "result": "PASS"
+        },
+        {
+          "code": "snapshot_integrity",
+          "result": "PASS"
+        },
+        {
+          "code": "request_integrity",
+          "result": "PASS"
+        },
+        {
+          "code": "proposal_unexpired",
+          "result": "PASS"
+        },
+        {
+          "code": "snapshot_unchanged",
+          "result": "PASS"
+        },
+        {
+          "code": "organization_known",
+          "result": "PASS"
+        },
+        {
+          "code": "batch_available",
+          "result": "PASS"
+        },
+        {
+          "code": "unit_backlog_unassigned",
+          "result": "PASS"
+        },
+        {
+          "code": "coworker_active_approved",
+          "result": "PASS"
+        },
+        {
+          "code": "group_qualified",
+          "result": "PASS"
+        },
+        {
+          "code": "batch_allocated",
+          "result": "PASS"
+        },
+        {
+          "code": "coworker_available",
+          "result": "PASS"
+        },
+        {
+          "code": "supported_operation",
+          "result": "PASS"
+        }
+      ],
+      "snapshot_hash": "7a095b3c9f97219ad2055b94418402d10fdbf4238e3ea7ffd43e530349deb562",
+      "rule_version": "dispatch_assignment_v1"
+    },
+    "approval": {
+      "requested_at": "2026-09-05T14:54:01.977217+03:00",
+      "approved_at": "2026-09-05T14:54:02.083200+03:00",
+      "expires_at": "2026-09-05T15:24:02.083201+03:00",
+      "approver_uid": "d7807ceb-a12a-4117-a7b1-bbf7b4253bc0",
+      "digest": "328306aff986b7362b55c8a1d9885efd769f340badbb7f941c341ab950374fd1",
+      "review_path": "/admin/work_batch/operationproposal/1faccec9-3740-4875-a3cb-868dd4223c81/review/"
+    },
+    "dispatch_status": "consumed",
+    "executed_at": "2026-09-05T14:54:02.516856+03:00",
+    "execution": {
+      "unit_updated_at": "2026-09-05T14:54:02.509220+03:00",
+      "operation_event_uid": "a4ca50f1-23cd-4447-b6b5-b1f39f5ce697"
+    },
+    "verified_at": "2026-09-05T14:54:02.521755+03:00",
+    "verification": {
+      "status": "changed",
+      "assigned_work_visible": false,
+      "dispatch_eligibility_current": false,
+      "assignment_revision_matches": true,
+      "scope_unchanged": true,
+      "production_activity": "not_measured"
+    }
+  }
+}

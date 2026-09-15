@@ -6,6 +6,8 @@ import {
   registerReadCatalogTool,
 } from "../catalog.js";
 import { z } from "zod";
+import { inspectCustomerQcContextTool } from "./customerQc.js";
+import { MUTATION_ANNOTATIONS } from "../annotations.js";
 
 const qualityTargetOutputSchema = z
   .object({
@@ -278,6 +280,7 @@ const getCampaignAcceptanceCoverageTool = defineReadCatalogTool({
 });
 
 export const QUALITY_READ_CATALOG_TOOLS = [
+  inspectCustomerQcContextTool,
   listQualityTargetsTool,
   getResultAcceptanceTool,
   getCampaignAcceptanceSummaryTool,
@@ -289,6 +292,7 @@ export function registerQualityTools(
   getClient: GetClient,
   allowMutations = false,
 ): void {
+  registerReadCatalogTool(server, getClient, inspectCustomerQcContextTool);
   registerReadCatalogTool(server, getClient, listQualityTargetsTool);
   registerReadCatalogTool(server, getClient, getResultAcceptanceTool);
   registerReadCatalogTool(server, getClient, getCampaignAcceptanceSummaryTool);
@@ -307,6 +311,11 @@ export function registerQualityTools(
               "The unique identifier (UUID) of the project to evaluate",
             ),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "qc.write",
+          "avala.ai/toolset": "quality",
+        },
       },
       async ({ projectUid }) => {
         const avala = getClient("evaluate_quality");

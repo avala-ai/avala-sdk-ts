@@ -4,6 +4,7 @@ import { FleetResource } from "./resources/fleet/index.js";
 import { AnnotationIssuesResource } from "./resources/annotationIssues.js";
 import { AutoLabelJobsResource } from "./resources/autoLabelJobs.js";
 import { ConsensusResource } from "./resources/consensus.js";
+import { CustomerQcResource } from "./resources/customerQc.js";
 import { DatasetsResource } from "./resources/datasets.js";
 import { ExportsResource } from "./resources/exports.js";
 import { InferenceProvidersResource } from "./resources/inferenceProviders.js";
@@ -64,6 +65,7 @@ export class Avala {
   public readonly autoLabelJobs: AutoLabelJobsResource;
   public readonly qualityTargets: QualityTargetsResource;
   public readonly consensus: ConsensusResource;
+  public readonly customerQc: CustomerQcResource;
   public readonly webhooks: WebhooksResource;
   public readonly webhookDeliveries: WebhookDeliveriesResource;
   public readonly organizations: OrganizationsResource;
@@ -131,6 +133,7 @@ export class Avala {
     this.autoLabelJobs = new AutoLabelJobsResource(this.transport);
     this.qualityTargets = new QualityTargetsResource(this.transport);
     this.consensus = new ConsensusResource(this.transport);
+    this.customerQc = new CustomerQcResource(this.transport);
     this.webhooks = new WebhooksResource(this.transport);
     this.webhookDeliveries = new WebhookDeliveriesResource(this.transport);
     this.organizations = new OrganizationsResource(this.transport);

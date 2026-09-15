@@ -1,0 +1,38 @@
+{
+  "generated_at": "2026-09-09T15:00:00+03:00",
+  "measurement": {
+    "source": "recorded_coworker_payout",
+    "coworker_uid": null,
+    "period_ended_from": "2026-09-08T15:00:00+03:00",
+    "period_ended_before": "2026-09-09T15:00:00+03:00",
+    "boundary": "half_open",
+    "period_selection": "date_to_within_window_full_period_amount",
+    "coverage_scope": "filtered_records_all_currency_pages",
+    "invalid_reason_counts_overlap": true,
+    "historical_completeness": "unknown",
+    "overlapping_periods_deduplicated": false,
+    "pending_estimates_included": false,
+    "settlement_verification": "unavailable",
+    "batch_cost_attribution": "unavailable"
+  },
+  "coverage": {
+    "filtered_records": 3,
+    "included_records": 2,
+    "excluded_records": 1,
+    "invalid_period_records": 0,
+    "invalid_amount_records": 0,
+    "invalid_worked_time_records": 0,
+    "unknown_currency_records": 1
+  },
+  "currencies": [
+    {
+      "currency": "USD",
+      "record_count": 2,
+      "recorded_amount": "42.35",
+      "worked_time_ms": 7200000,
+      "approved_worked_time_ms": 7000000
+    }
+  ],
+  "has_more": false,
+  "next_currency_cursor": null
+}

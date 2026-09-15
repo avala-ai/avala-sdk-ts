@@ -47,6 +47,7 @@ import {
   REVIEWED_HOSTED_MUTATION_TOOLS,
 } from "./server.js";
 import type { CredentialToolGrant } from "./visibility.js";
+import type { InvocationObserver } from "./readAudit.js";
 
 /** Path serving the MCP Streamable HTTP endpoint. */
 export const MCP_PATH = "/mcp";
@@ -73,6 +74,8 @@ const API_KEY_SHAPE = /^[0-9a-f]{40}$/;
 const API_KEY_HEADER = "x-avala-api-key";
 
 export interface AvalaMcpHttpOptions {
+  /** Override the default JSON console sink; receives fixed metadata only. */
+  invocationObserver?: InvocationObserver;
   /** Fail-closed OAuth resource and Auth0 OBO configuration. */
   oauth: HostedOAuthConfig;
   /** Injectable token broker for deterministic transport tests. */
@@ -683,6 +686,10 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
           allowMutations: false,
           allowedMutationTools: REVIEWED_HOSTED_MUTATION_TOOLS,
           credentialGrant,
+          hostedInvocation: {
+            credentialKind: downstreamCredential.kind,
+            observer: options.invocationObserver,
+          },
           credentialBinding: mutationCredentialBinding(
             internalClientSecret,
             downstreamCredential.kind === "api_key"

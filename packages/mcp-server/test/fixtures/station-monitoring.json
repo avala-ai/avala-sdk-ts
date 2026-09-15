@@ -1,0 +1,52 @@
+{
+  "generated_at": "2026-09-09T15:00:00+03:00",
+  "measurement": {
+    "count_coverage": "bounded_retained_links",
+    "count_interpretation": "exact_if_complete_otherwise_lower_bound",
+    "per_station_scan_limit": 1000,
+    "scope": "retained_session_task_links",
+    "historical_station_coverage": "incomplete",
+    "historical_throughput_supported": false,
+    "missing_links_mean_no_work": false,
+    "cross_station_counts_additive": false,
+    "queue_visibility_verified": false
+  },
+  "stations": [
+    {
+      "counts_complete": true,
+      "unknown_status_task_links": 0,
+      "station_uid": "20000000000040008000000000000001",
+      "project_uid": "30000000000040008000000000000001",
+      "session_definition_uid": "10000000000040008000000000000001",
+      "current_retained_links": {
+        "pending": {
+          "session_count": 0,
+          "task_link_count": 0,
+          "item_count": 0
+        },
+        "ready": {
+          "session_count": 1,
+          "task_link_count": 2,
+          "item_count": 1
+        },
+        "assigned": {
+          "session_count": 0,
+          "task_link_count": 0,
+          "item_count": 0
+        },
+        "finished": {
+          "session_count": 0,
+          "task_link_count": 0,
+          "item_count": 0
+        },
+        "abandoned": {
+          "session_count": 0,
+          "task_link_count": 0,
+          "item_count": 0
+        }
+      }
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}

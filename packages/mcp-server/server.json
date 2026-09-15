@@ -1,0 +1,19 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.avala-ai/avala",
+  "title": "Avala",
+  "description": "Read Physical AI datasets, projects, fleet and quality data. Requires authorized Avala access.",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/avala-ai/avala-sdk-ts",
+    "source": "github",
+    "subfolder": "packages/mcp-server"
+  },
+  "websiteUrl": "https://avala.ai/docs/integrations/mcp-setup",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.avala.ai/mcp"
+    }
+  ]
+}

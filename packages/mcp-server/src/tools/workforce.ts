@@ -4669,6 +4669,487 @@ const getCoworkerJourneyTool = defineReadCatalogTool({
   },
 });
 
+const onboardingStages = [
+  "ready_for_assignment",
+  "qualification",
+  "training",
+  "onboarding",
+  "learning_identity",
+  "approval",
+  "account",
+] as const;
+const onboardingStageKeys = [
+  "readyForAssignment",
+  "qualification",
+  "training",
+  "onboarding",
+  "learningIdentity",
+  "approval",
+  "account",
+] as const;
+const onboardingActionOwners = {
+  complete_onboarding: "coworker",
+  complete_required_training: "coworker",
+  approve_for_work: "operations",
+  establish_onboarding_status: "operations",
+  grant_qualified_task_access: "operations",
+  assign_to_production_work: "operations",
+  reactivate_account: "operations",
+  link_learning_identity: "support",
+} as const;
+const onboardingStageActions: Record<
+  (typeof onboardingStages)[number],
+  readonly string[]
+> = {
+  account: ["reactivate_account"],
+  approval: ["approve_for_work"],
+  learning_identity: ["link_learning_identity"],
+  onboarding: ["complete_onboarding", "establish_onboarding_status"],
+  training: ["complete_required_training"],
+  qualification: ["grant_qualified_task_access"],
+  ready_for_assignment: ["assign_to_production_work"],
+};
+const onboardingStageSources: Record<
+  (typeof onboardingStages)[number],
+  readonly (string | null)[]
+> = {
+  account: [null],
+  approval: ["account.joined_at"],
+  learning_identity: ["account.joined_at"],
+  onboarding: ["learning.learning_access.joined_at", "account.joined_at"],
+  training: ["learning.training.journeys.enrolled_at"],
+  qualification: ["learning.training.summary.earliest_completed_at"],
+  ready_for_assignment: ["learning.task_access.granted_at"],
+};
+const onboardingCount = z.number().int().min(0).max(10);
+const onboardingEvidenceRules: Record<
+  string,
+  { source: string; observed: RegExp }
+> = {
+  active: { source: "account", observed: /^false$/ },
+  approved_for_work: { source: "account", observed: /^false$/ },
+  "identity.status": { source: "learning", observed: /^not_linked$/ },
+  "onboarding.availability": {
+    source: "learning",
+    observed: /^(available|no_record)$/,
+  },
+  "onboarding.status": { source: "learning", observed: /^not_onboarded$/ },
+  "task_access.granted_count": { source: "learning", observed: /^\d+$/ },
+  "training.active_journeys": { source: "learning", observed: /^\d+$/ },
+  "training.next_required_module_uid": {
+    source: "learning",
+    observed:
+      /^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/,
+  },
+  accepted_or_overlooked_results: { source: "production", observed: /^\d+$/ },
+  actionable_assignments: { source: "production", observed: /^\d+$/ },
+};
+const onboardingDiagnosisStepSchema =
+  coworkerJourneyDiagnosisStepSchema.superRefine((step, context) => {
+    for (const evidence of step.evidence) {
+      const rule = Object.hasOwn(onboardingEvidenceRules, evidence.fact)
+        ? onboardingEvidenceRules[evidence.fact]
+        : undefined;
+      if (
+        !rule ||
+        rule.source !== evidence.source ||
+        !rule.observed.test(evidence.observed)
+      )
+        context.addIssue({
+          code: "custom",
+          message:
+            "Onboarding evidence must use reviewed source, fact, and value contracts.",
+        });
+    }
+  });
+const onboardingBlockerCodes: Record<
+  keyof typeof onboardingActionOwners,
+  string | null
+> = {
+  reactivate_account: "account_inactive",
+  approve_for_work: "work_approval_required",
+  link_learning_identity: "learning_identity_not_linked",
+  establish_onboarding_status: "onboarding_status_unavailable",
+  complete_onboarding: "onboarding_incomplete",
+  complete_required_training: "task_access_not_granted",
+  grant_qualified_task_access: "task_access_not_granted",
+  assign_to_production_work: null,
+};
+const onboardingEvaluatedSchema = z
+  .object({
+    evaluationStatus: z.literal("evaluated"),
+    coworkerUid: compactUuidOutputSchema,
+    displayName: z.string().min(1).max(150),
+    currentStage: z.enum(onboardingStages),
+    stageEnteredAt: coworkerJourneyTimestampSchema.nullable(),
+    stageEnteredSource: z
+      .enum([
+        "account.joined_at",
+        "learning.learning_access.joined_at",
+        "learning.training.journeys.enrolled_at",
+        "learning.training.summary.earliest_completed_at",
+        "learning.task_access.granted_at",
+      ])
+      .nullable(),
+    hoursInStage: z.number().nonnegative().nullable(),
+    stageDurationUnknown: z.boolean(),
+    lastActivityAt: coworkerJourneyTimestampSchema.nullable(),
+    activityStatus: z.enum(["inactive", "recent", "unknown"]),
+    blockKind: z.enum([
+      "coworker_inactive",
+      "coworker_in_progress",
+      "coworker_activity_unknown",
+      "system_or_operations",
+    ]),
+    blocker: onboardingDiagnosisStepSchema.nullable(),
+    nextRequiredStep: onboardingDiagnosisStepSchema,
+    proposedAction: z
+      .object({
+        code: z.enum(
+          Object.keys(onboardingActionOwners) as [
+            keyof typeof onboardingActionOwners,
+            ...(keyof typeof onboardingActionOwners)[],
+          ],
+        ),
+        owner: z.enum(["coworker", "operations", "support"]),
+        requiresHumanApproval: z.literal(true),
+        mcpTool: z.literal("create_operation_proposal").nullable(),
+      })
+      .strip(),
+    expectedCapacityEffect: z
+      .object({ availability: z.literal("not_computed") })
+      .strip(),
+  })
+  .strip();
+const workforceOnboardingBlockersOutputSchema = z
+  .object({
+    generatedAt: coworkerJourneyTimestampSchema,
+    criteria: z
+      .object({
+        minHoursInStage: z.number().min(0).max(8760),
+        inactiveAfterHours: z.number().min(1).max(8760),
+      })
+      .strip(),
+    coverage: z
+      .object({
+        scanOrder: z.literal("coworker_uid"),
+        rankOrder: z.literal(
+          "stage_proximity_then_hours_desc_then_coworker_uid",
+        ),
+        scannedCoworkers: onboardingCount,
+        blockedCoworkers: onboardingCount,
+        notBlockedCoworkers: onboardingCount,
+        identityConflicts: onboardingCount,
+        filteredBelowMinHours: onboardingCount,
+        globalScanComplete: z.boolean(),
+        blockedByStage: z
+          .object({
+            account: onboardingCount,
+            approval: onboardingCount,
+            learningIdentity: onboardingCount,
+            onboarding: onboardingCount,
+            training: onboardingCount,
+            qualification: onboardingCount,
+            readyForAssignment: onboardingCount,
+          })
+          .strip(),
+      })
+      .strip(),
+    coworkers: z
+      .array(
+        z.discriminatedUnion("evaluationStatus", [
+          onboardingEvaluatedSchema,
+          z
+            .object({
+              evaluationStatus: z.literal("identity_conflict"),
+              coworkerUid: compactUuidOutputSchema,
+              displayName: z.string().min(1).max(150),
+              code: z.literal("coworker_journey_identity_conflict"),
+              retryable: z.literal(false),
+            })
+            .strip(),
+        ]),
+      )
+      .max(10),
+    hasMore: z.boolean(),
+    nextCursor: compactUuidOutputSchema.nullable(),
+  })
+  .strip()
+  .superRefine((page, context) => {
+    const fail = (message: string): void =>
+      context.addIssue({ code: "custom", message });
+    const { coverage, coworkers } = page;
+    const evaluated = coworkers.filter(
+      (row) => row.evaluationStatus === "evaluated",
+    );
+    if (
+      coverage.blockedCoworkers +
+        coverage.notBlockedCoworkers +
+        coverage.identityConflicts !==
+        coverage.scannedCoworkers ||
+      Object.values(coverage.blockedByStage).reduce(
+        (sum, count) => sum + count,
+        0,
+      ) !== coverage.blockedCoworkers ||
+      evaluated.length + coverage.filteredBelowMinHours !==
+        coverage.blockedCoworkers ||
+      coworkers.length - evaluated.length !== coverage.identityConflicts
+    )
+      fail("Onboarding scan coverage does not reconcile.");
+    if (
+      page.hasMore !== (page.nextCursor !== null) ||
+      (page.hasMore && coverage.scannedCoworkers === 0)
+    )
+      fail("Onboarding pagination does not reconcile.");
+    if (
+      coverage.globalScanComplete &&
+      (page.hasMore || coverage.identityConflicts !== 0)
+    )
+      fail(
+        "Global completeness cannot include a continuation or identity conflict.",
+      );
+    if (
+      new Set(coworkers.map((row) => row.coworkerUid)).size !== coworkers.length
+    )
+      fail("Coworker UIDs must be unique.");
+    const stageCounts = Object.fromEntries(
+      onboardingStages.map((stage) => [stage, 0]),
+    );
+    let previous: (typeof evaluated)[number] | undefined;
+    let previousConflict: string | undefined;
+    for (const row of coworkers) {
+      if (row.evaluationStatus === "identity_conflict") {
+        if (
+          previousConflict !== undefined &&
+          row.coworkerUid < previousConflict
+        )
+          fail("Identity conflicts must be ordered by UID.");
+        previousConflict = row.coworkerUid;
+        continue;
+      }
+      if (previousConflict !== undefined)
+        fail("Identity conflicts must follow evaluated rows.");
+      stageCounts[row.currentStage]!++;
+      const stage = onboardingStages.indexOf(row.currentStage);
+      if (previous) {
+        const previousStage = onboardingStages.indexOf(previous.currentStage);
+        const duration = row.hoursInStage ?? -1;
+        const previousDuration = previous.hoursInStage ?? -1;
+        if (
+          stage < previousStage ||
+          (stage === previousStage &&
+            (duration > previousDuration ||
+              (duration === previousDuration &&
+                row.coworkerUid < previous.coworkerUid)))
+        )
+          fail("Coworkers must follow the declared page rank.");
+      }
+      previous = row;
+      if (
+        row.stageDurationUnknown !== (row.stageEnteredAt === null) ||
+        (row.hoursInStage === null) !== row.stageDurationUnknown
+      )
+        fail("Unknown stage duration must preserve null evidence.");
+      if (
+        !onboardingStageSources[row.currentStage].includes(
+          row.stageEnteredSource,
+        ) ||
+        (row.currentStage === "account" && row.stageEnteredAt !== null)
+      )
+        fail("Stage timestamp source does not match the diagnosed stage.");
+      if (row.hoursInStage !== null && row.stageEnteredAt !== null) {
+        const expectedHours = Math.max(
+          0,
+          (Date.parse(page.generatedAt) - Date.parse(row.stageEnteredAt)) /
+            3600000,
+        );
+        if (Math.abs(row.hoursInStage - expectedHours) > 0.000001)
+          fail("Stage duration does not match its timestamp evidence.");
+        if (row.hoursInStage < page.criteria.minHoursInStage)
+          fail("Returned duration is below the requested minimum.");
+      }
+      const activityAge =
+        row.lastActivityAt === null
+          ? null
+          : Date.parse(page.generatedAt) - Date.parse(row.lastActivityAt);
+      const activityThreshold = page.criteria.inactiveAfterHours * 3600000;
+      const expectedActivity =
+        row.lastActivityAt === null
+          ? "unknown"
+          : activityAge! > activityThreshold
+            ? "inactive"
+            : "recent";
+      // Django timestamps retain microseconds; JavaScript Date truncates to milliseconds.
+      // Both recorded activity states are valid within that one-ms boundary uncertainty.
+      const activityBoundaryUncertain =
+        activityAge !== null &&
+        Math.abs(activityAge - activityThreshold) < 1 &&
+        row.activityStatus !== "unknown";
+      if (row.activityStatus !== expectedActivity && !activityBoundaryUncertain)
+        fail("Activity status does not match the recorded evidence.");
+      const { proposedAction } = row;
+      const expectedKind =
+        proposedAction.owner !== "coworker"
+          ? "system_or_operations"
+          : {
+              inactive: "coworker_inactive",
+              recent: "coworker_in_progress",
+              unknown: "coworker_activity_unknown",
+            }[row.activityStatus];
+      if (
+        proposedAction.code !== row.nextRequiredStep.code ||
+        !onboardingStageActions[row.currentStage].includes(
+          proposedAction.code,
+        ) ||
+        proposedAction.owner !== onboardingActionOwners[proposedAction.code] ||
+        proposedAction.mcpTool !==
+          (proposedAction.code === "assign_to_production_work"
+            ? "create_operation_proposal"
+            : null) ||
+        row.blockKind !== expectedKind
+      )
+        fail(
+          "Action, ownership, and block kind must match the diagnosed next step.",
+        );
+      if (
+        (row.blocker?.code ?? null) !==
+        onboardingBlockerCodes[proposedAction.code]
+      )
+        fail("Blocker evidence must match the diagnosed stage.");
+    }
+    for (const [index, stage] of onboardingStages.entries()) {
+      if (
+        stageCounts[stage]! >
+        coverage.blockedByStage[onboardingStageKeys[index]!]
+      )
+        fail("Returned stage rows exceed scanned stage coverage.");
+    }
+  });
+
+const listBlockedOnboardingCoworkersTool = defineReadCatalogTool({
+  name: "list_blocked_onboarding_coworkers",
+  title: "List blocked onboarding coworkers",
+  description:
+    "Staff only: scan one bounded coworker page for evidence-backed onboarding blockers. Start without cursor and follow every nextCursor with identical filters; ranking is page-local, so aggregate all pages before global prioritization. Coverage includes blocked coworkers below minHoursInStage separately from returned rows and preserves identity-conflict rows. Missing stage duration and activity stay unknown; joined/enrolled/granted timestamps are named proxies, not proven stage transitions. Capacity effects are not computed. Call get_coworker_journey with the exact coworkerUid before proposing any action. Recommendations are not executable proposals. For dispatch, select an exact work unit via list_workforce_assignment_candidates, then call create_operation_proposal with requestId, workUnitUid, coworkerUid and reason; independent human approval is required before execution. Returns safe first-name/fallback labels and fixed evidence; excludes contacts, family names, provider identities, KYC, pay, customer payloads, and URLs.",
+  inputSchema: z
+    .object({
+      minHoursInStage: z
+        .number()
+        .min(0)
+        .max(8760)
+        .optional()
+        .describe(
+          "Minimum known stage duration in hours (default 24); unknown durations remain included.",
+        ),
+      inactiveAfterHours: z
+        .number()
+        .min(1)
+        .max(8760)
+        .optional()
+        .describe(
+          "Recorded inactivity threshold in hours (default 72); absent activity stays unknown.",
+        ),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(10)
+        .optional()
+        .describe(
+          "Maximum coworkers scanned, not rows returned (default and max 10).",
+        ),
+      cursor: batchUidInputSchema
+        .optional()
+        .describe("Previous nextCursor; omit on the first page."),
+    })
+    .strict(),
+  outputSchema: workforceOnboardingBlockersOutputSchema,
+  normalizeProviderResponse: (value) => {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      !("coworkers" in value) ||
+      !Array.isArray(value.coworkers)
+    )
+      return value;
+    return {
+      ...value,
+      coworkers: value.coworkers.map((row: unknown) => {
+        if (
+          !row ||
+          typeof row !== "object" ||
+          !("proposedAction" in row) ||
+          !row.proposedAction ||
+          typeof row.proposedAction !== "object" ||
+          !("mcpTool" in row.proposedAction) ||
+          row.proposedAction.mcpTool !== "assign_workforce_work_unit"
+        )
+          return row;
+        return {
+          ...row,
+          proposedAction: {
+            ...row.proposedAction,
+            mcpTool: "create_operation_proposal",
+          },
+        };
+      }),
+    };
+  },
+  supportsDetail: false,
+  project: (value, _detail, args) => {
+    const page = workforceOnboardingBlockersOutputSchema.parse(value);
+    const cursor =
+      typeof args.cursor === "string"
+        ? args.cursor.replaceAll("-", "")
+        : undefined;
+    if (
+      page.criteria.minHoursInStage !== (args.minHoursInStage ?? 24) ||
+      page.criteria.inactiveAfterHours !== (args.inactiveAfterHours ?? 72)
+    )
+      throw new Error("Onboarding criteria did not match the request.");
+    if (page.coverage.scannedCoworkers > Number(args.limit ?? 10))
+      throw new Error("Onboarding scan exceeded the requested limit.");
+    if (
+      page.coverage.globalScanComplete !==
+      (cursor === undefined &&
+        !page.hasMore &&
+        page.coverage.identityConflicts === 0)
+    )
+      throw new Error(
+        "Onboarding global completeness did not match the requested scan.",
+      );
+    if (
+      (cursor !== undefined &&
+        page.nextCursor !== null &&
+        page.nextCursor <= cursor) ||
+      page.coworkers.some(
+        (row) =>
+          (cursor !== undefined && row.coworkerUid <= cursor) ||
+          (page.nextCursor !== null && row.coworkerUid > page.nextCursor),
+      )
+    )
+      throw new Error(
+        "Onboarding pagination does not advance or contain the returned rows.",
+      );
+    return page;
+  },
+  route: {
+    name: "workforce-coworker-onboarding-blockers",
+    method: "GET",
+    path: "/admin/workforce/coworkers/onboarding-blockers/",
+    query: {
+      minHoursInStage: "min_hours_in_stage",
+      inactiveAfterHours: "inactive_after_hours",
+      limit: "limit",
+      cursor: "cursor",
+    },
+    defaultLimit: 10,
+    response: "single",
+    scope: "workforce.read",
+    toolset: "staff",
+  },
+});
+
 const listCoworkerTrainingCandidatesTool = defineReadCatalogTool({
   name: "list_coworker_training_candidates",
   title: "List coworker training candidates",
@@ -6107,7 +6588,7 @@ const listWorkforceAssignmentCandidatesTool = defineReadCatalogTool({
   name: "list_workforce_assignment_candidates",
   title: "List workforce assignment candidates",
   description:
-    "Staff only: list a bounded page of opaque coworker IDs currently eligible for one unassigned Physical AI labeling unit, with raw recent completion, abandonment, and error counts scoped to its exact organization, task, and workflow role. Requires workforce.write; returns no ranking or composite score and excludes names, contact details, profiles, group names, pay data, and current work details.",
+    "Staff only: list a bounded page of opaque coworker IDs currently eligible for one unassigned Physical AI labeling unit, with raw recent completion, abandonment, and error counts scoped to its exact organization, task, and workflow role. Requires workforce.write or operations.proposal.read; returns no ranking or composite score and excludes names, contact details, profiles, group names, pay data, and current work details.",
   inputSchema: z
     .object({
       workUnitUid: batchUidInputSchema.describe(
@@ -6147,6 +6628,7 @@ const listWorkforceAssignmentCandidatesTool = defineReadCatalogTool({
     },
     response: "single",
     scope: "workforce.write",
+    alternativeScopes: ["operations.proposal.read"],
     toolset: "staff",
   },
 });
@@ -7179,203 +7661,10 @@ const setWorkforceSequenceStatusTool = defineMutationCatalogTool({
     `Re-read sequence ${sequenceUid} with get_workforce_sequence_status. Reverse only if ${expectedStatus} is listed in availableTransitions; then call set_workforce_sequence_status with expectedStatus=${status}, the newly observed expectedUpdatedAt and expectedWorkflowRevisionUid, and status=${expectedStatus}. The reversal requires separate human approval, and some workflow edges are terminal or one-way.`,
 });
 
-const deassignWorkforceWorkUnitTool = defineMutationCatalogTool({
-  name: "deassign_workforce_work_unit",
-  title: "Deassign workforce work unit",
-  description:
-    "Staff only: clear the current coworker assignment from one in-progress Physical AI labeling unit and return it to backlog after explicit human approval. Requires the exact batch, line context, status, and update timestamp observed by list_workforce_batch_units.",
-  inputSchema: z
-    .object({
-      workUnitUid: batchUidInputSchema.describe(
-        "Opaque work-unit UID returned by list_workforce_batch_units.",
-      ),
-      expectedBatchUid: batchUidInputSchema.describe(
-        "Exact batch UID returned with the inspected work unit.",
-      ),
-      expectedLineContext: actionableWorkforceLineContextInputSchema.describe(
-        "Exact organization/project/dataset/sequence UID context returned by the inspection.",
-      ),
-      expectedStatus: z
-        .literal("in_progress")
-        .describe("Exact inspected status; deassignment only supports in_progress."),
-      expectedUpdatedAt: z
-        .string()
-        .datetime({ offset: true })
-        .describe("Exact updatedAt timestamp returned by the inspection."),
-      reason: z
-        .string()
-        .trim()
-        .min(8)
-        .max(500)
-        .describe("Operational reason recorded in both audit ledgers."),
-    })
-    .strict(),
-  outputSchema: z
-    .object({
-      operationEventUid: compactUuidOutputSchema,
-      batchUid: compactUuidOutputSchema,
-      lineContext: workforceLineContextOutputSchema.extend({
-        organizationUid: compactUuidOutputSchema,
-      }),
-      workUnitUid: compactUuidOutputSchema,
-      previousStatus: z.literal("in_progress"),
-      status: z.literal("backlog"),
-      assigned: z.literal(false),
-      updatedAt: z.string().datetime({ offset: true }),
-      reason: z.string().max(500),
-      reversalGuidance: z.string().min(1).max(1000),
-    })
-    .strip(),
-  route: {
-    name: "workforce-work-unit-deassign",
-    method: "POST",
-    path: "/admin/workforce/work-units/{workUnitUid}/deassign/",
-    scope: "workforce.write",
-    toolset: "staff",
-    body: ({
-      expectedBatchUid,
-      expectedLineContext,
-      expectedStatus,
-      expectedUpdatedAt,
-      reason,
-    }) => ({
-      expected_batch_uid: expectedBatchUid,
-      expected_line_context: {
-        organization_uid: expectedLineContext.organizationUid,
-        project_uid: expectedLineContext.projectUid,
-        dataset_uid: expectedLineContext.datasetUid,
-        sequence_uid: expectedLineContext.sequenceUid,
-      },
-      expected_status: expectedStatus,
-      expected_updated_at: expectedUpdatedAt,
-      reason,
-    }),
-  },
-  preview: ({
-    workUnitUid,
-    expectedBatchUid,
-    expectedStatus,
-    expectedUpdatedAt,
-    reason,
-  }) => ({
-    message:
-      `Clear the current coworker assignment from work unit ${workUnitUid} in batch ${expectedBatchUid} ` +
-      `and move it from ${expectedStatus} to backlog? The inspected state was last updated at ${expectedUpdatedAt}. ` +
-      `Reason: ${reason} This interrupts the current assignment and makes the unit claimable again.`,
-  }),
-  reversalGuidance: ({ workUnitUid, expectedBatchUid }) =>
-    `Deassignment cannot automatically restore the previous coworker because this privacy-preserving tool never receives their identity. Re-read work unit ${workUnitUid} in batch ${expectedBatchUid}; if reassignment is required, use a separately approved assignment control or the staff operations UI.`,
-});
-
-const assignWorkforceWorkUnitTool = defineMutationCatalogTool({
-  name: "assign_workforce_work_unit",
-  title: "Assign workforce work unit",
-  description:
-    "Staff only: assign one eligible coworker to one backlog Physical AI labeling unit after explicit human approval. Requires the exact batch status, line context, unit state, timestamp, and opaque coworker ID returned by the inspection tools.",
-  inputSchema: z
-    .object({
-      workUnitUid: batchUidInputSchema.describe(
-        "Opaque work-unit UID returned by list_workforce_batch_units.",
-      ),
-      coworkerUid: batchUidInputSchema.describe(
-        "Opaque coworker UID returned by list_workforce_assignment_candidates for this exact unit.",
-      ),
-      expectedBatchUid: batchUidInputSchema.describe(
-        "Exact batch UID returned with the inspected work unit.",
-      ),
-      expectedBatchStatus: z
-        .literal("available")
-        .describe("Exact inspected batch status; assignment requires available."),
-      expectedLineContext: actionableWorkforceLineContextInputSchema.describe(
-        "Exact organization/project/dataset/sequence UID context returned by the inspection.",
-      ),
-      expectedStatus: z
-        .literal("backlog")
-        .describe("Exact inspected unit status; assignment requires backlog."),
-      expectedAssigned: z
-        .literal(false)
-        .describe("Exact inspected assignment state; assignment requires false."),
-      expectedUpdatedAt: z
-        .string()
-        .datetime({ offset: true })
-        .describe("Exact updatedAt timestamp returned by the inspection."),
-      reason: z
-        .string()
-        .trim()
-        .min(8)
-        .max(500)
-        .describe("Operational reason recorded in both audit ledgers."),
-    })
-    .strict(),
-  outputSchema: z
-    .object({
-      operationEventUid: compactUuidOutputSchema,
-      batchUid: compactUuidOutputSchema,
-      batchStatus: z.literal("available"),
-      lineContext: workforceLineContextOutputSchema.extend({
-        organizationUid: compactUuidOutputSchema,
-      }),
-      workUnitUid: compactUuidOutputSchema,
-      coworkerUid: compactUuidOutputSchema,
-      previousStatus: z.literal("backlog"),
-      status: z.literal("in_progress"),
-      assigned: z.literal(true),
-      updatedAt: z.string().datetime({ offset: true }),
-      reason: z.string().max(500),
-      reversalGuidance: z.string().min(1).max(1000),
-    })
-    .strip(),
-  route: {
-    name: "workforce-work-unit-assign",
-    method: "POST",
-    path: "/admin/workforce/work-units/{workUnitUid}/assign/",
-    scope: "workforce.write",
-    toolset: "staff",
-    body: ({
-      coworkerUid,
-      expectedBatchUid,
-      expectedBatchStatus,
-      expectedLineContext,
-      expectedStatus,
-      expectedAssigned,
-      expectedUpdatedAt,
-      reason,
-    }) => ({
-      coworker_uid: coworkerUid,
-      expected_batch_uid: expectedBatchUid,
-      expected_batch_status: expectedBatchStatus,
-      expected_line_context: {
-        organization_uid: expectedLineContext.organizationUid,
-        project_uid: expectedLineContext.projectUid,
-        dataset_uid: expectedLineContext.datasetUid,
-        sequence_uid: expectedLineContext.sequenceUid,
-      },
-      expected_status: expectedStatus,
-      expected_assigned: expectedAssigned,
-      expected_updated_at: expectedUpdatedAt,
-      reason,
-    }),
-  },
-  preview: ({
-    workUnitUid,
-    coworkerUid,
-    expectedBatchUid,
-    expectedLineContext,
-    expectedUpdatedAt,
-    reason,
-  }) => ({
-    message:
-      `Assign coworker ${coworkerUid} to work unit ${workUnitUid} in batch ${expectedBatchUid} ` +
-      `and move it from backlog to in_progress? The inspected state was last updated at ${expectedUpdatedAt}. ` +
-      `Line context: ${describeWorkforceLineContext(expectedLineContext)}. ` +
-      `Reason: ${reason} This gives the coworker active work and changes the production queue.`,
-  }),
-  reversalGuidance: ({ workUnitUid, expectedBatchUid, coworkerUid }) =>
-    `Re-read work unit ${workUnitUid} in batch ${expectedBatchUid}. If it is still assigned and in_progress, call deassign_workforce_work_unit with the newly observed state; that reversal requires separate human approval and clears coworker ${coworkerUid} from the unit.`,
-});
 
 export const WORKFORCE_READ_CATALOG_TOOLS = [
   getWorkforceOperationsOverviewTool,
+  listBlockedOnboardingCoworkersTool,
   listCoworkerTrainingCandidatesTool,
   listWorkforceTrainingCohortEvidenceTool,
   getWorkforceCoworkerReliabilityTool,
@@ -7405,8 +7694,6 @@ export const WORKFORCE_MUTATION_CATALOG_TOOLS = [
   setWorkforceBatchPriorityTool,
   setWorkforceBatchStatusTool,
   setWorkforceSequenceStatusTool,
-  assignWorkforceWorkUnitTool,
-  deassignWorkforceWorkUnitTool,
 ] as const;
 
 export function registerWorkforceTools(
@@ -7417,6 +7704,7 @@ export function registerWorkforceTools(
 ): void {
   registerReadCatalogTool(server, getClient, getWorkforceOperationsOverviewTool);
   registerReadCatalogTool(server, getClient, listCoworkerTrainingCandidatesTool);
+  registerReadCatalogTool(server, getClient, listBlockedOnboardingCoworkersTool);
   registerReadCatalogTool(
     server,
     getClient,
@@ -7535,27 +7823,7 @@ export function registerWorkforceTools(
         mutationOptions,
       );
     }
-    if (
-      allowedMutationTools === undefined ||
-      allowedMutationTools.has(assignWorkforceWorkUnitTool.name)
-    ) {
-      registerMutationCatalogTool(
-        server,
-        getClient,
-        assignWorkforceWorkUnitTool,
-        mutationOptions,
-      );
-    }
-    if (
-      allowedMutationTools === undefined ||
-      allowedMutationTools.has(deassignWorkforceWorkUnitTool.name)
-    ) {
-      registerMutationCatalogTool(
-        server,
-        getClient,
-        deassignWorkforceWorkUnitTool,
-        mutationOptions,
-      );
-    }
+
+
   }
 }

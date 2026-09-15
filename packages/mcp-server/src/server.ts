@@ -1,3 +1,7 @@
+import {
+  registerOperationProposalTools,
+  OPERATION_PROPOSAL_COMMAND_NAMES,
+} from "./tools/operationProposals.js";
 import { McpServer } from "@modelcontextprotocol/server";
 import packageJson from "../package.json" with { type: "json" };
 import type { GetClient } from "./client.js";
@@ -22,8 +26,14 @@ import { registerStorageTools } from "./tools/storage.js";
 import { registerTaskTools } from "./tools/tasks.js";
 import { registerWebhookTools } from "./tools/webhooks.js";
 import { registerWorkflowTools } from "./tools/workflows.js";
+import { registerBillingTools } from "./tools/billing.js";
 import { registerWorkforceTools } from "./tools/workforce.js";
+import { registerWorkforceSessionMonitoringTools } from "./tools/workforceSessionMonitoring.js";
 import { enforceEgressScrubbing } from "./egress.js";
+import {
+  observeHostedInvocations,
+  type HostedInvocationOptions,
+} from "./readAudit.js";
 import {
   createMutationConfirmationService,
   type MutationConfirmationService,
@@ -35,6 +45,8 @@ import {
 
 export interface McpServerOptions {
   allowMutations: boolean;
+  /** Request-local metadata only; absent for local stdio. */
+  hostedInvocation?: HostedInvocationOptions;
   /** Exact reviewed mutation names for credential-scoped hosted MCP. */
   allowedMutationTools?: ReadonlySet<string>;
   /** Omit for local stdio; hosted HTTP always supplies the discovered grant. */
@@ -50,11 +62,10 @@ export interface McpServerOptions {
 }
 
 export const REVIEWED_HOSTED_MUTATION_TOOLS: ReadonlySet<string> = new Set([
-  "assign_workforce_work_unit",
+  ...OPERATION_PROPOSAL_COMMAND_NAMES,
   "change_workforce_batch_allocation",
   "change_workforce_group_membership",
   "create_workforce_batch",
-  "deassign_workforce_work_unit",
   "set_workforce_batch_priority",
   "set_workforce_batch_status",
   "set_workforce_sequence_status",
@@ -74,7 +85,8 @@ export type { GetClient } from "./client.js";
 const SERVER_INSTRUCTIONS = [
   "Manage the Avala Physical AI data loop through tenant-safe REST-backed tools.",
   "Inspect resources before changing them, use the narrowest available tool, and preserve returned identifiers for follow-up calls.",
-  "After any workforce mutation, preserve operationEventUid and call get_workforce_operation_event; report the effect as verified only when its explicit verification status supports that claim. Use list_workforce_operation_events only when a receipt UID must be discovered, preserve every filter across pages, and never treat an empty result as proof that no change occurred.",
+  "Dispatch uses durable operation proposals: select an exact unit and candidate, create and evaluate, then request independent human approval through approval.reviewPath on the configured API origin. MCP cannot approve and elicitation is not approval. Preserve proposal UID/version. execute_approved_operation queues work; verify_operation must confirm current observations before claiming success. Historical verified state may coexist with current changed verification. reverse_operation only records a BLOCKED child; it does not cancel work.",
+  "After a legacy workforce action, preserve operationEventUid and call get_workforce_operation_event; report the effect as verified only when its explicit verification status supports that claim. Use list_workforce_operation_events only when a receipt UID must be discovered, preserve every filter across pages, and never treat an empty result as proof that no change occurred.",
   "Media and export reads return opaque asset handles instead of bearer URLs; resolve_asset_handle uses protocol elicitation and releases a URL only after confirmation.",
   "The product MCP at mcp.avala.ai is distinct from the public documentation MCP at avala.ai/docs/mcp.",
 ].join(" ");
@@ -99,6 +111,15 @@ export function createAvalaMcpServer(
  * registration style from silently disappearing from generated documentation.
  */
 export const TOOL_REGISTRARS: readonly ToolRegistrar[] = [
+  {
+    category: "billing",
+    register: (server, getClient): void =>
+      registerBillingTools(server, getClient),
+  },
+  {
+    category: "workforceSessionMonitoring",
+    register: (server, getClient): void => registerWorkforceSessionMonitoringTools(server, getClient),
+  },
   {
     category: "datasets",
     register: (server, getClient, options): void =>
@@ -198,15 +219,13 @@ export const TOOL_REGISTRARS: readonly ToolRegistrar[] = [
     register: (server, getClient, options): void => {
       const enabled =
         options.allowMutations ||
-        options.allowedMutationTools?.has("assign_workforce_work_unit") ===
-          true ||
-        options.allowedMutationTools?.has("change_workforce_batch_allocation") ===
-          true ||
-        options.allowedMutationTools?.has("change_workforce_group_membership") ===
-          true ||
+        options.allowedMutationTools?.has(
+          "change_workforce_batch_allocation",
+        ) === true ||
+        options.allowedMutationTools?.has(
+          "change_workforce_group_membership",
+        ) === true ||
         options.allowedMutationTools?.has("create_workforce_batch") === true ||
-        options.allowedMutationTools?.has("deassign_workforce_work_unit") ===
-          true ||
         options.allowedMutationTools?.has("set_workforce_batch_priority") ===
           true ||
         options.allowedMutationTools?.has("set_workforce_batch_status") ===
@@ -223,13 +242,21 @@ export const TOOL_REGISTRARS: readonly ToolRegistrar[] = [
                 createMutationConfirmationService(
                   options.assetHandleKeyMaterial,
                 ),
-              credentialBinding:
-                options.credentialBinding ?? "local-stdio",
+              credentialBinding: options.credentialBinding ?? "local-stdio",
             }
           : undefined,
         options.allowMutations ? undefined : options.allowedMutationTools,
       );
     },
+  },
+  {
+    category: "operationProposals",
+    register: (server, getClient, options): void =>
+      registerOperationProposalTools(
+        server,
+        getClient,
+        options.allowMutations || options.allowedMutationTools || false,
+      ),
   },
   {
     category: "staff",
@@ -251,6 +278,11 @@ export function registerTools(
   getClient: GetClient,
   options: McpServerOptions = { allowMutations: false },
 ): void {
+  if (options.hostedInvocation && !options.credentialGrant) {
+    throw new Error(
+      "Hosted invocation telemetry requires credential-scoped registration.",
+    );
+  }
   if (options.allowMutations && options.credentialGrant) {
     throw new Error(
       "Credential-scoped MCP registration must use the reviewed mutation allowlist.",
@@ -272,10 +304,8 @@ export function registerTools(
       "Credential-scoped MCP mutations require a caller binding.",
     );
   }
-  // Egress scrubbing is applied to the RAW server first, so every later
-  // wrapper registers through it. A tool added by a future contributor who has
-  // never read `egress.ts` is covered without opting in — which is the whole
-  // point, since the 24 tools that leaked did so by forgetting to opt in.
+  // Every registrar passes through scrubbing. Invocation telemetry is beneath
+  // that registration facade so it observes the scrubbed handler's result.
   const assetHandles =
     options.assetHandles ??
     createAssetHandleService(options.assetHandleKeyMaterial);
@@ -295,7 +325,14 @@ export function registerTools(
       options.mutationConfirmation ??
       createMutationConfirmationService(options.assetHandleKeyMaterial),
   };
-  const scrubbedServer = enforceEgressScrubbing(server);
+  const observedServer = options.hostedInvocation
+    ? observeHostedInvocations(
+        server,
+        options.hostedInvocation,
+        REVIEWED_HOSTED_MUTATION_TOOLS,
+      )
+    : server;
+  const scrubbedServer = enforceEgressScrubbing(observedServer);
   const registrationServer = options.credentialGrant
     ? scopeServerForCredential(scrubbedServer, options.credentialGrant)
     : scrubbedServer;

@@ -6,6 +6,7 @@ import {
   registerReadCatalogTool,
 } from "../catalog.js";
 import { z } from "zod";
+import { MUTATION_ANNOTATIONS } from "../annotations.js";
 
 const sanitizedRecordSchema = z.record(z.string(), z.unknown());
 
@@ -263,6 +264,11 @@ export function registerAnnotationIssueTools(
             .optional()
             .describe("The UID of the annotation object"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "qc.write",
+          "avala.ai/toolset": "quality",
+        },
       },
       async ({ sequenceUid, ...options }) => {
         const avala = getClient("create_annotation_issue");
@@ -326,6 +332,11 @@ export function registerAnnotationIssueTools(
             .optional()
             .describe("Frames affected by the issue"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "qc.write",
+          "avala.ai/toolset": "quality",
+        },
       },
       async ({ sequenceUid, issueUid, ...options }) => {
         const avala = getClient("update_annotation_issue");
@@ -350,6 +361,11 @@ export function registerAnnotationIssueTools(
           sequenceUid: z.string().describe("The UID of the sequence"),
           issueUid: z.string().describe("The UID of the annotation issue"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "qc.write",
+          "avala.ai/toolset": "quality",
+        },
       },
       async ({ sequenceUid, issueUid }) => {
         const avala = getClient("delete_annotation_issue");

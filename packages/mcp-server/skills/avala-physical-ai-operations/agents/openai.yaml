@@ -1,0 +1,11 @@
+interface:
+  display_name: "Avala Physical AI Operations"
+  short_description: "Operate Physical AI production safely"
+  default_prompt: "Use $avala-physical-ai-operations to inspect production flow, plan any reviewed workforce change, and verify its immutable receipt."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "avala"
+      description: "Avala product MCP staff operations surface"
+      transport: "streamable_http"
+      url: "https://mcp.avala.ai/mcp"

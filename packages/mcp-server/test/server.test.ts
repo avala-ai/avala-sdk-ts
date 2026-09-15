@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import toolsetScopes from "../toolset-scopes.json";
+import type { HostedInvocationEvent } from "../src/readAudit.js";
 import {
   registerTools,
   REVIEWED_HOSTED_MUTATION_TOOLS,
@@ -14,9 +15,9 @@ import {
  * registers tools through the same `registerTools`, so this count is the
  * stdio/HTTP parity baseline: if it moves, both transports moved together.
  */
-const FULL_TOOL_COUNT = 96;
-const HOSTED_READ_TOOL_COUNT = 47;
-const STAFF_TOOL_COUNT = 24;
+const FULL_TOOL_COUNT = 108;
+const HOSTED_READ_TOOL_COUNT = 48;
+const STAFF_TOOL_COUNT = 27;
 const SIGNED_EXPORT_URL =
   "https://bucket.s3.amazonaws.com/export.zip" +
   "?X-Amz-Date=20260829T080000Z&X-Amz-Expires=3600" +
@@ -92,6 +93,164 @@ function createMockServer() {
 }
 
 describe("MCP server", () => {
+  it("observes the entire hosted catalog and classifies unannotated and write-scoped reads", async () => {
+    const server = createMockServer();
+    const events: HostedInvocationEvent[] = [];
+    registerTools(
+      server as never,
+      () => {
+        throw new Error("private provider error");
+      },
+      {
+        allowMutations: false,
+        credentialGrant: staffCredentialGrant(),
+        allowedMutationTools: REVIEWED_HOSTED_MUTATION_TOOLS,
+        credentialBinding: "private-binding",
+        hostedInvocation: {
+          credentialKind: "api_key",
+          observer: (event) => {
+            events.push(event);
+          },
+        },
+      },
+    );
+    await Promise.allSettled(
+      server.names.map(async (name) => server.getHandler(name)!({})),
+    );
+    expect(events.map((event) => event.tool).sort()).toEqual(
+      [...server.names].sort(),
+    );
+    expect(
+      events
+        .filter((event) => event.operationKind === "mutation")
+        .map((event) => event.tool)
+        .sort(),
+    ).toEqual([
+      "change_workforce_batch_allocation",
+      "change_workforce_group_membership",
+      "create_workforce_batch",
+      "set_workforce_batch_priority",
+      "set_workforce_batch_status",
+      "set_workforce_sequence_status",
+    ]);
+    for (const tool of [
+      "get_workspace_overview",
+      "get_project_quality_summary",
+      "get_workforce_operation_event",
+    ]) {
+      expect(events.find((event) => event.tool === tool)?.operationKind).toBe(
+        "read",
+      );
+    }
+    expect(JSON.stringify(events)).not.toContain("private");
+  });
+
+  it("observes a real unannotated customer composite's degraded text return", async () => {
+    const server = createMockServer();
+    const events: HostedInvocationEvent[] = [];
+    const unavailable = async () => {
+      throw new Error("private upstream failure");
+    };
+    registerTools(
+      server as never,
+      (() => ({
+        organizations: { list: unavailable },
+        datasets: { list: unavailable },
+        projects: { listMine: unavailable },
+        exports: { list: unavailable },
+      })) as never,
+      {
+        allowMutations: false,
+        credentialGrant: fullCredentialGrant(),
+        hostedInvocation: {
+          credentialKind: "api_key",
+          observer: (event) => {
+            events.push(event);
+          },
+        },
+      },
+    );
+    const result = await server.getHandler("get_workspace_overview")!({});
+    expect(result).toHaveProperty("content");
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      tool: "get_workspace_overview",
+      operationKind: "read",
+      outcome: "degraded",
+    });
+    expect(JSON.stringify(events)).not.toContain("private");
+  });
+
+  it("classifies proposal commands independently from proposal observation reads", async () => {
+    const server = createMockServer();
+    const events: HostedInvocationEvent[] = [];
+    const grant = staffCredentialGrant();
+    registerTools(
+      server as never,
+      () => {
+        throw new Error("no writes in this test");
+      },
+      {
+        allowMutations: false,
+        credentialGrant: {
+          ...grant,
+          scopes: new Set([
+            ...grant.scopes,
+            "operations.proposal.read",
+            "operations.proposal.create",
+            "operations.approval.request",
+            "operations.execution.request",
+            "operations.verification.read",
+          ]),
+        },
+        allowedMutationTools: REVIEWED_HOSTED_MUTATION_TOOLS,
+        credentialBinding: "private-binding",
+        hostedInvocation: {
+          credentialKind: "oauth",
+          observer: (event) => {
+            events.push(event);
+          },
+        },
+      },
+    );
+    await Promise.allSettled(
+      server.names.map(async (name) => server.getHandler(name)!({})),
+    );
+    expect(
+      events
+        .filter((event) => event.operationKind === "mutation")
+        .map((event) => event.tool)
+        .sort(),
+    ).toEqual([
+      "create_operation_proposal",
+      "evaluate_operation_proposal",
+      "execute_approved_operation",
+      "request_operation_approval",
+      "reverse_operation",
+    ]);
+    for (const tool of [
+      "get_operation_proposal",
+      "verify_operation",
+      "list_operation_events",
+    ]) {
+      expect(events.find((event) => event.tool === tool)?.operationKind).toBe(
+        "read",
+      );
+    }
+    expect(() =>
+      registerTools(
+        createMockServer() as never,
+        () => {
+          throw new Error();
+        },
+        {
+          allowMutations: true,
+          hostedInvocation: { credentialKind: "oauth" },
+        },
+      ),
+    ).toThrow("requires credential-scoped registration");
+  });
+
   it("registers the full catalog when mutations are enabled", () => {
     const server = createMockServer();
     registerTools(server as never, (() => ({})) as never, {
@@ -106,13 +265,14 @@ describe("MCP server", () => {
     const server = createMockServer();
     registerTools(server as never, (() => ({})) as never);
     expect(server.names).toHaveLength(
-      HOSTED_READ_TOOL_COUNT + STAFF_TOOL_COUNT,
+      HOSTED_READ_TOOL_COUNT + STAFF_TOOL_COUNT + 3 + 2, // SQL + billing
     );
     expect(server.names).toContain("staff_query");
     expect(server.names).toContain("staff_aggregate");
     expect(server.names).toContain("staff_describe_table");
     expect(server.names).toContain("get_workforce_operations_overview");
     expect(server.names).toContain("list_coworker_training_candidates");
+    expect(server.names).toContain("list_blocked_onboarding_coworkers");
     expect(server.names).toContain(
       "list_workforce_training_cohort_evidence",
     );
@@ -132,6 +292,8 @@ describe("MCP server", () => {
     expect(server.names).toContain("get_workforce_batch_attention");
     expect(server.names).toContain("list_workforce_batch_units");
     expect(server.names).toContain("get_workforce_sequence_status");
+    expect(server.names).toContain("get_workforce_session_monitoring");
+    expect(server.names).toContain("get_workforce_station_monitoring");
     expect(server.names).toContain("list_workforce_assignment_candidates");
     expect(server.names).toContain(
       "list_workforce_batch_staffing_candidates",
@@ -166,6 +328,7 @@ describe("MCP server", () => {
     expect(server.names).toContain("staff_describe_table");
     expect(server.names).toContain("get_workforce_operations_overview");
     expect(server.names).toContain("list_coworker_training_candidates");
+    expect(server.names).toContain("list_blocked_onboarding_coworkers");
     expect(server.names).toContain(
       "list_workforce_training_cohort_evidence",
     );
@@ -185,6 +348,8 @@ describe("MCP server", () => {
     expect(server.names).toContain("get_workforce_batch_attention");
     expect(server.names).toContain("list_workforce_batch_units");
     expect(server.names).toContain("get_workforce_sequence_status");
+    expect(server.names).toContain("get_workforce_session_monitoring");
+    expect(server.names).toContain("get_workforce_station_monitoring");
     expect(server.names).toContain("list_workforce_assignment_candidates");
     expect(server.names).toContain(
       "list_workforce_batch_staffing_candidates",
@@ -208,6 +373,7 @@ describe("MCP server", () => {
     expect(server.names).not.toContain("staff_describe_table");
     expect(server.names).not.toContain("get_workforce_operations_overview");
     expect(server.names).not.toContain("list_coworker_training_candidates");
+    expect(server.names).not.toContain("list_blocked_onboarding_coworkers");
     expect(server.names).not.toContain(
       "list_workforce_training_cohort_evidence",
     );
@@ -226,6 +392,8 @@ describe("MCP server", () => {
     expect(server.names).not.toContain("get_workforce_batch_attention");
     expect(server.names).not.toContain("list_workforce_batch_units");
     expect(server.names).not.toContain("get_workforce_sequence_status");
+    expect(server.names).not.toContain("get_workforce_session_monitoring");
+    expect(server.names).not.toContain("get_workforce_station_monitoring");
     expect(server.names).not.toContain("list_workforce_assignment_candidates");
     expect(server.names).not.toContain(
       "list_workforce_batch_staffing_candidates",
@@ -254,6 +422,7 @@ describe("MCP server", () => {
     expect(server.names).not.toContain("staff_describe_table");
     expect(server.names).toContain("get_workforce_operations_overview");
     expect(server.names).toContain("list_coworker_training_candidates");
+    expect(server.names).toContain("list_blocked_onboarding_coworkers");
     expect(server.names).toContain(
       "list_workforce_training_cohort_evidence",
     );
@@ -272,6 +441,8 @@ describe("MCP server", () => {
     expect(server.names).toContain("get_workforce_batch_attention");
     expect(server.names).toContain("list_workforce_batch_units");
     expect(server.names).toContain("get_workforce_sequence_status");
+    expect(server.names).toContain("get_workforce_session_monitoring");
+    expect(server.names).toContain("get_workforce_station_monitoring");
     expect(server.names).toContain("list_workforce_assignment_candidates");
     expect(server.names).toContain(
       "list_workforce_batch_staffing_candidates",
@@ -297,6 +468,7 @@ describe("MCP server", () => {
     });
     expect(server.names).not.toContain("get_workforce_operations_overview");
     expect(server.names).not.toContain("list_coworker_training_candidates");
+    expect(server.names).not.toContain("list_blocked_onboarding_coworkers");
     expect(server.names).not.toContain(
       "list_workforce_training_cohort_evidence",
     );
@@ -310,6 +482,8 @@ describe("MCP server", () => {
     expect(server.names).not.toContain("get_workforce_batch_attention");
     expect(server.names).not.toContain("list_workforce_batch_units");
     expect(server.names).not.toContain("get_workforce_sequence_status");
+    expect(server.names).not.toContain("get_workforce_session_monitoring");
+    expect(server.names).not.toContain("get_workforce_station_monitoring");
     expect(server.names).toContain("list_workforce_assignment_candidates");
     expect(server.names).toContain(
       "list_workforce_batch_staffing_candidates",
@@ -340,6 +514,7 @@ describe("MCP server", () => {
     });
     expect(server.names).toContain("get_workforce_operations_overview");
     expect(server.names).toContain("list_coworker_training_candidates");
+    expect(server.names).toContain("list_blocked_onboarding_coworkers");
     expect(server.names).toContain(
       "list_workforce_training_cohort_evidence",
     );
@@ -353,6 +528,8 @@ describe("MCP server", () => {
     expect(server.names).toContain("get_workforce_batch_attention");
     expect(server.names).toContain("list_workforce_batch_units");
     expect(server.names).toContain("get_workforce_sequence_status");
+    expect(server.names).toContain("get_workforce_session_monitoring");
+    expect(server.names).toContain("get_workforce_station_monitoring");
     expect(server.names).not.toContain("list_workforce_groups");
     expect(server.names).not.toContain("list_workforce_group_members");
     expect(server.names).not.toContain(
@@ -464,13 +641,13 @@ describe("MCP server", () => {
     });
 
     expect(server.names).toHaveLength(
-      HOSTED_READ_TOOL_COUNT + STAFF_TOOL_COUNT + 8,
+      HOSTED_READ_TOOL_COUNT + STAFF_TOOL_COUNT + 6,
     );
-    expect(server.names).toContain("assign_workforce_work_unit");
+    expect(server.names).not.toContain("assign_workforce_work_unit");
     expect(server.names).toContain("change_workforce_batch_allocation");
     expect(server.names).toContain("change_workforce_group_membership");
     expect(server.names).toContain("create_workforce_batch");
-    expect(server.names).toContain("deassign_workforce_work_unit");
+    expect(server.names).not.toContain("deassign_workforce_work_unit");
     expect(server.names).toContain("set_workforce_batch_priority");
     expect(server.names).toContain("set_workforce_batch_status");
     expect(server.names).toContain("set_workforce_sequence_status");
@@ -480,7 +657,7 @@ describe("MCP server", () => {
     const server = createMockServer();
     registerTools(server as never, (() => ({})) as never, {
       allowMutations: false,
-      allowedMutationTools: new Set(["deassign_workforce_work_unit"]),
+      allowedMutationTools: new Set(["set_workforce_batch_priority"]),
       credentialGrant: staffCredentialGrant(),
       credentialBinding: "staff-credential-binding",
       assetHandleKeyMaterial: "hosted-server-key",
@@ -489,12 +666,12 @@ describe("MCP server", () => {
     expect(server.names).toHaveLength(
       HOSTED_READ_TOOL_COUNT + STAFF_TOOL_COUNT + 1,
     );
-    expect(server.names).toContain("deassign_workforce_work_unit");
+    expect(server.names).toContain("set_workforce_batch_priority");
     expect(server.names).not.toContain("assign_workforce_work_unit");
     expect(server.names).not.toContain("change_workforce_batch_allocation");
     expect(server.names).not.toContain("change_workforce_group_membership");
     expect(server.names).not.toContain("create_workforce_batch");
-    expect(server.names).not.toContain("set_workforce_batch_priority");
+    expect(server.names).not.toContain("deassign_workforce_work_unit");
     expect(server.names).not.toContain("set_workforce_batch_status");
     expect(server.names).not.toContain("set_workforce_sequence_status");
   });

@@ -6,6 +6,7 @@ import {
   registerReadCatalogTool,
 } from "../catalog.js";
 import { z } from "zod";
+import { MUTATION_ANNOTATIONS } from "../annotations.js";
 
 const storageConfigOutputSchema = z
   .object({
@@ -104,6 +105,11 @@ export function registerStorageTools(
             .optional()
             .describe("Google Cloud Storage prefix"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "storage.write",
+          "avala.ai/toolset": "storage",
+        },
       },
       async ({
         name,
@@ -153,6 +159,11 @@ export function registerStorageTools(
               "The unique identifier (UUID) of the storage config to test",
             ),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "storage.write",
+          "avala.ai/toolset": "storage",
+        },
       },
       async ({ uid }) => {
         const avala = getClient("test_storage_config");
@@ -181,6 +192,11 @@ export function registerStorageTools(
               "The unique identifier (UUID) of the storage config to delete",
             ),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "storage.write",
+          "avala.ai/toolset": "storage",
+        },
       },
       async ({ uid }) => {
         const avala = getClient("delete_storage_config");

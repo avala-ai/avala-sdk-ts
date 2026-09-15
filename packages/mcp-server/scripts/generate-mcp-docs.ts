@@ -12,7 +12,7 @@
  */
 
 import { readFileSync } from "fs";
-import { join, dirname } from "path";
+import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { TOOL_REGISTRARS } from "../src/server.js";
 
@@ -34,7 +34,9 @@ interface Tool {
   params: ToolParam[];
   isMutation: boolean;
   requiresProtocolConfirmation: boolean;
+  backendApproval: boolean;
   category: string;
+  staffOnly: boolean;
 }
 
 // ── Category display names and order ───────────────────────────────────────
@@ -57,7 +59,10 @@ const CATEGORY_ORDER: Record<string, string> = {
   fleet: "Fleet",
   workflows: "Workflows",
   workforce: "Staff",
+  workforceSessionMonitoring: "Staff",
+  operationProposals: "Staff",
   staff: "Staff",
+  billing: "Billing (staff)",
 };
 
 // ── Parser ─────────────────────────────────────────────────────────────────
@@ -70,16 +75,20 @@ interface ZodLike {
     innerType?: ZodLike;
     shape?: (() => Record<string, ZodLike>) | Record<string, ZodLike>;
     typeName?: string;
+    type?: string;
     values?: string[];
+    entries?: Record<string, string>;
   };
 }
 
 interface RegisteredTool {
+  staffOnly: boolean;
   category: string;
   description: string;
   inputSchema: unknown;
   name: string;
   requiresProtocolConfirmation: boolean;
+  backendApproval: boolean;
 }
 
 function inputShape(inputSchema: unknown): Record<string, ZodLike> {
@@ -91,31 +100,45 @@ function inputShape(inputSchema: unknown): Record<string, ZodLike> {
   return inputSchema as Record<string, ZodLike>;
 }
 
-function parameterType(schema: ZodLike): string {
-  let current = schema;
+export function parameterType(schema: unknown): string {
+  let current = schema as ZodLike;
   while (
-    ["ZodOptional", "ZodNullable", "ZodDefault"].includes(
-      current._def?.typeName ?? "",
-    )
+    [
+      "ZodOptional",
+      "ZodNullable",
+      "ZodDefault",
+      "optional",
+      "nullable",
+      "default",
+    ].includes(current._def?.typeName ?? current._def?.type ?? "")
   ) {
     if (!current._def?.innerType) break;
     current = current._def.innerType;
   }
 
-  switch (current._def?.typeName) {
+  switch (current._def?.typeName ?? current._def?.type) {
     case "ZodNumber":
+    case "number":
       return "number";
     case "ZodBoolean":
+    case "boolean":
       return "boolean";
     case "ZodArray":
+    case "array":
       return "array";
     case "ZodRecord":
     case "ZodObject":
+    case "record":
+    case "object":
       return "object";
     case "ZodEnum":
-      return current._def.values?.length
-        ? `string (${current._def.values.map((value) => `\`${value}\``).join(", ")})`
+    case "enum": {
+      const values =
+        current._def?.values ?? Object.values(current._def?.entries ?? {});
+      return values.length
+        ? `string (${values.map((value) => `\`${value}\``).join(", ")})`
         : "string";
+    }
     default:
       return "string";
   }
@@ -145,15 +168,22 @@ function collectRegisteredTools(
       description: string,
       inputSchema: unknown,
       requiresProtocolConfirmation = false,
+      backendApproval = false,
+      meta: Record<string, unknown> = {},
     ): void => {
       if (registrations.has(name))
         throw new Error(`Duplicate MCP tool registration: ${name}`);
       registrations.set(name, {
+        staffOnly:
+          meta["avala.ai/toolset"] === "staff" ||
+          (Array.isArray(meta["avala.ai/toolsets"]) &&
+            meta["avala.ai/toolsets"].includes("staff")),
         category: registrar.category,
         description,
         inputSchema,
         name,
         requiresProtocolConfirmation,
+        backendApproval,
       });
     };
     const server = {
@@ -172,6 +202,9 @@ function collectRegisteredTools(
           config.description ?? "",
           config.inputSchema,
           config._meta?.["avala.ai/requires-confirmation"] === true,
+          config._meta?.["avala.ai/approval-authority"] ===
+            "django-admin-session",
+          config._meta,
         ),
     };
     const getClient = (): never => {
@@ -188,12 +221,14 @@ function collectRegisteredTools(
 function registeredTools(): Tool[] {
   const readOnlyNames = new Set(collectRegisteredTools(false).keys());
   return [...collectRegisteredTools(true).values()].map((tool) => ({
+    staffOnly: tool.staffOnly,
     category: tool.category,
     description: tool.description,
     isMutation: !readOnlyNames.has(tool.name),
     name: tool.name,
     params: extractParams(tool.inputSchema),
     requiresProtocolConfirmation: tool.requiresProtocolConfirmation,
+    backendApproval: tool.backendApproval,
   }));
 }
 
@@ -201,6 +236,8 @@ function registeredTools(): Tool[] {
 
 function mutationAvailability(tool: Tool): string {
   if (!tool.isMutation) return "";
+  if (tool.backendApproval)
+    return " *(hosted: exact proposal scope; execution requires independent Django admin approval; local stdio: requires `AVALA_MCP_ENABLE_MUTATIONS=true`)*";
   if (tool.requiresProtocolConfirmation) {
     return " *(hosted: requires an eligible credential and human approval; local stdio: requires `AVALA_MCP_ENABLE_MUTATIONS=true`)*";
   }
@@ -260,10 +297,26 @@ function generateToolDefinitions(tools: Tool[]): string {
   return lines.join("\n");
 }
 
+export function generateCustomerDocumentation(): string {
+  const tools = registeredTools().filter((tool) => !tool.staffOnly);
+  return `## Available MCP Tools\n\n${generateToolTable(tools)}\n## Tool Definitions\n\n${generateToolDefinitions(tools)}`;
+}
+
+export function internalToolsInCustomerDocumentation(
+  content: string,
+): string[] {
+  return registeredTools()
+    .filter(
+      (tool) =>
+        tool.staffOnly && new RegExp(`\\b${tool.name}\\b`).test(content),
+    )
+    .map((tool) => tool.name);
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────
 
 function main(): void {
-  const allTools = registeredTools();
+  const allTools = registeredTools().filter((tool) => !tool.staffOnly);
 
   const mode = process.argv[2];
 
@@ -324,9 +377,18 @@ function main(): void {
       (n) => !implementedNames.has(n),
     );
 
-    if (undocumented.length === 0 && orphaned.length === 0) {
+    const internal = internalToolsInCustomerDocumentation(docsContent);
+    if (internal.length > 0)
+      console.error(
+        `Internal tools must not appear in customer documentation: ${internal.join(", ")}`,
+      );
+    if (
+      undocumented.length === 0 &&
+      orphaned.length === 0 &&
+      internal.length === 0
+    ) {
       console.log(
-        `All ${implementedNames.size} tools are documented. No drift detected.`,
+        `All ${implementedNames.size} customer tools are documented; internal tools are excluded. No drift detected.`,
       );
       process.exit(0);
     }
@@ -346,10 +408,7 @@ function main(): void {
   }
 
   // Default: print generated docs
-  console.log("## Available MCP Tools\n");
-  console.log(generateToolTable(allTools));
-  console.log("## Tool Definitions\n");
-  console.log(generateToolDefinitions(allTools));
+  console.log(generateCustomerDocumentation());
 }
 
-main();
+if (process.argv[1] && resolve(process.argv[1]) === __filename) main();

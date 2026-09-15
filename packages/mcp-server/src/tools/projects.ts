@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
 import { z } from "zod";
+import { definePageOutputSchema } from "../catalog.js";
 import {
   DEFAULT_PAGE_LIMIT,
   detailInputField,
@@ -17,6 +18,18 @@ const PROJECT_CONCISE_KEYS = [
   "ownerName",
   "updatedAt",
 ] as const;
+
+const projectOutputSchema = z
+  .object({
+    uid: z.string(),
+    name: z.string(),
+    slug: z.string().nullable().optional(),
+    status: z.string().nullable().optional(),
+    owner: z.unknown().optional(),
+    ownerName: z.string().nullable().optional(),
+    updatedAt: z.string().nullable().optional(),
+  })
+  .passthrough();
 
 export function registerProjectTools(
   server: McpServer,
@@ -40,6 +53,13 @@ export function registerProjectTools(
           .describe("Pagination cursor from a previous request"),
         detail: detailInputField,
       }),
+      outputSchema: definePageOutputSchema(projectOutputSchema),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       _meta: {
         "avala.ai/required-scope": "projects.read",
         "avala.ai/toolset": "projects",
@@ -63,6 +83,7 @@ export function registerProjectTools(
             text: JSON.stringify(presented, null, 2),
           },
         ],
+        structuredContent: presented as Record<string, unknown>,
       };
     },
   );
@@ -76,6 +97,13 @@ export function registerProjectTools(
         uid: z.string().describe("The unique identifier (UUID) of the project"),
         detail: detailInputField,
       }),
+      outputSchema: projectOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       _meta: {
         "avala.ai/required-scope": "projects.read",
         "avala.ai/toolset": "projects",
@@ -96,6 +124,7 @@ export function registerProjectTools(
             text: JSON.stringify(presented, null, 2),
           },
         ],
+        structuredContent: presented as Record<string, unknown>,
       };
     },
   );

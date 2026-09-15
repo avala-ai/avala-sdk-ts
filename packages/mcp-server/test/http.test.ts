@@ -13,6 +13,7 @@ import type { AddressInfo } from "node:net";
 import type { IncomingMessage, Server } from "node:http";
 import { AvalaError, type Avala } from "@avala-ai/sdk";
 import toolsetScopes from "../toolset-scopes.json";
+import type { HostedInvocationEvent } from "../src/readAudit.js";
 import {
   createAvalaMcpHttpServer,
   extractCredential,
@@ -390,6 +391,7 @@ describe("Streamable HTTP transport", () => {
   let createdClientIps: string[];
   let createdCredentialKinds: ("api_key" | "oauth")[];
   let createdSubjectIssuedAts: number[];
+  let invocationEvents: HostedInvocationEvent[] = [];
   let oauthExchangeFailure: unknown;
   let listDelayMs = 0;
   const oauthExchange = vi.fn(async (subjectToken: string) => {
@@ -454,6 +456,10 @@ describe("Streamable HTTP transport", () => {
   });
 
   beforeEach(() => {
+    invocationEvents = [];
+    vi.spyOn(console, "info").mockImplementation((line: string) => {
+      invocationEvents.push(JSON.parse(line) as HostedInvocationEvent);
+    });
     createdClients.length = 0;
     createdClientIps.length = 0;
     createdCredentialKinds.length = 0;
@@ -753,7 +759,7 @@ describe("Streamable HTTP transport", () => {
     }>(listRes);
     // This ordinary customer grant sees the hosted read catalog only. The
     // reviewed staff action requires both staff privilege and workforce.write.
-    expect(list.result.tools).toHaveLength(47);
+    expect(list.result.tools).toHaveLength(48);
     expect(list.result.tools.map((t) => t.name)).toContain("list_datasets");
     expect(createdClients).toHaveLength(2);
     expect(
@@ -792,6 +798,98 @@ describe("Streamable HTTP transport", () => {
       "/datasets/",
       { limit: "25" },
     );
+    expect(invocationEvents).toHaveLength(1);
+    expect(invocationEvents[0]).toMatchObject({
+      event: "mcp.tool_invocation",
+      tool: "list_datasets",
+      credentialKind: "api_key",
+      operationKind: "read",
+      outcome: "success",
+      attribution: "unknown",
+      verifiedActorUid: null,
+      resolvedTenant: null,
+    });
+    expect(JSON.stringify(invocationEvents)).not.toContain(KEY_A);
+  });
+
+  it("keeps concurrent API-key and OAuth invocation metadata isolated", async () => {
+    listDelayMs = 20;
+    const responses = await Promise.all([
+      mcpPost(rpc(71, "tools/call", { name: "list_datasets", arguments: {} }), {
+        "X-Avala-Api-Key": KEY_A,
+      }),
+      mcpPost(rpc(72, "tools/call", { name: "list_exports", arguments: {} }), {
+        Authorization: `Bearer ${JWT_LOOKALIKE}`,
+      }),
+    ]);
+    for (const response of responses) {
+      expect(response.status).toBe(200);
+      await response.text();
+    }
+    expect(invocationEvents).toHaveLength(2);
+    expect(
+      invocationEvents.find((event) => event.tool === "list_datasets"),
+    ).toMatchObject({ credentialKind: "api_key", outcome: "success" });
+    expect(
+      invocationEvents.find((event) => event.tool === "list_exports"),
+    ).toMatchObject({ credentialKind: "oauth", outcome: "success" });
+    for (const secret of [
+      KEY_A,
+      JWT_LOOKALIKE,
+      DOWNSTREAM_ACCESS_TOKEN,
+      VALID_INTERNAL_CLIENT_SECRET,
+      SIGNED_HTTP_EXPORT_URL,
+    ]) {
+      expect(JSON.stringify(invocationEvents)).not.toContain(secret);
+    }
+  });
+
+  it("does not audit auth, hidden-tool, schema or mismatched-name rejects as invocations", async () => {
+    const call = rpc(73, "tools/call", { name: "list_datasets", arguments: {} });
+    const responses = [
+      await mcpPost(call),
+      await mcpPost(
+        rpc(74, "tools/call", {
+          name: "caller_controlled_private_name",
+          arguments: {},
+        }),
+        { "X-Avala-Api-Key": KEY_A },
+      ),
+      // A real catalog tool hidden from this customer grant, not just unknown.
+      await mcpPost(
+        rpc(77, "tools/call", {
+          name: "staff_query",
+          arguments: { query: "SELECT 1" },
+        }),
+        { "X-Avala-Api-Key": KEY_A },
+      ),
+      await mcpPost(
+        rpc(75, "tools/call", {
+          name: "list_datasets",
+          arguments: { limit: -1 },
+        }),
+        { "X-Avala-Api-Key": KEY_A },
+      ),
+      await mcpPost(
+        modernRpc(76, "tools/call", { name: "list_datasets", arguments: {} }),
+        {
+          "X-Avala-Api-Key": KEY_A,
+          "Mcp-Protocol-Version": "2026-07-28",
+          "Mcp-Method": "tools/call",
+          "Mcp-Name": "caller_controlled_private_name",
+        },
+      ),
+    ];
+    for (const response of responses) {
+      const body = await mcpResult<{
+        error?: unknown;
+        result?: { isError?: boolean };
+      }>(response);
+      expect(body.error !== undefined || body.result?.isError === true).toBe(
+        true,
+      );
+    }
+    expect(invocationEvents).toEqual([]);
   });
 
   it("serves the 2026-07-28 stateless discovery and tool catalog as JSON", async () => {
@@ -821,7 +919,7 @@ describe("Streamable HTTP transport", () => {
       result: { resultType: string; tools: { name: string }[] };
     }>(listRes);
     expect(list.result.resultType).toBe("complete");
-    expect(list.result.tools).toHaveLength(47);
+    expect(list.result.tools).toHaveLength(48);
     expect(list.result.tools.map((tool) => tool.name)).toContain(
       "list_datasets",
     );
@@ -927,6 +1025,16 @@ describe("Streamable HTTP transport", () => {
       url: SIGNED_HTTP_EXPORT_URL,
       expiresAt: "2026-08-29T09:00:00.000Z",
     });
+    // The first handler also returned inputRequests. The SDK rejected it only
+    // afterwards for missing capabilities: telemetry is not wire-level status.
+    expect(
+      invocationEvents
+        .filter((event) => event.tool === "resolve_asset_handle")
+        .map((event) => event.outcome),
+    ).toEqual(["input_required", "input_required", "success"]);
+    expect(JSON.stringify(invocationEvents)).not.toContain(
+      SIGNED_HTTP_EXPORT_URL,
+    );
   });
 
   it("binds a hosted staff mutation approval to the exact operator credential", async () => {
@@ -1278,6 +1386,7 @@ describe("Streamable HTTP transport", () => {
     expect(names).toContain("staff_describe_table");
     expect(names).toContain("get_workforce_operations_overview");
     expect(names).toContain("list_coworker_training_candidates");
+    expect(names).toContain("list_blocked_onboarding_coworkers");
     expect(names).toContain("list_workforce_training_cohort_evidence");
     expect(names).not.toContain("get_workforce_coworker_reliability");
     expect(names).toContain("get_coworker_journey");
@@ -1292,6 +1401,8 @@ describe("Streamable HTTP transport", () => {
     expect(names).toContain("get_workforce_batch_attention");
     expect(names).toContain("list_workforce_batch_units");
     expect(names).toContain("get_workforce_sequence_status");
+    expect(names).toContain("get_workforce_session_monitoring");
+    expect(names).toContain("get_workforce_station_monitoring");
     expect(names).not.toContain("list_workforce_assignment_candidates");
     expect(names).not.toContain("list_workforce_batch_staffing_candidates");
     expect(names).not.toContain("list_workforce_batch_coworker_activity");
@@ -1329,16 +1440,17 @@ describe("Streamable HTTP transport", () => {
     expect(names).toContain("list_workforce_groups");
     expect(names).toContain("list_workforce_group_members");
     expect(names).toContain("preview_workforce_group_membership_impact");
-    expect(names).toContain("assign_workforce_work_unit");
+    expect(names).not.toContain("assign_workforce_work_unit");
     expect(names).toContain("change_workforce_batch_allocation");
     expect(names).toContain("change_workforce_group_membership");
     expect(names).toContain("create_workforce_batch");
-    expect(names).toContain("deassign_workforce_work_unit");
+    expect(names).not.toContain("deassign_workforce_work_unit");
     expect(names).toContain("set_workforce_batch_priority");
     expect(names).toContain("set_workforce_batch_status");
     expect(names).toContain("set_workforce_sequence_status");
     expect(names).not.toContain("get_workforce_operations_overview");
     expect(names).not.toContain("list_coworker_training_candidates");
+    expect(names).not.toContain("list_blocked_onboarding_coworkers");
     expect(names).not.toContain("list_workforce_training_cohort_evidence");
     expect(names).toContain("get_workforce_coworker_reliability");
     expect(names).not.toContain("get_coworker_journey");
@@ -1349,6 +1461,8 @@ describe("Streamable HTTP transport", () => {
     expect(names).not.toContain("get_workforce_batch_attention");
     expect(names).not.toContain("list_workforce_batch_units");
     expect(names).not.toContain("get_workforce_sequence_status");
+    expect(names).not.toContain("get_workforce_session_monitoring");
+    expect(names).not.toContain("get_workforce_station_monitoring");
     expect(names).not.toContain("staff_query");
   });
 
@@ -1375,6 +1489,7 @@ describe("Streamable HTTP transport", () => {
     expect(names).not.toContain("staff_describe_table");
     expect(names).not.toContain("get_workforce_operations_overview");
     expect(names).not.toContain("list_coworker_training_candidates");
+    expect(names).not.toContain("list_blocked_onboarding_coworkers");
     expect(names).not.toContain("list_workforce_training_cohort_evidence");
     expect(names).not.toContain("get_workforce_coworker_reliability");
     expect(names).not.toContain("get_coworker_journey");
@@ -1388,6 +1503,8 @@ describe("Streamable HTTP transport", () => {
     expect(names).not.toContain("get_workforce_batch_attention");
     expect(names).not.toContain("list_workforce_batch_units");
     expect(names).not.toContain("get_workforce_sequence_status");
+    expect(names).not.toContain("get_workforce_session_monitoring");
+    expect(names).not.toContain("get_workforce_station_monitoring");
     expect(names).not.toContain("list_workforce_assignment_candidates");
     expect(names).not.toContain("list_workforce_batch_staffing_candidates");
     expect(names).not.toContain("list_workforce_batch_coworker_activity");
@@ -1756,7 +1873,7 @@ describe("Streamable HTTP transport", () => {
       const names = (
         await mcpResult<{ result: { tools: { name: string }[] } }>(res)
       ).result.tools.map((t) => t.name);
-      expect(names).toHaveLength(47);
+      expect(names).toHaveLength(48);
       expect(names).not.toContain("assign_workforce_work_unit");
       expect(names).not.toContain("change_workforce_batch_allocation");
       expect(names).not.toContain("change_workforce_group_membership");

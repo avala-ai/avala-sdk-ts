@@ -45,6 +45,9 @@ export interface ReadRouteDefinition<InputSchema extends AnyZodObject> {
   fixedQuery?: Readonly<Record<string, string>>;
   response: "page" | "list" | "single";
   scope: string;
+  alternativeScopes?: readonly string[];
+  /** Scopes required in addition to scope (or its alternatives), never OR-ed. */
+  additionalScopes?: readonly string[];
   toolset: ReadToolset;
 }
 
@@ -58,12 +61,16 @@ export interface ReadCatalogToolDefinition<
   inputSchema: InputSchema;
   outputSchema: OutputSchema;
   route: ReadRouteDefinition<InputSchema>;
+  /** Static public error for tools that must not expose upstream error text. */
+  failureMessage?: string;
   /**
    * Optional rewrite of the validated REST payload before detail projection.
    * Used for count-field aliases. Must not be a Zod transform — SDK v2 needs
    * transform-free output schemas.
    */
   normalize?: (value: unknown) => unknown;
+  /** Normalize a versioned provider alias before validating the public output. */
+  normalizeProviderResponse?: (value: unknown) => unknown;
   /**
    * Replace upstream media URLs with credential-free asset handles before the
    * public output schema validates the result. The callback receives validated
@@ -352,7 +359,7 @@ const READ_ONLY_ANNOTATIONS = {
  * again so MCP structured content cannot leak a credential or violate the
  * tool's advertised output schema after redaction.
  */
-function parseSafeStructuredContent<OutputSchema extends AnyZodObject>(
+export function parseSafeStructuredContent<OutputSchema extends AnyZodObject>(
   outputSchema: OutputSchema,
   value: unknown,
 ): z.infer<OutputSchema> {
@@ -395,7 +402,11 @@ export function registerReadCatalogTool<
     const structuredContent = parseSafeStructuredContent(
       definition.outputSchema,
       assetizeCatalogResult(
-        definition.route.response === "list" ? { items: raw } : raw,
+        definition.route.response === "list"
+          ? { items: raw }
+          : definition.normalizeProviderResponse
+            ? definition.normalizeProviderResponse(raw)
+            : raw,
         requestArgs,
         definition,
         assetHandles,
@@ -432,7 +443,25 @@ export function registerReadCatalogTool<
       _meta: {
         "avala.ai/rest-route": definition.route.name,
         "avala.ai/rest-method": definition.route.method,
-        "avala.ai/required-scope": definition.route.scope,
+        ...(definition.route.alternativeScopes
+          ? {
+              "avala.ai/required-any-scopes": [
+                definition.route.scope,
+                ...definition.route.alternativeScopes,
+              ],
+            }
+          : definition.route.additionalScopes
+            ? {
+                "avala.ai/required-scopes": [
+                  definition.route.scope,
+                  ...definition.route.additionalScopes,
+                ],
+              }
+            : { "avala.ai/required-scope": definition.route.scope }),
+        ...(definition.route.alternativeScopes &&
+        definition.route.additionalScopes
+          ? { "avala.ai/required-scopes": definition.route.additionalScopes }
+          : {}),
         "avala.ai/toolset": definition.route.toolset,
       },
     },
@@ -440,7 +469,16 @@ export function registerReadCatalogTool<
     // generic schema and cannot prove this callback's equivalent z.infer type.
     // The exact same schema object is passed above and validates every call at
     // runtime; keep the compatibility cast at this one SDK boundary.
-    handler as unknown as ToolCallback<InputSchema>,
+    (definition.failureMessage === undefined
+      ? handler
+      : async (args: z.infer<InputSchema>): Promise<CallToolResult> => {
+          try {
+            return await handler(args);
+          } catch {
+            // Discard the cause too: transport/schema errors can carry source data.
+            throw new Error(definition.failureMessage);
+          }
+        }) as unknown as ToolCallback<InputSchema>,
   );
 }
 
@@ -516,7 +554,14 @@ export function registerCompositeReadCatalogTool<
     };
   };
 
-  const scopes = [...new Set(definition.routes.map((route) => route.scope))];
+  const scopes = [
+    ...new Set(
+      definition.routes.flatMap((route) => [
+        route.scope,
+        ...(route.additionalScopes ?? []),
+      ]),
+    ),
+  ];
   const toolsets = [
     ...new Set(definition.routes.map((route) => route.toolset)),
   ];

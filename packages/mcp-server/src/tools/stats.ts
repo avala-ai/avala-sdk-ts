@@ -1,6 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
 import { z } from "zod";
+import {
+  degradedFieldsSchema,
+  describeUnavailable,
+  withDegraded,
+  type UnavailablePart,
+} from "../degraded.js";
 import { detailInputField, presentReadDetail } from "../readDetail.js";
 
 const WORKSPACE_STATS_CONCISE_KEYS = [
@@ -34,9 +40,10 @@ const resourceCountSchema = z.discriminatedUnion("countStatus", [
 
 const workspaceStatsOutputSchema = z
   .object({
-    datasets: resourceCountSchema,
-    projects: resourceCountSchema,
-    exports: resourceCountSchema,
+    datasets: resourceCountSchema.optional(),
+    projects: resourceCountSchema.optional(),
+    exports: resourceCountSchema.optional(),
+    ...degradedFieldsSchema,
   })
   .strip();
 
@@ -83,6 +90,12 @@ export function registerStatsTools(
         detail: detailInputField,
       }),
       outputSchema: workspaceStatsOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       _meta: {
         "avala.ai/required-scopes": [
           "datasets.read",
@@ -94,19 +107,28 @@ export function registerStatsTools(
     },
     async ({ detail }) => {
       const avala = getClient("get_workspace_stats");
-      const [datasets, projects, exports] = await Promise.all([
-        avala.datasets.list({ limit: 1 }),
-        // `listMine`, not `list`: `/projects/` is staff-only and 403s for a
-        // customer credential. See ProjectsResource for both routes.
-        avala.projects.listMine({ limit: 1 }),
-        avala.exports.list({ limit: 1 }),
-      ]);
+      const [datasetsResult, projectsResult, exportsResult] =
+        await Promise.allSettled([
+          avala.datasets.list({ limit: 1 }),
+          // Customer-scoped projects; the staff list cannot serve customer keys.
+          avala.projects.listMine({ limit: 1 }),
+          avala.exports.list({ limit: 1 }),
+        ]);
 
-      const stats = workspaceStatsOutputSchema.parse({
-        datasets: summarizePageProbe(datasets),
-        projects: summarizePageProbe(projects),
-        exports: summarizePageProbe(exports),
-      });
+      const stats: z.infer<typeof workspaceStatsOutputSchema> = {};
+      const unavailable: UnavailablePart[] = [];
+      const sections = [
+        ["datasets", datasetsResult],
+        ["projects", projectsResult],
+        ["exports", exportsResult],
+      ] as const;
+      for (const [part, result] of sections) {
+        if (result.status === "rejected") {
+          unavailable.push(describeUnavailable(part, result.reason));
+        } else {
+          stats[part] = summarizePageProbe(result.value);
+        }
+      }
 
       const presented = presentReadDetail(
         stats,
@@ -114,14 +136,18 @@ export function registerStatsTools(
         WORKSPACE_STATS_CONCISE_KEYS,
       );
 
+      const output = workspaceStatsOutputSchema.parse(withDegraded(
+        presented as Record<string, unknown>,
+        unavailable,
+      ));
       return {
-        structuredContent: presented,
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(presented, null, 2),
+            text: JSON.stringify(output, null, 2),
           },
         ],
+        structuredContent: output,
       };
     },
   );

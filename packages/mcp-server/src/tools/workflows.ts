@@ -10,6 +10,7 @@ import {
   FLEET_RECORDING_LIST_ROUTE,
 } from "./fleet.js";
 import { z } from "zod";
+import { MUTATION_ANNOTATIONS } from "../annotations.js";
 import {
   describeUnavailable,
   degradedFieldsSchema,
@@ -48,6 +49,7 @@ const fleetHealthOutputSchema = z
         online: z.number().int().nonnegative(),
         offline: z.number().int().nonnegative(),
         maintenance: z.number().int().nonnegative(),
+        hasMore: z.boolean(),
         note: z.string().optional(),
       })
       .strip()
@@ -56,13 +58,102 @@ const fleetHealthOutputSchema = z
       .object({
         totalOpen: z.number().int().nonnegative(),
         bySeverity: z.record(z.string(), z.number().int().nonnegative()),
+        hasMore: z.boolean(),
+        note: z.string().optional(),
       })
       .strip()
       .optional(),
     recordings: z
-      .object({ recentCount: z.number().int().nonnegative() })
+      .object({
+        recentCount: z.number().int().nonnegative(),
+        hasMore: z.boolean(),
+        note: z.string().optional(),
+      })
       .strip()
       .optional(),
+    ...degradedFieldsSchema,
+  })
+  .strip();
+
+const workspaceOverviewOutputSchema = z
+  .object({
+    organizations: z
+      .array(
+        z.object({
+          uid: z.string(),
+          name: z.string(),
+          slug: z.string(),
+          memberCount: z.number().nullable().optional(),
+          datasetCount: z.number().nullable().optional(),
+          projectCount: z.number().nullable().optional(),
+        }),
+      )
+      .optional(),
+    recentDatasets: z
+      .array(
+        z.object({
+          uid: z.string(),
+          name: z.string(),
+          dataType: z.string().nullable().optional(),
+          itemCount: z.number().nullable().optional(),
+        }),
+      )
+      .optional(),
+    recentProjects: z
+      .array(
+        z.object({
+          uid: z.string(),
+          name: z.string(),
+          status: z.string().nullable().optional(),
+        }),
+      )
+      .optional(),
+    recentExports: z
+      .array(
+        z.object({
+          uid: z.string(),
+          status: z.string().nullable().optional(),
+          createdAt: z.string().nullable().optional(),
+        }),
+      )
+      .optional(),
+    ...degradedFieldsSchema,
+  })
+  .strip();
+
+const projectQualitySummaryOutputSchema = z
+  .object({
+    project: z
+      .object({
+        uid: z.string(),
+        name: z.string(),
+        status: z.string().nullable().optional(),
+      })
+      .optional(),
+    qualityTargets: z
+      .object({
+        returnedCount: z.number().int().nonnegative(),
+        total: z.number().int().nonnegative().describe(
+          "DEPRECATED — alias of returnedCount for one release; counts this page, not all project targets.",
+        ),
+        breached: z.number().int().nonnegative(),
+        hasMore: z.boolean(),
+        note: z.string().optional(),
+        targets: z.array(
+          z.object({
+            uid: z.string(),
+            name: z.string(),
+            metric: z.string(),
+            threshold: z.number().nullable().optional(),
+            operator: z.string().nullable().optional(),
+            isBreached: z.boolean(),
+            lastValue: z.number().nullable().optional(),
+            severity: z.string().nullable().optional(),
+          }),
+        ),
+      })
+      .optional(),
+    consensus: z.record(z.string(), z.unknown()).optional(),
     ...degradedFieldsSchema,
   })
   .strip();
@@ -71,7 +162,7 @@ const getFleetHealthTool = defineCompositeReadCatalogTool({
   name: "get_fleet_health",
   title: "Get fleet health",
   description:
-    "Get a fleet health overview — device counts by status, open alerts by severity, and recent recording count. Counts are from the first page of results (up to 100 devices, 100 alerts). Use when a user asks about fleet status or device health.",
+    "Get a fleet health overview — device counts by status, open alerts by severity, and recent recording count. Results are bounded probes (up to 100 devices, 100 alerts, and 20 recordings); each section includes `hasMore` when its result is incomplete. Use when a user asks about fleet status or device health.",
   inputSchema: z.object({
     deviceType: z
       .string()
@@ -102,20 +193,21 @@ const getFleetHealthTool = defineCompositeReadCatalogTool({
         read(FLEET_RECORDING_LIST_ROUTE.name),
       ]);
 
-    const devices =
-      (
-        settled(devicesResult) as {
-          items?: Array<{ status?: string | null }>;
-        } | null
-      )?.items ?? [];
-    const alerts =
-      (
-        settled(alertsResult) as {
-          items?: Array<{ severity?: string | null }>;
-        } | null
-      )?.items ?? [];
-    const recordings =
-      (settled(recordingsResult) as { items?: unknown[] } | null)?.items ?? [];
+    const devicesPage = settled(devicesResult) as {
+      items?: Array<{ status?: string | null }>;
+      hasMore?: boolean;
+    } | null;
+    const alertsPage = settled(alertsResult) as {
+      items?: Array<{ severity?: string | null }>;
+      hasMore?: boolean;
+    } | null;
+    const recordingsPage = settled(recordingsResult) as {
+      items?: unknown[];
+      hasMore?: boolean;
+    } | null;
+    const devices = devicesPage?.items ?? [];
+    const alerts = alertsPage?.items ?? [];
+    const recordings = recordingsPage?.items ?? [];
 
     const alertsBySeverity: Record<string, number> = {};
     for (const alert of alerts) {
@@ -128,6 +220,7 @@ const getFleetHealthTool = defineCompositeReadCatalogTool({
       online: number;
       offline: number;
       maintenance: number;
+      hasMore: boolean;
       note?: string;
     } = {
       total: devices.length,
@@ -135,8 +228,9 @@ const getFleetHealthTool = defineCompositeReadCatalogTool({
       offline: devices.filter((device) => device.status === "offline").length,
       maintenance: devices.filter((device) => device.status === "maintenance")
         .length,
+      hasMore: devicesPage?.hasMore ?? false,
     };
-    if (devices.length >= 100)
+    if (devicesPage?.hasMore)
       deviceSummary.note = "Capped at 100 — actual total may be higher";
 
     // A failed leg is OMITTED, never defaulted to zero. `total: 0` reads as
@@ -144,8 +238,13 @@ const getFleetHealthTool = defineCompositeReadCatalogTool({
     // is the truth.
     const summary: {
       devices?: typeof deviceSummary;
-      alerts?: { totalOpen: number; bySeverity: Record<string, number> };
-      recordings?: { recentCount: number };
+      alerts?: {
+        totalOpen: number;
+        bySeverity: Record<string, number>;
+        hasMore: boolean;
+        note?: string;
+      };
+      recordings?: { recentCount: number; hasMore: boolean; note?: string };
     } = {};
     const unavailable: UnavailablePart[] = [];
 
@@ -159,13 +258,24 @@ const getFleetHealthTool = defineCompositeReadCatalogTool({
       summary.alerts = {
         totalOpen: alerts.length,
         bySeverity: alertsBySeverity,
+        hasMore: alertsPage?.hasMore ?? false,
+        ...(alertsPage?.hasMore
+          ? { note: "Capped at 100 — actual open-alert count may be higher" }
+          : {}),
       };
 
     if (recordingsResult.status === "rejected")
       unavailable.push(
         describeUnavailable("recordings", recordingsResult.reason),
       );
-    else summary.recordings = { recentCount: recordings.length };
+    else
+      summary.recordings = {
+        recentCount: recordings.length,
+        hasMore: recordingsPage?.hasMore ?? false,
+        ...(recordingsPage?.hasMore
+          ? { note: "Capped at 20 — more recent recordings may exist" }
+          : {}),
+      };
 
     return withDegraded(summary, unavailable);
   },
@@ -203,6 +313,11 @@ export function registerWorkflowTools(
               "If provided, an export will be created for this project after the dataset is created",
             ),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "datasets.write",
+          "avala.ai/toolset": "datasets",
+        },
       },
       async ({ name, slug, dataType, projectUid }) => {
         const avala = getClient("create_annotation_pipeline");
@@ -246,12 +361,19 @@ export function registerWorkflowTools(
     "get_project_quality_summary",
     {
       description:
-        "Get a quality picture for a project — project details, quality target breach status, and consensus scores. Use when a user asks 'how is quality on project X?' or wants to check quality thresholds.",
+        "Get a quality picture for a project — project details, quality target breach status, and consensus scores. Up to 50 quality targets are returned; the quality-target result includes `hasMore` when additional targets were not included. Use when a user asks 'how is quality on project X?' or wants to check quality thresholds.",
       inputSchema: z.object({
         projectUid: z
           .string()
           .describe("The unique identifier (UUID) of the project"),
       }),
+      outputSchema: projectQualitySummaryOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       _meta: {
         "avala.ai/required-scopes": ["projects.read", "qc.read"],
         "avala.ai/toolset": "quality",
@@ -305,8 +427,15 @@ export function registerWorkflowTools(
         );
       else
         summary.qualityTargets = {
+          returnedCount: targets.length,
+          // Preserve existing consumers for one release while they move to
+          // the explicit bounded-count field. Both values count this page.
           total: targets.length,
           breached: targets.filter((t) => t.isBreached).length,
+          hasMore: targetsPage?.hasMore ?? false,
+          ...(targetsPage?.hasMore
+            ? { note: "Capped at 50 — actual target count may be higher" }
+            : {}),
           targets,
         };
 
@@ -316,13 +445,15 @@ export function registerWorkflowTools(
         );
       else if (consensus) summary.consensus = consensus;
 
+      const output = withDegraded(summary, unavailable);
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(withDegraded(summary, unavailable), null, 2),
+            text: JSON.stringify(output, null, 2),
           },
         ],
+        structuredContent: output,
       };
     },
   );
@@ -333,6 +464,13 @@ export function registerWorkflowTools(
       description:
         "Get a high-level overview of the workspace — organizations, recent datasets, recent projects, and recent exports. Use when a user first connects or asks 'what do I have?' or 'show me my workspace.'",
       inputSchema: z.object({}),
+      outputSchema: workspaceOverviewOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       _meta: {
         "avala.ai/required-scopes": [
           "organizations.read",
@@ -408,13 +546,15 @@ export function registerWorkflowTools(
           (e) => ({ uid: e.uid, status: e.status, createdAt: e.createdAt }),
         );
 
+      const output = withDegraded(summary, unavailable);
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(withDegraded(summary, unavailable), null, 2),
+            text: JSON.stringify(output, null, 2),
           },
         ],
+        structuredContent: output,
       };
     },
   );

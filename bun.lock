@@ -10,7 +10,7 @@
         "avala-mcp-server": "./dist/index.js",
       },
       "dependencies": {
-        "@avala-ai/sdk": "workspace:*",
+        "@avala-ai/sdk": "0.7.4",
         "@modelcontextprotocol/node": "^2.0.0",
         "@modelcontextprotocol/server": "^2.0.0",
         "jose": "^6.2.1",

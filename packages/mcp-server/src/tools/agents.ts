@@ -6,6 +6,7 @@ import {
   registerReadCatalogTool,
 } from "../catalog.js";
 import { z } from "zod";
+import { MUTATION_ANNOTATIONS } from "../annotations.js";
 
 const agentOutputFields = {
   uid: z.string(),
@@ -124,6 +125,11 @@ export function registerAgentTools(
             .optional()
             .describe("Task types the agent handles"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "agents.write",
+          "avala.ai/toolset": "agents",
+        },
       },
       async ({
         name,
@@ -162,6 +168,11 @@ export function registerAgentTools(
             .string()
             .describe("The unique identifier (UUID) of the agent to delete"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "agents.write",
+          "avala.ai/toolset": "agents",
+        },
       },
       async ({ uid }) => {
         const avala = getClient("delete_agent");

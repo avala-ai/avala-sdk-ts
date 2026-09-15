@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import type { GetClient } from "../client.js";
 import { defineReadCatalogTool, registerReadCatalogTool } from "../catalog.js";
 import { z } from "zod";
+import { MUTATION_ANNOTATIONS } from "../annotations.js";
 
 const consensusSummaryOutputSchema = z
   .object({
@@ -64,6 +65,11 @@ export function registerConsensusTools(
             .string()
             .describe("The unique identifier (UUID) of the project"),
         }),
+        annotations: MUTATION_ANNOTATIONS,
+        _meta: {
+          "avala.ai/required-scope": "qc.write",
+          "avala.ai/toolset": "consensus",
+        },
       },
       async ({ projectUid }) => {
         const avala = getClient("compute_consensus");

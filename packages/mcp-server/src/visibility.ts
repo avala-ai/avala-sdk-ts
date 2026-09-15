@@ -1,3 +1,4 @@
+import { OPERATION_PROPOSAL_SCOPES } from "./tools/operationProposals.js";
 import type { McpServer } from "@modelcontextprotocol/server";
 
 export interface CredentialToolGrant {
@@ -192,10 +193,20 @@ export function scopeServerForCredential(
         ): unknown => {
           if (typeof name !== "string")
             throw new Error("Hosted MCP tool name must be a string.");
-          const visible = isVisible(
-            declarativeRequirement(name, config),
-            grant,
+          const proposalOnly = OPERATION_PROPOSAL_SCOPES.some((scope) =>
+            grant.scopes.has(scope),
           );
+          const toolConfig = config as {
+            annotations?: { readOnlyHint?: boolean };
+            _meta?: Record<string, unknown>;
+          };
+          const safeForProposalCredential =
+            !proposalOnly ||
+            toolConfig.annotations?.readOnlyHint === true ||
+            toolConfig._meta?.["avala.ai/operation-proposal"] === true;
+          const visible =
+            safeForProposalCredential &&
+            isVisible(declarativeRequirement(name, config), grant);
           const registered = Reflect.apply(target.registerTool, target, [
             name,
             config,

@@ -1,3 +1,4 @@
+import { OPERATION_PROPOSAL_SCOPES } from "../src/tools/operationProposals.js";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
@@ -44,7 +45,13 @@ function stringArray(value: unknown): string[] | null {
  * and reviewed workforce mutations.
  */
 const PRIVILEGED_TOOLSET_SCOPES: Record<string, readonly string[]> = {
-  staff: ["mcp.query", "workforce.read", "workforce.write"],
+  staff: [
+    "mcp.query",
+    "workforce.read",
+    "billing.read",
+    "workforce.write",
+    ...OPERATION_PROPOSAL_SCOPES,
+  ],
 };
 
 describe("credential toolset scope contract", () => {
@@ -69,7 +76,7 @@ describe("credential toolset scope contract", () => {
       (() => {
         throw new Error("Registration must not resolve a credential");
       }) as never,
-      { allowMutations: false },
+      { allowMutations: true },
     );
 
     expect(registrations.size).toBeGreaterThan(0);

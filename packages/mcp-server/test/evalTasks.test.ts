@@ -17,10 +17,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const TASKS_DIR = join(HERE, "..", "eval", "tasks");
 
 describe("task file contract", () => {
-  it("parses the committed set to exactly 27 gradeable / 12 ungradeable", async () => {
+  it("parses the committed set to exactly 29 gradeable / 12 ungradeable", async () => {
     const { tasks, skipped } = await loadTasks(TASKS_DIR);
-    expect(tasks.length + skipped.length).toBe(39);
-    expect(tasks.length).toBe(27);
+    expect(tasks.length + skipped.length).toBe(41);
+    expect(tasks.length).toBe(29);
     expect(skipped.length).toBe(12);
   });
 
@@ -32,7 +32,7 @@ describe("task file contract", () => {
     });
     expect(bySuite("adversarial")).toEqual({ runnable: 7, skipped: 2 });
     expect(bySuite("read-customer")).toEqual({ runnable: 4, skipped: 10 });
-    expect(bySuite("read-ops")).toEqual({ runnable: 16, skipped: 0 });
+    expect(bySuite("read-ops")).toEqual({ runnable: 18, skipped: 0 });
   });
 
   it("gives every task a declared, unique id", async () => {
@@ -51,14 +51,109 @@ describe("task file contract", () => {
     const count = (predicate: (task: (typeof all)[number]) => unknown) =>
       all.filter(predicate).length;
 
-    expect(all).toHaveLength(39);
-    expect(tasks).toHaveLength(27);
+    expect(all).toHaveLength(41);
+    expect(tasks).toHaveLength(29);
     expect(skipped).toHaveLength(12);
     expect(count((task) => task.answer)).toBe(0);
-    expect(count((task) => task.rubric)).toBe(27);
+    expect(count((task) => task.rubric)).toBe(29);
     expect(count((task) => task.answerTodo)).toBe(12);
     expect(count((task) => task.precondition)).toBe(4);
-    expect(new Set(all.map((task) => task.id)).size).toBe(39);
+    expect(new Set(all.map((task) => task.id)).size).toBe(41);
+  });
+
+  it("keeps the unmeasured baseline inventory aligned with parsed tasks", async () => {
+    const baseline = await readFile(
+      join(HERE, "..", "eval", "reports", "baseline.md"),
+      "utf8",
+    );
+    // A completed model run replaces the placeholder with a generated report.
+    // Its measured-report contract is covered separately in evalScore.test.ts.
+    if (!baseline.includes("**No baseline has been measured yet.**")) return;
+    const { tasks, skipped, files } = await loadTasks(TASKS_DIR);
+    const rows = baseline
+      .split("\n")
+      .filter((line) => line.startsWith("|"))
+      .map((line) => line.split("|").slice(1, -1).map(
+        (cell) => cell.trim().replaceAll("**", ""),
+      ));
+    for (const file of files) {
+      const suite = file.replace(/\.xml$/, "");
+      const gradeable = tasks.filter((task) => task.suite === suite).length;
+      const ungradeable = skipped.filter((task) => task.suite === suite).length;
+      expect(rows).toContainEqual([
+        `\`${file}\``, String(gradeable + ungradeable),
+        String(gradeable), String(ungradeable),
+      ]);
+    }
+    expect(rows).toContainEqual([
+      "total", String(tasks.length + skipped.length),
+      String(tasks.length), String(skipped.length),
+    ]);
+  });
+
+  it("keeps session/station monitoring gradeable without inventing throughput", async () => {
+    const { tasks } = await loadTasks(TASKS_DIR);
+    const monitoring = tasks.find(
+      (task) => task.id === "workforce-session-station-monitoring",
+    );
+    expect(monitoring).toMatchObject({
+      suite: "read-ops", category: "workforce-monitoring", grading: "rubric",
+    });
+    expect(monitoring?.answer).toBeUndefined(); // No fabricated numeric ground truth.
+    for (const instant of ["2026-09-08T00:00:00Z", "2026-09-09T00:00:00Z"]) {
+      expect(monitoring?.question).toContain(instant);
+      expect(monitoring?.rubric).toContain(instant);
+    }
+    // Pin the grading obligations after XML parsing, rather than merely counting
+    // a task whose rubric might silently stop enforcing the provider's limits.
+    for (const obligation of [
+      "get_workforce_session_monitoring", "get_workforce_station_monitoring",
+      "endedFrom=", "endedBefore=", "ended_at", "never updated_at",
+      "nextCursor", "unchanged filters", "statusCountsComplete", "countsComplete",
+      "lower bounds", "both terminal statuses", "terminalSessionsWithUnknownEndTime",
+      "a truncated zero", "all projects", "not attribute", "not additive",
+      "historical station throughput", "CPU", "latency", "Redis visibility",
+      "unavailable", "no mutations",
+    ]) {
+      expect(
+        monitoring?.rubric,
+        `missing monitoring grading obligation: ${obligation}`,
+      ).toContain(obligation);
+    }
+  });
+
+  it("keeps billing evidence gradeable without authorizing or inferring payments", async () => {
+    const { tasks } = await loadTasks(TASKS_DIR);
+    const billing = tasks.find(
+      (task) => task.id === "billing-recorded-evidence-boundaries",
+    );
+    expect(billing).toMatchObject({
+      suite: "read-ops", category: "billing-monitoring", grading: "rubric",
+    });
+    expect(billing?.answer).toBeUndefined();
+    for (const instant of ["2026-09-08T12:00:00Z", "2026-09-09T12:00:00Z"]) {
+      expect(billing?.question).toContain(instant);
+      expect(billing?.rubric).toContain(instant);
+    }
+    for (const obligation of [
+      "get_billing_coworker_earnings", "list_billing_organizations",
+      "staff", "billing.read", "workforce.read", "no mutations",
+      "periodEndedFrom=", "periodEndedBefore=", "coworkerUid", "date_to",
+      "half-open", "whole-period amounts", "not prorate",
+      "nextCurrencyCursor", "currencyCursor", "nextCursor", "unchanged filters",
+      "recordedAmount", "decimal strings", "not combine currencies",
+      "workedTimeMs", "approvedWorkedTimeMs", "milliseconds",
+      "coverage", "once", "excludedRecords", "reason counts overlap",
+      "historicalCompleteness", "overlappingPeriodsDeduplicated",
+      "billingRecordStatus", "missing", "invalid_status", "unknown",
+      "generatedAt", "recordUpdatedAt", "settlement", "invoice",
+      "pending earnings", "batch cost", "unavailable", "not zero",
+    ]) {
+      expect(
+        billing?.rubric,
+        `missing billing grading obligation: ${obligation}`,
+      ).toContain(obligation);
+    }
   });
 
   it("keeps operation-history reconciliation evidence-safe", async () => {

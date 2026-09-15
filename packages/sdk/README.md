@@ -109,8 +109,25 @@ try {
 | `avala.autoLabelJobs` | `list()`, `get()`, `create()`, `cancel()` | Batch auto-labeling jobs |
 | `avala.qualityTargets` | `list()`, `get()`, `create()`, `update()`, `delete()`, `evaluate()` | Project quality targets |
 | `avala.consensus` | `getSummary()`, `listScores()`, `compute()`, `getConfig()`, `updateConfig()` | Consensus scoring |
+| `avala.customerQc` | `inspectContext(target)` | Default-off pilot: read-only workflow metadata, never approval authority |
 | `avala.webhooks` | `list()`, `get()`, `create()`, `update()`, `delete()`, `test()` | Manage webhook subscriptions |
 | `avala.webhookDeliveries` | `list()`, `get()` | Inspect webhook delivery logs |
+
+## Customer QC inspection pilot
+
+`avala.customerQc.inspectContext({ organizationUid, datasetUid, sequenceUid, deliverableId: "cuboids" })`
+reads the enrolled customer's workflow context. Supply canonical lowercase UUIDs,
+an API credential for a current nonstaff organization editor, and both
+`datasets.read` and `qc.read` scopes when using delegated credentials. Pilot
+enrollment remains a separate server-side prerequisite; this method does not enable it.
+
+The result has `evidenceKind: "workflow_metadata_only"`, `decisionReady: false`
+and explicit `blockers`. Available decisions are configured transitions, not
+executable agent decisions. `contextSha256` is metadata consistency information,
+not an annotation revision, signature or approval grant. The client rejects
+unsupported/malformed response contracts and mismatched targets, preserves
+server blockers, and does not fall back to legacy write routes after denial.
+No customer-QC proposal, approval or hosted MCP tool is added by this SDK method.
 
 ## Documentation
 

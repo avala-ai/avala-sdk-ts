@@ -36,6 +36,39 @@ export interface CredentialPermissions {
   toolsets: string[];
 }
 
+/** Exact identity chain for the default-off, cuboid-only customer QC pilot. */
+export interface CustomerQcContextTarget {
+  organizationUid: string;
+  datasetUid: string;
+  sequenceUid: string;
+  deliverableId: "cuboids";
+}
+
+/** A configured workflow transition, not permission to execute a decision. */
+export interface CustomerQcDecision {
+  state: string;
+  outcome: "approved" | "rejected";
+}
+
+/** Workflow metadata only; neither annotation evidence nor an approval grant. */
+export interface CustomerQcContext extends CustomerQcContextTarget {
+  schemaVersion: 1;
+  evidenceKind: "workflow_metadata_only";
+  annotationScope: "cuboid_3d";
+  workflowRevisionUid: string;
+  workflowDefinitionSha256: string;
+  stateCreatedAt: string;
+  stateUpdatedAt: string;
+  workflowState: string;
+  approvalState: string;
+  approvalOutcome: string;
+  availableDecisions: CustomerQcDecision[];
+  decisionReady: false;
+  blockers: string[];
+  /** Metadata consistency hash, not a signature or annotation revision. */
+  contextSha256: string;
+}
+
 /** @deprecated Use CredentialPersona. */
 export type UserType = CredentialPersona;
 
@@ -276,6 +309,11 @@ export interface Organization {
   logo: string | null;
   website: string | null;
   industry: string | null;
+  organizationType?: string | null;
+  xUrl?: string | null;
+  huggingFaceUrl?: string | null;
+  githubUrl?: string | null;
+  linkedinUrl?: string | null;
   email: string | null;
   phone: string | null;
   visibility: string | null;
@@ -361,6 +399,7 @@ export interface Slice {
 }
 
 export interface SliceItem {
+  isHidden: boolean;
   id: number | null;
   uid: string;
   key: string | null;
@@ -384,6 +423,7 @@ export interface SliceItem {
 }
 
 export interface DatasetItem {
+  isHidden: boolean;
   id: number | null;
   uid: string;
   key: string | null;
@@ -407,6 +447,8 @@ export interface DatasetItem {
 }
 
 export interface DatasetSequence {
+  // List-serializer only; omitted from detail and API-key list responses.
+  isHidden?: boolean;
   uid: string;
   key: string | null;
   customUuid: string | null;
