@@ -74,6 +74,78 @@ describe("what this gate does NOT cover", () => {
 });
 
 describe("scrubToolResult", () => {
+  it.each(["[", "{"])("fails closed within the scan budget for repeated unmatched %s", (opening) => {
+    const text = `${opening.repeat(10_000)} {"apiKey":"synthetic-opaque-value"}`;
+    const result = { content: [{ type: "text", text }] };
+    expect(scrubToolResult("t", result).content[0]!.text).toBe("[redacted]");
+  });
+
+  it("redacts only the exhausted nested string and preserves surrounding metadata", () => {
+    const text = JSON.stringify({ description: `${"[".repeat(10_000)} {"apiKey":"synthetic-opaque-value"}`, tokenCount: 7 });
+    const result = { content: [{ type: "text", text }] };
+    const scrubbed = scrubToolResult("t", result);
+    expect(JSON.parse(scrubbed.content[0]!.text)).toEqual({ description: "[redacted]", tokenCount: 7 });
+    expect(scrubToolResult("t", scrubbed)).toEqual(scrubbed);
+  });
+
+  it("preserves many ordinary embedded JSON spans within the linear scan budget", () => {
+    const text = Array.from({ length: 100 }, (_, index) => `Record ${index}: {"uid":${index},"apiKey":"synthetic-opaque-value"}`).join("\n");
+    expect(scrubToolResult("t", { content: [{ type: "text", text }] }).content[0]!.text)
+      .toBe(text.replaceAll("synthetic-opaque-value", "[redacted]"));
+  });
+
+  it.each([false, true])("redacts JSON after an unmatched prose quote (nested description: %s)", (nested) => {
+    const description = 'Robot 6" created:\n{"apiKey":"synthetic-opaque-value","tokenCount":7}';
+    const text = nested ? JSON.stringify({ description }) : description;
+    const result = { content: [{ type: "text", text }] };
+    const scrubbed = scrubToolResult("create_resource", result);
+    expect(scrubbed.content[0]!.text).toBe(text.replace("synthetic-opaque-value", "[redacted]"));
+    expect(scrubToolResult("create_resource", scrubbed)).toEqual(scrubbed);
+  });
+
+  it.each(['Robot 6" created: ', 'Incomplete { note: ', 'Incomplete [ note: '])(
+    "preserves prose and multiple JSON spans after %s", (prefix) => {
+      const json = '{ "apiKey":"synthetic-opaque-value", "uid":9007199254740993, "name":"first", "name":"last" }';
+      const text = `${prefix}${json} then [${json}]`;
+      const result = { content: [{ type: "text", text }] };
+      expect(scrubToolResult("t", result).content[0]!.text)
+        .toBe(text.replaceAll("synthetic-opaque-value", "[redacted]"));
+    },
+  );
+
+  it.each(["apiKey", "secret", "deviceToken", "s3SecretAccessKey", "gcAuthJsonContent"])(
+    "redacts opaque %s in structured, serialized, embedded and nested JSON output",
+    (key) => {
+      const payload = { uid: "resource-1", [key]: "synthetic-opaque-value", tokenCount: 7 };
+      const result = {
+        structuredContent: payload,
+        content: [
+          { type: "text", text: JSON.stringify(payload) },
+          { type: "text", text: `Created:\n${JSON.stringify(payload)}\nKeep this note.` },
+          { type: "resource", resource: { text: JSON.stringify({ config: JSON.stringify(payload) }) } },
+        ],
+      };
+      const scrubbed = scrubToolResult("create_resource", result);
+      expect(JSON.stringify(scrubbed)).not.toContain("synthetic-opaque-value");
+      expect(scrubbed.structuredContent).toEqual({ ...payload, [key]: "[redacted]" });
+      expect(JSON.parse(scrubbed.content[0]!.text!)).toEqual(scrubbed.structuredContent);
+      expect(scrubbed.content[1]!.text).toContain("Keep this note.");
+      expect(scrubToolResult("create_resource", scrubbed)).toEqual(scrubbed);
+    },
+  );
+
+  it("preserves serialized value fidelity, duplicate keys, whitespace and nulls", () => {
+    const text = '{ "uid": 9007199254740993, "ratio": 1e-20, "name":"first", "name":"last", "secret":null, "apiKey":"opaque", "metadata":{"nested":true} }';
+    expect(scrubToolResult("t", { content: [{ type: "text", text }] }).content[0]!.text)
+      .toBe(text.replace('"opaque"', '"[redacted]"'));
+  });
+
+  it("redacts escaped JSON keys and whole credential containers", () => {
+    const text = '{"api\\u004bey":"opaque", "credentials":{"user":"synthetic-user","value":[1,2]}, "token":false}';
+    const output = scrubToolResult("t", { content: [{ type: "text", text }] });
+    expect(JSON.parse(output.content[0]!.text)).toEqual({ apiKey: "[redacted]", credentials: "[redacted]", token: "[redacted]" });
+  });
+
   it("removes every credential and personal field", () => {
     const scrubbed = scrubToolResult("get_frame", LEAKY_RESPONSE);
     expect(findSecrets(scrubbed)).toEqual([]);

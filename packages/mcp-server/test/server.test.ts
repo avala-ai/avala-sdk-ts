@@ -93,6 +93,27 @@ function createMockServer() {
 }
 
 describe("MCP server", () => {
+  it.each([
+    ["create_agent", { name: "agent", events: ["task.completed"], callbackUrl: "https://example.invalid/hook" }, "agents", "create", "apiKey"],
+    ["create_webhook", { name: "hook", url: "https://example.invalid/hook", events: ["task.completed"] }, "webhooks", "create", "secret"],
+    ["fleet_register_device", { name: "robot", type: "robot" }, "devices", "register", "deviceToken"],
+    ["create_storage_config", { name: "storage", provider: "s3" }, "storageConfigs", "create", "s3SecretAccessKey"],
+  ] as const)("scrubs opaque credentials from the registered %s handler", async (tool, args, resource, method, key) => {
+    const server = createMockServer();
+    const payload = { uid: "synthetic-resource", name: "resource", [key]: "synthetic-one-time-value", metadata: { tokenCount: 12 } };
+    const operation = vi.fn().mockResolvedValue(payload);
+    const client = resource === "devices"
+      ? { fleet: { devices: { [method]: operation } } }
+      : { [resource]: { [method]: operation } };
+    registerTools(server as never, (() => client) as never, { allowMutations: true });
+    const result = await server.getHandler(tool)!(args) as { content: { text: string }[] };
+    expect(operation).toHaveBeenCalledOnce();
+    expect(JSON.stringify(result)).not.toContain("synthetic-one-time-value");
+    expect(result.content[0]!.text).toContain('"uid": "synthetic-resource"');
+    expect(result.content[0]!.text).toContain('"tokenCount": 12');
+    expect(payload[key]).toBe("synthetic-one-time-value");
+  });
+
   it("observes the entire hosted catalog and classifies unannotated and write-scoped reads", async () => {
     const server = createMockServer();
     const events: HostedInvocationEvent[] = [];

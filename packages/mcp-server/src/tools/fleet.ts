@@ -10,6 +10,12 @@ import { MUTATION_ANNOTATIONS } from "../annotations.js";
 
 import { safeStringify } from "../redact.js";
 
+/** Appended to every `fleet_register_device` result; see the handler comment. */
+export const DEVICE_TOKEN_WITHHELD =
+  "The device token was withheld from this response so it does not enter model context. It is " +
+  "returned only once, by the REST API, at registration. Register the device with the Avala SDK or " +
+  "`POST /api/v1/fleet/devices/` to receive the token directly.";
+
 // Catalog execution sanitizes every validated result before it reaches MCP.
 // Keep schemas transform-free so SDK v2 can emit standards-compliant JSON Schema.
 const sanitizedRecordSchema = z.record(z.string(), z.unknown());
@@ -366,13 +372,19 @@ export function registerFleetTools(
           firmwareVersion,
           tags,
         });
-        // The create response is the ONLY place the caller receives the new
-        // device's deviceToken (get/list omit it). Return it raw — redacting it
-        // here would create a device the user cannot configure. This is a
-        // user-invoked mutation, so the token is the intended result.
+        // The create response is the ONLY place the API returns the new
+        // device's deviceToken (get/list omit it). This handler used to argue
+        // that redacting it would leave a device the user cannot configure,
+        // and returned it raw. That reasoning lost to AVALA-SEC-2026-0094:
+        // a tool result is copied into model context, client transcripts and
+        // provider logs, none of which the user can purge, so "the user
+        // invoked it" does not make those sinks safe. safeStringify redacts
+        // the token here and the egress boundary redacts it again; the note
+        // below says where to get one (AVALA-SEC-2026-0119).
         return {
           content: [
-            { type: "text" as const, text: JSON.stringify(device, null, 2) },
+            { type: "text" as const, text: safeStringify(device) },
+            { type: "text" as const, text: DEVICE_TOKEN_WITHHELD },
           ],
         };
       },

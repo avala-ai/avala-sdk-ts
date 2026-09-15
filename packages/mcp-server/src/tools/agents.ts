@@ -8,6 +8,13 @@ import {
 import { z } from "zod";
 import { MUTATION_ANNOTATIONS } from "../annotations.js";
 
+/** Appended to every `create_agent` result; see the handler comment. */
+export const AGENT_SECRET_WITHHELD =
+  "The agent secret was withheld from this response so it does not enter model context. The API " +
+  "returns it only once, at creation, and never on later reads. To hold a secret you control, register " +
+  "the agent outside the model with `avala.agents.create({ ..., secret })` (@avala-ai/sdk 0.7.5+) or " +
+  "`POST /api/v1/agents/` with a `secret` field.";
+
 const agentOutputFields = {
   uid: z.string(),
   name: z.string(),
@@ -148,11 +155,18 @@ export function registerAgentTools(
           project,
           taskTypes,
         });
+        // The agent `secret` is returned once, by the REST create response.
+        // The egress boundary redacts it before this result reaches the model
+        // (AVALA-SEC-2026-0119/0123/0125). See create_webhook for the reasoning.
         return {
           content: [
             {
               type: "text" as const,
               text: JSON.stringify(agent, null, 2),
+            },
+            {
+              type: "text" as const,
+              text: AGENT_SECRET_WITHHELD,
             },
           ],
         };

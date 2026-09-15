@@ -75,6 +75,12 @@ function pack(name: string): { tarball: string; manifest: PackageManifest; integ
     }),
   );
   assertPackageManifest(manifest, name, source);
+  const entries = execFileSync("tar", ["-tzf", tarball], { encoding: "utf8", env: cleanEnv, timeout: 10_000 }).trim().split("\n");
+  assert(!entries.some((entry) => entry.endsWith(".map")), `${name} artifacts must not ship source maps`);
+  for (const entry of entries.filter((entry) => /\.(?:[cm]?js|[cm]?ts)$/.test(entry))) {
+    const contents = execFileSync("tar", ["-xOf", tarball, entry], { encoding: "utf8", env: cleanEnv, timeout: 10_000 });
+    assert(!/AVALA-SEC-\d{4}-\d+|AVL-MCP-\d+|\bPR #\d+|github\.com\/avala-ai\/avala\/pull\/\d+/.test(contents), `Internal review references in ${entry}`);
+  }
   assert.equal(typeof packed[0].integrity, "string");
   return { tarball, manifest, integrity: packed[0].integrity };
 }

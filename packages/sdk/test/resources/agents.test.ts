@@ -117,6 +117,19 @@ describe("agents resource", () => {
     expect(body.name).toBe("My Agent");
   });
 
+  it("forwards a caller-supplied secret on create and omits the key when unset", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 201, headers: new Headers(), json: () => Promise.resolve(mockAgent) }),
+    );
+    const avala = new Avala({ apiKey: "test-key" });
+    await avala.agents.create({ name: "reviewer", events: ["task.completed"], secret: "my-own-secret" });
+    expect(JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body).secret).toBe("my-own-secret");
+
+    await avala.agents.create({ name: "reviewer", events: ["task.completed"] });
+    expect("secret" in JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[1][1].body)).toBe(false);
+  });
+
   it("updates an agent with snake_case body", async () => {
     vi.stubGlobal(
       "fetch",

@@ -318,6 +318,24 @@ export class HttpTransport {
     if (lowered.includes("%2e%2e") || lowered.includes("%2f%2e%2e")) {
       throw new Error("Path must not contain URL-encoded traversal segments.");
     }
+    // Validate every decoding layer: URL parsers collapse mixed dot encodings,
+    // and proxies may decode separators before routing. Preserve the original
+    // path for the request; normalization here is validation only.
+    let decodedPath = pathOnly;
+    let decodingDepth = 0;
+    for (;;) {
+      if (decodedPath.replace(/\\/g, "/").split("/").some((segment) => segment === "." || segment === "..")) {
+        throw new Error("Path must not contain normalized traversal segments.");
+      }
+      const next = decodedPath.replace(/%([0-9a-f]{2})/gi, (_match, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+      if (next === decodedPath) break;
+      // Bound synchronous work before the request timeout begins. Never send
+      // a path whose remaining encoding layers could conceal traversal.
+      if (++decodingDepth > 8) {
+        throw new Error("Path exceeds the supported URL-encoding depth.");
+      }
+      decodedPath = next;
+    }
     if (pathOnly.slice(1).includes("//")) {
       throw new Error("Path must not contain '//' segments.");
     }

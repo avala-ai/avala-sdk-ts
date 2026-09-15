@@ -8,6 +8,12 @@ export interface CreateAgentOptions {
   events: string[];
   project?: string;
   taskTypes?: string[];
+  /**
+   * Agent authentication secret. Optional: the API generates one when omitted
+   * and returns it ONLY in the create response; it is never returned on later
+   * reads. Supply your own when the create response should not carry it.
+   */
+  secret?: string;
 }
 
 export interface UpdateAgentOptions {
@@ -37,6 +43,7 @@ export class AgentsResource extends BaseResource {
       events: "events",
       project: "project",
       taskTypes: "task_types",
+      secret: "secret",
     };
     for (const [camel, snake] of Object.entries(keyMap)) {
       const value = (options as unknown as Record<string, unknown>)[camel];

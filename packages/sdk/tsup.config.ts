@@ -5,5 +5,10 @@ export default defineConfig({
   format: ["esm", "cjs"],
   dts: true,
   clean: true,
-  sourcemap: true,
+  sourcemap: false,
+  // The SDK is also installed with MCP; source/review comments stay private.
+  esbuildOptions(options) {
+    options.minifyWhitespace = true;
+    options.legalComments = "none";
+  },
 });

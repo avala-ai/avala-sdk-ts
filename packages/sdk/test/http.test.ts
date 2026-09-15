@@ -606,6 +606,31 @@ describe("HttpTransport", () => {
   });
 
   describe("path validation (security)", () => {
+    it("rejects excessive percent-encoding depth before fetch", async () => {
+      mockFetch({ ok: true, status: 200 });
+      const path = `/datasets/%${"25".repeat(1000)}61/`;
+      await expect(makeTransport().request("GET", path)).rejects.toThrow(/encoding depth/);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("preserves ordinary nested escapes in the transmitted path", async () => {
+      mockFetch({ ok: true, status: 200 });
+      const path = "/datasets/name%2520with%2520spaces/";
+      await makeTransport().request("GET", path);
+      expect(vi.mocked(fetch).mock.calls[0]![0]).toContain(path);
+    });
+
+    it.each([
+      "/datasets/.%2e/admin/", "/datasets/%2e./admin/",
+      "/datasets/%2E/admin/", "/datasets/.",
+      "/datasets/%252e%252e/admin/", "/datasets/a%2f..%2fadmin/",
+      "/datasets/a\\..\\admin/", "/datasets/a%5c..%5cadmin/",
+    ])("rejects normalized traversal before fetch: %s", async (path) => {
+      mockFetch({ ok: true, status: 200 });
+      await expect(makeTransport().request("GET", path)).rejects.toThrow(/traversal/);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
     it("rejects path-traversal segments", async () => {
       const http = makeTransport();
       await expect(http.request("GET", "/datasets/../admin/")).rejects.toThrow(/traversal/);

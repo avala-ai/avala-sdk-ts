@@ -40,9 +40,25 @@
  * a third party's retention window. One call fans out to sinks the API boundary
  * never had, and none of them are ours to purge. See
  * `docs/avala-mcp-read-contract.md`.
+ *
+ * ## Why the boundary re-parses JSON text (AVALA-SEC-2026-0119 and four more)
+ *
+ * The value scanner above only knows shapes it can pattern-match (`AKIA…`,
+ * JWTs, `?signature=…`). An opaque one-time credential — the 64-hex webhook
+ * signing secret, an agent secret, a fleet `deviceToken` — has no shape, so
+ * the key NAME is the only signal, and by the time a hand-written tool has
+ * done `JSON.stringify(webhook)` the key name is inside a string the key-name
+ * redactor cannot see. Five reports (0075, 0094, 0119, 0123, 0125) each found
+ * one of the 26 hand-written `JSON.stringify` emitters this way. Adding
+ * `safeStringify` to each is the opt-in design this file exists to replace,
+ * so the boundary now parses every text block that is JSON, redacts by key
+ * name, and re-serialises it in the original layout — then scans values as
+ * before. A create response therefore never carries its one-time secret into
+ * model context; callers who need one supply it on the REST call instead.
  */
 
 import type { McpServer } from "@modelcontextprotocol/server";
+import { sanitizeForOutput } from "./redact.js";
 import { findSecrets, scrubValue, type Finding } from "./secrets.js";
 
 /**
@@ -170,7 +186,7 @@ export function scrubToolResult<T>(tool: string, result: T): T {
       /* ignore */
     }
   }
-  return scrubValue(result);
+  return scrubValue(sanitizeForOutput(result)) as T;
 }
 
 /**

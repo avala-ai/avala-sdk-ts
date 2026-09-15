@@ -5,6 +5,14 @@ export interface CreateWebhookOptions {
   targetUrl: string;
   events: string[];
   isActive?: boolean;
+  /**
+   * HMAC signing secret for this subscription. Optional: the API generates one
+   * when omitted and returns it ONLY in the create response. Supply your own
+   * when the create call runs somewhere the response should not carry the
+   * secret (an MCP tool result, a shared log) — the API never returns a
+   * secret on later reads, whichever side generated it.
+   */
+  secret?: string;
 }
 
 export interface UpdateWebhookOptions {
@@ -27,6 +35,7 @@ export class WebhooksResource extends BaseResource {
       targetUrl: "target_url",
       events: "events",
       isActive: "is_active",
+      secret: "secret",
     };
     for (const [camel, snake] of Object.entries(keyMap)) {
       const value = (options as unknown as Record<string, unknown>)[camel];
@@ -45,6 +54,7 @@ export class WebhooksResource extends BaseResource {
       targetUrl: "target_url",
       events: "events",
       isActive: "is_active",
+      secret: "secret",
     };
     for (const [camel, snake] of Object.entries(keyMap)) {
       const value = (options as unknown as Record<string, unknown>)[camel];

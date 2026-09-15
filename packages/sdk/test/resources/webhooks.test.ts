@@ -89,6 +89,22 @@ describe("webhooks resource", () => {
     expect(body.is_active).toBe(true);
   });
 
+  it("forwards a caller-supplied secret on create and omits the key when unset", async () => {
+    // The MCP create_webhook tool withholds the server-generated secret from
+    // model context and tells users to supply their own through this method;
+    // that guidance is only true if the field actually reaches the request.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 201, headers: new Headers(), json: () => Promise.resolve(mockWebhook) }),
+    );
+    const avala = new Avala({ apiKey: "test-key" });
+    await avala.webhooks.create({ targetUrl: "https://example.com/webhook", events: ["task.completed"], secret: "my-own-secret" });
+    expect(JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body).secret).toBe("my-own-secret");
+
+    await avala.webhooks.create({ targetUrl: "https://example.com/webhook", events: ["task.completed"] });
+    expect("secret" in JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[1][1].body)).toBe(false);
+  });
+
   it("updates a webhook with snake_case body", async () => {
     vi.stubGlobal(
       "fetch",
