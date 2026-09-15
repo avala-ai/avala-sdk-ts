@@ -10,8 +10,10 @@ export interface CreateAgentOptions {
   taskTypes?: string[];
   /**
    * Agent authentication secret. Optional: the API generates one when omitted
-   * and returns it ONLY in the create response; it is never returned on later
-   * reads. Supply your own when the create response should not carry it.
+   * and returns it ONLY on initial creation, not on reads or re-registration.
+   * Initial creation can return a secret even when one is supplied: protect
+   * request and response from logs/model context. Supplying one does not redact
+   * the response or rotate the secret of an existing registration.
    */
   secret?: string;
 }

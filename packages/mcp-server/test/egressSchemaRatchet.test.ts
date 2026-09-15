@@ -48,17 +48,18 @@ function unwrap(schema: z.ZodTypeAny): z.ZodTypeAny {
   }
 }
 
-/** Every (path, leaf node kind) pair reachable through objects, arrays, records, unions. */
-function leaves(schema: z.ZodTypeAny, path: string[] = []): [string[], string][] {
+/** Include containers: redaction replaces a sensitive field before inspecting its children. */
+function nodes(schema: z.ZodTypeAny, path: string[] = []): [string[], string][] {
   const inner = unwrap(schema);
   const d = def(inner);
+  const current: [string[], string][] = [[path, d.type]];
   if (d.type === "object" && d.shape) {
-    return Object.entries(d.shape).flatMap(([key, child]) => leaves(child, [...path, key]));
+    return current.concat(Object.entries(d.shape).flatMap(([key, child]) => nodes(child, [...path, key])));
   }
-  if (d.type === "array" && d.element) return leaves(d.element, [...path, "[]"]);
-  if (d.type === "record" && d.valueType) return leaves(d.valueType, [...path, "{}"]);
-  if (d.type === "union" && d.options) return d.options.flatMap((o) => leaves(o, path));
-  return [[path, d.type]];
+  if (d.type === "array" && d.element) return current.concat(nodes(d.element, [...path, "[]"]));
+  if (d.type === "record" && d.valueType) return current.concat(nodes(d.valueType, [...path, "{}"]));
+  if (d.type === "union" && d.options) return current.concat(d.options.flatMap((o) => nodes(o, path)));
+  return current;
 }
 
 describe("outputSchema ratchet: sensitive-named fields must be strings", () => {
@@ -80,31 +81,45 @@ describe("outputSchema ratchet: sensitive-named fields must be strings", () => {
     expect(registrations.size).toBeGreaterThan(0);
 
     const offenders: string[] = [];
-    let sensitiveLeaves = 0;
+    let sensitiveNodes = 0;
     let schemas = 0;
     for (const [name, config] of registrations) {
       if (!config.outputSchema) continue;
       schemas += 1;
-      for (const [path, kind] of leaves(config.outputSchema)) {
+      for (const [path, kind] of nodes(config.outputSchema)) {
         const key = path[path.length - 1];
         if (!key || key === "[]" || key === "{}" || !isSensitiveOutputKey(key)) continue;
-        sensitiveLeaves += 1;
+        sensitiveNodes += 1;
         if (kind !== "string" && kind !== "any" && kind !== "unknown") {
           offenders.push(`${name}: ${path.join(".")} is ${kind}`);
         }
       }
     }
     // Measured 2026-09-15: the catalog projects credentials away, so NO output
-    // schema names a sensitive field today (sensitiveLeaves === 0). The ratchet
+    // schema names a sensitive field today (sensitiveNodes === 0). The ratchet
     // is therefore about the future; what it must not be is blind, which the
     // walker test below and the schema count here guard against.
     expect(schemas).toBeGreaterThan(20);
-    expect(sensitiveLeaves).toBe(0);
+    expect(sensitiveNodes).toBe(0);
     expect(offenders, "redaction would write \"[redacted]\" into a non-string field and fail SDK output validation").toEqual([]);
   });
 });
 
 describe("the schema walker itself", () => {
+  it.each([
+    { label: "object", field: z.object({ user: z.string() }), value: { user: "synthetic-user" } },
+    { label: "array", field: z.array(z.string()), value: ["synthetic-value"] },
+    { label: "record", field: z.record(z.string(), z.string()), value: { user: "synthetic-user" } },
+  ])("finds a sensitive $label field before traversing its children", ({ label, field, value }) => {
+    const schema = z.object({ credentials: field.optional().nullable() });
+    const original = { credentials: value };
+    expect(schema.safeParse(original).success).toBe(true);
+    const scrubbed = scrubToolResult("synthetic", { content: [], structuredContent: original });
+    expect(scrubbed.structuredContent).toEqual({ credentials: REDACTED_OUTPUT_VALUE });
+    expect(schema.safeParse(scrubbed.structuredContent).success).toBe(false);
+    expect(nodes(schema)).toContainEqual([["credentials"], label]);
+  });
+
   it("finds a sensitive non-string leaf behind optional/array/union/record wrappers", () => {
     const schema = z.object({
       ok: z.string(),
@@ -112,7 +127,7 @@ describe("the schema walker itself", () => {
       either: z.union([z.string(), z.object({ clientSecret: z.boolean() })]),
       map: z.record(z.string(), z.object({ apiKey: z.string().nullable() })),
     });
-    const found = leaves(schema)
+    const found = nodes(schema)
       .filter(([path]) => isSensitiveOutputKey(path[path.length - 1] ?? ""))
       .map(([path, kind]) => `${path.join(".")}:${kind}`);
     expect(found).toEqual(["nested.[].deviceToken:number", "either.clientSecret:boolean", "map.{}.apiKey:string"]);

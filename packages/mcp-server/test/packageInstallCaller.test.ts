@@ -103,7 +103,11 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe("simulated registry caller", () => {
+// These cases shell out to real npm and spin up the caller end to end; on the shared
+// self-hosted runners (eight jobs per host) that has exceeded vitest's 5 s default and
+// turned the release PR red twice in one afternoon (test (18)/(22), 2026-09-15). The
+// budget is generous on purpose: a hang still fails, a slow host no longer does.
+describe("simulated registry caller", { timeout: 60_000 }, () => {
   it("uses published skill bytes and MCP-only install, labels provenance, then cleans up", async () => {
     const checkout = readFileSync(new URL(`../skills/${skillName}/SKILL.md`, import.meta.url), "utf8");
     expect(checkout).not.toBe(publishedSkill);

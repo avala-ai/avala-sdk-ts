@@ -7,10 +7,9 @@ export interface CreateWebhookOptions {
   isActive?: boolean;
   /**
    * HMAC signing secret for this subscription. Optional: the API generates one
-   * when omitted and returns it ONLY in the create response. Supply your own
-   * when the create call runs somewhere the response should not carry the
-   * secret (an MCP tool result, a shared log) — the API never returns a
-   * secret on later reads, whichever side generated it.
+   * when omitted. The create response returns it even when supplied by the
+   * caller, so protect both request and response from logs/model context.
+   * Supplying one does not redact the response. Later reads omit the secret.
    */
   secret?: string;
 }
