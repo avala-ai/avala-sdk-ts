@@ -84,7 +84,9 @@ export function cassetteKey(method: string, rawUrl: string): CassetteKey {
   const params = [...url.searchParams.entries()].sort(([a], [b]) =>
     a === b ? 0 : a < b ? -1 : 1,
   );
-  const query = params.map(([name, value]) => `${name}=${value}`).join("&");
+  // Encode decoded entries again: raw '&', '=', '+' and '#' would change the
+  // forwarded request and let distinct queries alias the same replay key.
+  const query = new URLSearchParams(params).toString();
   return { method: method.toUpperCase(), path, query };
 }
 
