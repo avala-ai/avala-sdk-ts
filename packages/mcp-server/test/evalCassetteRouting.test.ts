@@ -1,5 +1,5 @@
-import { createServer, type Server } from "node:http";
-import { mkdtemp, rm } from "node:fs/promises";
+import { Agent, createServer, get, type Server } from "node:http";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -18,6 +18,8 @@ async function listen(server: Server): Promise<string> {
 async function close(server: Server): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     server.close((error) => error ? reject(error) : resolve());
+    // Match the recorder's graceful teardown on Node 18 as well as 20+.
+    server.closeIdleConnections();
   });
 }
 
@@ -116,6 +118,42 @@ describe("cassette query identity", () => {
     } finally {
       await server?.close();
       if (upstream.listening) await close(upstream);
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("cassette HTTP lifecycle", () => {
+  it("closes with an idle keep-alive client without waiting for its timeout", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "avala-cassette-close-"));
+    const agent = new Agent({ keepAlive: true });
+    let server: Awaited<ReturnType<typeof startCassetteServer>> | undefined;
+    try {
+      await writeFile(join(dir, "items.json"), JSON.stringify({
+        key: { method: "GET", path: "/items/", query: "" }, status: 200, body: { count: 1 },
+      }));
+      server = await startCassetteServer({ cassetteDir: dir });
+      const idle = new Promise<void>((resolve) => agent.once("free", () => resolve()));
+      const url = `${server.baseUrl}/items/`;
+      const response = await new Promise<{ status: number | undefined; body: string }>((resolve, reject) => {
+        get(url, { agent }, (incoming) => {
+          let body = "";
+          incoming.setEncoding("utf8");
+          incoming.on("data", (chunk: string) => { body += chunk; });
+          incoming.on("error", reject);
+          incoming.on("end", () => resolve({ status: incoming.statusCode, body }));
+        }).on("error", reject);
+      });
+      expect(response).toEqual({ status: 200, body: '{"count":1}' });
+      await idle;
+      expect(Object.values(agent.freeSockets).flat()).toHaveLength(1);
+      // Leave the client alive. Server shutdown must drain its idle socket;
+      // destroying the client first would hide the Node 18 teardown regression.
+      await server.close();
+      server = undefined;
+    } finally {
+      agent.destroy();
+      await server?.close();
       await rm(dir, { recursive: true, force: true });
     }
   });

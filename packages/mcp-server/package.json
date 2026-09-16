@@ -1,6 +1,6 @@
 {
   "name": "@avala-ai/mcp-server",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "description": "MCP server for the Avala API",
   "type": "module",
   "repository": {
@@ -29,7 +29,7 @@
     "eval:record": "bun eval/runner.ts --live --trials 1 --concurrency 1"
   },
   "dependencies": {
-    "@avala-ai/sdk": "0.7.4",
+    "@avala-ai/sdk": "0.7.5",
     "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "jose": "^6.2.1",

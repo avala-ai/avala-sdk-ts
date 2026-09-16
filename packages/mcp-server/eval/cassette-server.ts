@@ -308,6 +308,9 @@ export async function startCassetteServer(
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
+        // Node 18 does not reap idle keep-alive sockets in close(). Stop
+        // accepting first, then drain only idle connections, not active work.
+        server.closeIdleConnections();
       }),
   };
 }
