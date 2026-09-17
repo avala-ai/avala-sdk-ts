@@ -21,12 +21,16 @@
     "test": "vitest run",
     "test:package": "bun run --cwd ../sdk build && bun run build && bun scripts/verify-package-install.ts",
     "test:release": "bun scripts/verify-package-install.ts --registry-version",
-    "lint": "tsc --project ../sdk/tsconfig.json --emitDeclarationOnly && tsc --noEmit && tsc --project scripts/tsconfig.json && tsc --project eval/tsconfig.json",
+    "lint": "tsc --project ../sdk/tsconfig.json --emitDeclarationOnly && tsc --noEmit && tsc --project scripts/tsconfig.json && tsc --project eval/tsconfig.json && bun run worker:check",
     "docs:generate": "bun scripts/generate-mcp-docs.ts",
     "docs:check": "bun scripts/generate-mcp-docs.ts --check",
     "docs:list": "bun scripts/generate-mcp-docs.ts --list",
     "eval": "bun eval/runner.ts",
-    "eval:record": "bun eval/runner.ts --live --trials 1 --concurrency 1"
+    "eval:record": "bun eval/runner.ts --live --trials 1 --concurrency 1",
+    "worker:types": "wrangler types worker/worker-configuration.d.ts --config worker/wrangler.jsonc --include-runtime false --strict-vars false && wrangler types worker/runtime.d.ts --config worker/wrangler.jsonc --include-env false",
+    "worker:check": "node scripts/check-worker.mjs",
+    "worker:build": "wrangler deploy --dry-run --config worker/wrangler.jsonc --outdir .wrangler/build",
+    "worker:test": "vitest run test/worker.test.ts"
   },
   "dependencies": {
     "@avala-ai/sdk": "0.7.5",
@@ -39,9 +43,11 @@
     "@anthropic-ai/sdk": "^0.122.0",
     "@modelcontextprotocol/client": "^2.0.0",
     "@types/node": "^25.3.0",
+    "miniflare": "5.20260917.0-alpha",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "wrangler": "4.134.0"
   },
   "engines": {
     "node": ">=20"

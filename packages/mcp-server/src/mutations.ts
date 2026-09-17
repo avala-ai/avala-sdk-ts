@@ -31,7 +31,12 @@ const STATE_MAX_LENGTH = 4096;
 const AES_GCM_IV_BYTES = 12;
 const AES_GCM_TAG_BYTES = 16;
 const STATE_AAD = Buffer.from("avala-mcp:mutation-confirmation:v1", "utf8");
-const PROCESS_KEY_MATERIAL = randomBytes(32);
+// Lazily initialize the stdio fallback. Hosted runtimes provide their shared
+// key explicitly, and Workers disallows random I/O during module evaluation.
+let processKeyMaterial: Buffer | undefined;
+function defaultKeyMaterial(): Buffer {
+  return processKeyMaterial ??= randomBytes(32);
+}
 const DIGEST_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -121,7 +126,7 @@ export interface MutationConfirmationService {
 }
 
 export function createMutationConfirmationService(
-  keyMaterial: string | Uint8Array = PROCESS_KEY_MATERIAL,
+  keyMaterial: string | Uint8Array = defaultKeyMaterial(),
   now: () => number = Date.now,
 ): MutationConfirmationService {
   const key = deriveKey(keyMaterial);

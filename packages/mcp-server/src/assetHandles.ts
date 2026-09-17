@@ -37,7 +37,12 @@ const CONFIRMATION_AAD = Buffer.from(
   "avala-mcp:asset-confirmation:v1",
   "utf8",
 );
-const PROCESS_KEY_MATERIAL = randomBytes(32);
+// Lazily initialize the stdio fallback. Hosted runtimes provide their shared
+// key explicitly, and Workers disallows random I/O during module evaluation.
+let processKeyMaterial: Buffer | undefined;
+function defaultKeyMaterial(): Buffer {
+  return processKeyMaterial ??= randomBytes(32);
+}
 
 const locatorPathSchema = z
   .array(z.union([z.string().min(1).max(160), z.number().int().nonnegative()]))
@@ -313,7 +318,7 @@ function handleDigest(handle: string): Buffer {
 }
 
 export function createAssetHandleService(
-  keyMaterial: string | Uint8Array = PROCESS_KEY_MATERIAL,
+  keyMaterial: string | Uint8Array = defaultKeyMaterial(),
   now: () => number = Date.now,
 ): AssetHandleService {
   const key = deriveKey(keyMaterial, HANDLE_AAD);

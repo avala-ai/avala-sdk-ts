@@ -375,7 +375,8 @@ export class Auth0OnBehalfOfBroker implements OAuthTokenBroker {
     dependencies: BrokerDependencies = {},
   ) {
     this.config = validateHostedOAuthConfig(config);
-    this.fetchImpl = dependencies.fetch ?? globalThis.fetch;
+    // Workers requires the global receiver even when fetch is stored on a broker.
+    this.fetchImpl = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
     this.now = dependencies.now ?? Date.now;
     this.timeoutMs = dependencies.timeoutMs ?? 3_000;
     if (

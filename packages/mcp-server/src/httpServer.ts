@@ -74,6 +74,8 @@ const API_KEY_SHAPE = /^[0-9a-f]{40}$/;
 const API_KEY_HEADER = "x-avala-api-key";
 
 export interface AvalaMcpHttpOptions {
+  /** Deployment-specific trusted ingress context. Defaults to the ALB policy. */
+  resolveClientIp?: (request: IncomingMessage) => ClientIp;
   /** Override the default JSON console sink; receives fixed metadata only. */
   invocationObserver?: InvocationObserver;
   /** Fail-closed OAuth resource and Auth0 OBO configuration. */
@@ -140,7 +142,7 @@ type Credential =
   | { ok: true; kind: "oauth"; subjectToken: string }
   | { ok: false; status: 400 | 401; message: string };
 
-type ClientIp =
+export type ClientIp =
   | { ok: true; forwardedClientIp: string }
   | { ok: false; status: 400; message: string };
 
@@ -290,7 +292,7 @@ export function extractCredential(req: CredentialHeaders): Credential {
 }
 
 /** Lowercase and strip trailing slashes so allowlist entries match loosely-typed config. */
-function normalizeOrigin(origin: string): string {
+export function normalizeOrigin(origin: string): string {
   return origin.trim().toLowerCase().replace(/\/+$/, "");
 }
 
@@ -558,7 +560,7 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
       return;
     }
 
-    const clientIp = extractForwardedClientIp(req);
+    const clientIp = (options.resolveClientIp ?? extractForwardedClientIp)(req);
     if (!clientIp.ok) {
       sendJsonRpcError(res, clientIp.status, -32000, clientIp.message);
       return;
@@ -589,7 +591,9 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
           // the status. The paused request body backpressures until the
           // client reads the response and closes; Node's requestTimeout
           // reaps a client that never does.
-          () => res.socket?.end(),
+          // Workers manages the connection and exposes no socket.end().
+          // Node keeps its existing FIN behavior after the 413 is flushed.
+          () => res.socket?.end?.(),
         );
       } else {
         sendJsonRpcError(

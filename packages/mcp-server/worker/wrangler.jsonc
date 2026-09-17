@@ -1,0 +1,31 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "avala-mcp-candidate",
+  "main": "index.ts",
+  "compatibility_date": "2026-09-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "observability": { "enabled": true, "head_sampling_rate": 0.1 },
+  "vars": {
+    "AVALA_MCP_WORKER_ENABLED": "false",
+    "AVALA_MCP_ROUTING_MODE": "isolated",
+    "AVALA_MCP_AWS_ORIGIN_ROUTE_URL": "https://mcp.invalid",
+    "AVALA_BASE_URL": "https://api.invalid",
+    "AVALA_MCP_OAUTH_RESOURCE": "https://mcp.invalid/mcp",
+    "AVALA_MCP_OAUTH_ISSUER": "https://identity.invalid/",
+    "AVALA_MCP_OAUTH_API_AUDIENCE": "https://api.invalid/",
+    "AVALA_MCP_OAUTH_CLIENT_ID": "",
+    "AVALA_MCP_OAUTH_SCOPES": "agents.read datasets.read exports.read fleet.read mcp.staff_access organizations.read projects.read qc.read slices.read storage.read tasks.read webhooks.read workforce.read",
+    "AVALA_MCP_BUILD_SHA": "unknown",
+    "AVALA_MCP_RELEASE_TAG": "local",
+    "ALLOWED_ORIGINS": "",
+  },
+  "secrets": {
+    "required": [
+      "AVALA_MCP_INTERNAL_CLIENT_SECRET",
+      "AVALA_MCP_OAUTH_CLIENT_SECRET",
+    ],
+  },
+}
