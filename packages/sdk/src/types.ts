@@ -343,6 +343,8 @@ export interface OrganizationMember {
   picture: string | null;
   role: string | null;
   createdAt: string | null;
+  /** Present only for organization managers; the server strips it otherwise. */
+  lastActiveAt?: string | null;
 }
 
 export interface Invitation {
