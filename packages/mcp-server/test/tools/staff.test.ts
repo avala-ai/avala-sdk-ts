@@ -1,5 +1,7 @@
-import { AvalaError, RateLimitError } from "@avala-ai/sdk";
-import { describe, expect, it, vi } from "vitest";
+import { Avala, AvalaError, RateLimitError } from "@avala-ai/sdk";
+import { Client } from "@modelcontextprotocol/client";
+import { InMemoryTransport, McpServer } from "@modelcontextprotocol/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { registerStaffTools } from "../../src/tools/staff.js";
 import type { McpServerOptions } from "../../src/server.js";
@@ -39,6 +41,8 @@ const SANDBOX_OK = {
     content: [{ type: "text", text: '{"rows": []}' }],
   },
 };
+
+afterEach(() => vi.unstubAllGlobals());
 
 function register(
   server: ReturnType<typeof createMockServer>,
@@ -181,7 +185,10 @@ describe("staff sandbox proxies", () => {
       for (const [field, schema] of Object.entries(
         config.inputSchema as z.ZodRawShape,
       )) {
-        expect(schema.description, `${name}.${field}`).toBeTruthy();
+        expect(
+          z.globalRegistry.get(schema)?.description,
+          `${name}.${field}`,
+        ).toBeTruthy();
       }
     }
   });
@@ -298,3 +305,100 @@ describe("staff sandbox proxies", () => {
     }
   });
 });
+
+// Existing callSandbox contract: unrecognized responses fail closed. MCP tool
+// results define isError as an optional boolean, not a truthy/coerced value:
+// https://modelcontextprotocol.io/specification/2025-11-25/server/tools#error-handling
+// Real MCP protocol + SDK HTTP decoding; only upstream HTTP is synthetic. This
+// is not evidence of Django authorization or a hosted production failure.
+const STAFF_CALLS: { name: string; args: Record<string, unknown> }[] = [
+  { name: "staff_query", args: { sql: "SELECT 1" } },
+  { name: "staff_describe_table", args: { table_name: "dataset" } },
+  {
+    name: "staff_aggregate",
+    args: { table_name: "dataset", aggregation: "count" },
+  },
+];
+
+describe.each(STAFF_CALLS)(
+  "$name sandbox error-flag contract",
+  ({ name, args }) => {
+    async function invoke(isError: unknown): Promise<{
+      content: unknown;
+      isError?: boolean;
+    }> {
+      const payload = {
+        ...SANDBOX_OK,
+        result: {
+          content: [{ type: "text", text: "synthetic upstream evidence" }],
+          ...(isError === undefined ? {} : { isError }),
+        },
+      };
+      const fetcher = vi.fn(
+        async (): Promise<Response> => Response.json(payload),
+      );
+      vi.stubGlobal("fetch", fetcher);
+      const api = new Avala({
+        accessToken: "synthetic-staff-token",
+        baseUrl: "https://fixture.invalid/api/v1",
+      });
+      const server = new McpServer({ name: "staff-test", version: "1.0.0" });
+      registerStaffTools(server, () => api, { allowMutations: false });
+      const client = new Client({
+        name: "staff-test-client",
+        version: "1.0.0",
+      });
+      const [clientTransport, serverTransport] =
+        InMemoryTransport.createLinkedPair();
+      try {
+        await server.connect(serverTransport);
+        await client.connect(clientTransport);
+        const result = await client.callTool({ name, arguments: args });
+        expect(fetcher).toHaveBeenCalledTimes(1);
+        expect(fetcher).toHaveBeenCalledWith(
+          "https://fixture.invalid/api/v1/mcp/",
+          expect.objectContaining({ method: "POST", redirect: "manual" }),
+        );
+        return result;
+      } finally {
+        await client.close();
+        await server.close();
+      }
+    }
+
+    it.each([
+      { label: "string true", value: "true" },
+      { label: "string false", value: "false" },
+      { label: "number one", value: 1 },
+      { label: "number zero", value: 0 },
+      { label: "null", value: null },
+      { label: "object", value: {} },
+      { label: "array", value: [] },
+    ])(
+      "rejects $label without returning upstream evidence",
+      async ({ value }) => {
+        const result = await invoke(value);
+        expect(result).toEqual({
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: "Error: staff sandbox returned an invalid response.",
+            },
+          ],
+        });
+      },
+    );
+
+    it.each([undefined, false, true])(
+      "preserves valid isError=%j semantics and content",
+      async (isError) => {
+        const result = await invoke(isError);
+        expect(result.isError).toBe(isError === true ? true : undefined);
+        expect(result.content).toEqual([
+          { type: "text", text: "synthetic upstream evidence" },
+        ]);
+      },
+    );
+  },
+);

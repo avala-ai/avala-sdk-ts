@@ -69,9 +69,7 @@ function transportFailureMessage(error: unknown): string {
   }
   const body = error.body as { error?: { message?: unknown } } | null;
   const sandboxMessage =
-    typeof body === "object" && body !== null
-      ? body.error?.message
-      : undefined;
+    typeof body === "object" && body !== null ? body.error?.message : undefined;
   let message =
     typeof sandboxMessage === "string" && sandboxMessage.trim() !== ""
       ? `${error.message}: ${sandboxMessage}`
@@ -145,6 +143,8 @@ async function callSandbox(
   const rawContent = result?.content;
   const content = Array.isArray(rawContent) ? rawContent : null;
   if (
+    // Dropping an invalid flag would turn an unrecognized result into success.
+    (result?.isError !== undefined && typeof result.isError !== "boolean") ||
     content === null ||
     !content.every(
       (item) =>
