@@ -101,6 +101,66 @@ const sequenceDetailOutputSchema = z
   })
   .passthrough();
 
+const SEQUENCE_OUTCOMES = [
+  "expert_success",
+  "slow_success",
+  "partial_success",
+  "mistake_and_recovery",
+  "intervention",
+  "unsafe",
+  "aborted",
+  "failure",
+  "novel_strategy",
+  "inefficient_strategy",
+] as const;
+const SEQUENCE_EVALUATION_MEMBERSHIPS = ["train", "held_out_eval", "none"] as const;
+const SEQUENCE_OUTCOME_SOURCES = ["human", "model", "imported"] as const;
+const SEQUENCE_AUTONOMY_LEVELS = [
+  "human_demonstration",
+  "teleoperation",
+  "autonomous",
+  "shared_autonomy",
+  "intervention",
+] as const;
+
+const sequenceOutcomeSubtaskOutputSchema = z
+  .object({
+    label: z.string(),
+    startTs: z.number().describe("Seconds from the start of the sequence"),
+    endTs: z.number().describe("Seconds from the start of the sequence"),
+    outcome: z.string().nullable(),
+  })
+  .passthrough();
+
+const sequenceOutcomeOutputSchema = z
+  .object({
+    uid: z.string(),
+    sequenceUid: z.string(),
+    version: z.number().int(),
+    isCurrent: z.boolean(),
+    outcome: z.string().describe("Behavioral outcome of the sequence"),
+    progress: z.number().nullable().optional(),
+    quality: z.number().nullable().optional(),
+    speed: z.number().nullable().optional(),
+    subtasks: z.array(sequenceOutcomeSubtaskOutputSchema).optional(),
+    mistakeType: z.string().optional(),
+    recoveryType: z.string().optional(),
+    failureStage: z.string().optional(),
+    autonomyLevel: z.string().optional(),
+    modelVersion: z.string().optional(),
+    evaluationMembership: z
+      .string()
+      .optional()
+      .describe("'train', 'held_out_eval', 'none', or empty when unset"),
+    leakageGroups: z.record(z.string(), z.string()).optional(),
+    source: z.string().optional(),
+    labeledBy: z.string().nullable().optional(),
+    confidence: z.number().nullable().optional(),
+    createdAt: z.string().nullable().optional(),
+    updatedAt: z.string().nullable().optional(),
+  })
+  .passthrough();
+
 const frameOutputSchema = z
   .object({
     frameIndex: z.number().int().nonnegative(),
@@ -299,6 +359,9 @@ const datasetPageOutputSchema = definePageOutputSchema(datasetOutputSchema);
 const sequencePageOutputSchema = definePageOutputSchema(
   sequenceListOutputSchema,
 );
+const sequenceOutcomePageOutputSchema = definePageOutputSchema(
+  sequenceOutcomeOutputSchema,
+);
 const captureSubmissionPageOutputSchema = definePageOutputSchema(
   captureSubmissionOutputSchema,
 );
@@ -388,6 +451,31 @@ const listCaptureCampaignsInputSchema = z.object({
 });
 
 const getSequenceInputSchema = z.object(sequenceLocatorSchema);
+const getSequenceOutcomeInputSchema = z.object(sequenceLocatorSchema);
+const listSequenceOutcomesInputSchema = z.object({
+  ...datasetLocatorSchema,
+  outcome: z
+    .enum(SEQUENCE_OUTCOMES)
+    .optional()
+    .describe("Only current labels with this behavioral outcome"),
+  evaluationMembership: z
+    .enum(SEQUENCE_EVALUATION_MEMBERSHIPS)
+    .optional()
+    .describe("Only current labels in this evaluation split"),
+  source: z
+    .enum(SEQUENCE_OUTCOME_SOURCES)
+    .optional()
+    .describe("Only labels written by a human, a model, or an import"),
+  autonomyLevel: z
+    .enum(SEQUENCE_AUTONOMY_LEVELS)
+    .optional()
+    .describe("Only labels with this autonomy level"),
+  modelVersion: z
+    .string()
+    .optional()
+    .describe("Only labels for this exact policy/model version"),
+  ...paginationInputSchema,
+});
 const getDatasetHealthInputSchema = z.object(datasetLocatorSchema);
 const getDatasetReadinessInputSchema = z.object({
   ...datasetLocatorSchema,
@@ -532,6 +620,23 @@ const SEQUENCE_LIST_CONCISE_KEYS = [
   "status",
   "numberOfFrames",
   "frameCount",
+] as const;
+
+const SEQUENCE_OUTCOME_CONCISE_KEYS = [
+  "uid",
+  "sequenceUid",
+  "version",
+  "isCurrent",
+  "outcome",
+  "progress",
+  "quality",
+  "speed",
+  "autonomyLevel",
+  "modelVersion",
+  "evaluationMembership",
+  "source",
+  "confidence",
+  "updatedAt",
 ] as const;
 
 const SEQUENCE_DETAIL_CONCISE_KEYS = [
@@ -1055,6 +1160,51 @@ const getSequenceTool = defineReadCatalogTool({
   },
 });
 
+const getSequenceOutcomeTool = defineReadCatalogTool({
+  name: "get_sequence_outcome",
+  title: "Get sequence outcome",
+  description:
+    "Get the current behavioral outcome label of a dataset sequence (what the actor did: expert_success, mistake_and_recovery, failure, ...). Read-only. Technical data validity is a separate axis reported by quality tools. Default detail is the outcome, scores, autonomy level, model version, evaluation split and source; use detail=full for subtasks, mistake/recovery tags, leakage groups and labeler. Returns not found when the sequence is unlabeled.",
+  inputSchema: getSequenceOutcomeInputSchema,
+  outputSchema: sequenceOutcomeOutputSchema,
+  conciseKeys: SEQUENCE_OUTCOME_CONCISE_KEYS,
+  route: {
+    name: "dataset-sequence-outcome",
+    method: "GET",
+    path: "/datasets/{owner}/{slug}/sequences/{sequenceUid}/outcome/",
+    response: "single",
+    scope: "datasets.read",
+    toolset: "sequences",
+  },
+});
+
+const listSequenceOutcomesTool = defineReadCatalogTool({
+  name: "list_sequence_outcomes",
+  title: "List sequence outcomes",
+  description:
+    "List the current behavioral outcome labels in a dataset (paginated, read-only). Filter server-side by outcome, evaluation membership (train / held_out_eval / none), source, autonomy level, or model version to build held-out evaluation sets, failure-and-recovery lanes, or per-policy comparisons. Default detail omits subtasks, leakage groups and labeler; use detail=full for them.",
+  inputSchema: listSequenceOutcomesInputSchema,
+  outputSchema: sequenceOutcomePageOutputSchema,
+  conciseKeys: SEQUENCE_OUTCOME_CONCISE_KEYS,
+  route: {
+    name: "dataset-sequence-outcome-list",
+    method: "GET",
+    path: "/datasets/{owner}/{slug}/sequence-outcomes/",
+    query: {
+      outcome: "outcome",
+      evaluationMembership: "evaluation_membership",
+      source: "source",
+      autonomyLevel: "autonomy_level",
+      modelVersion: "model_version",
+      limit: "limit",
+      cursor: "cursor",
+    },
+    response: "page",
+    scope: "datasets.read",
+    toolset: "datasets",
+  },
+});
+
 const DATASET_HEALTH_ROUTE = {
   name: "dataset-health-by-owner-and-name",
   method: "GET" as const,
@@ -1222,6 +1372,8 @@ export const DATASET_READ_CATALOG_TOOLS = [
   getDatasetTool,
   listSequencesTool,
   getSequenceTool,
+  getSequenceOutcomeTool,
+  listSequenceOutcomesTool,
   getDatasetHealthTool,
   previewCurationCandidatesTool,
   listCaptureSubmissionsTool,
@@ -1254,6 +1406,18 @@ export function registerDatasetTools(
   registerReadCatalogTool(server, getClient, getDatasetTool, assetHandles);
   registerReadCatalogTool(server, getClient, listSequencesTool, assetHandles);
   registerReadCatalogTool(server, getClient, getSequenceTool, assetHandles);
+  registerReadCatalogTool(
+    server,
+    getClient,
+    getSequenceOutcomeTool,
+    assetHandles,
+  );
+  registerReadCatalogTool(
+    server,
+    getClient,
+    listSequenceOutcomesTool,
+    assetHandles,
+  );
   registerReadCatalogTool(
     server,
     getClient,

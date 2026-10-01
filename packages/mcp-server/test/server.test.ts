@@ -15,8 +15,8 @@ import {
  * registers tools through the same `registerTools`, so this count is the
  * stdio/HTTP parity baseline: if it moves, both transports moved together.
  */
-const FULL_TOOL_COUNT = 108;
-const HOSTED_READ_TOOL_COUNT = 48;
+const FULL_TOOL_COUNT = 110;
+const HOSTED_READ_TOOL_COUNT = 50;
 const STAFF_TOOL_COUNT = 27;
 const SIGNED_EXPORT_URL =
   "https://bucket.s3.amazonaws.com/export.zip" +

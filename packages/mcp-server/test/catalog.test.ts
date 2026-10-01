@@ -112,6 +112,21 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
     slug: "warehouse-bags",
     sequenceUid: "00000000-0000-0000-0000-000000000002",
   },
+  get_sequence_outcome: {
+    owner: "robotics-team",
+    slug: "warehouse-bags",
+    sequenceUid: "00000000-0000-0000-0000-000000000002",
+  },
+  list_sequence_outcomes: {
+    owner: "robotics-team",
+    slug: "warehouse-bags",
+    outcome: "mistake_and_recovery",
+    evaluationMembership: "held_out_eval",
+    source: "human",
+    autonomyLevel: "teleoperation",
+    modelVersion: "policy-v3",
+    limit: 10,
+  },
   get_dataset_health: { owner: "robotics-team", slug: "warehouse-bags" },
   preview_curation_candidates: {
     datasetUid: "00000000-0000-0000-0000-000000000001",
@@ -684,6 +699,29 @@ describe("declarative MCP catalog", () => {
       createdAt: "2026-08-24T00:00:00Z",
       closedAt: null,
       objectUid: "00000000-0000-0000-0000-000000000016",
+    };
+    const sequenceOutcome = {
+      uid: "00000000-0000-0000-0000-000000000026",
+      sequenceUid: "00000000-0000-0000-0000-000000000002",
+      version: 2,
+      isCurrent: true,
+      outcome: "mistake_and_recovery",
+      progress: 0.75,
+      quality: 4,
+      speed: 2,
+      subtasks: [{ label: "regrasp", startTs: 1.5, endTs: 4, outcome: null }],
+      mistakeType: "grasp_slip",
+      recoveryType: "regrasp",
+      failureStage: "",
+      autonomyLevel: "teleoperation",
+      modelVersion: "",
+      evaluationMembership: "held_out_eval",
+      leakageGroups: { location: "kitchen-3" },
+      source: "human",
+      labeledBy: null,
+      confidence: null,
+      createdAt: "2026-09-30T00:00:00Z",
+      updatedAt: "2026-09-30T00:00:00Z",
     };
     const annotationIssueTool = {
       uid: "00000000-0000-0000-0000-000000000014",
@@ -1793,7 +1831,13 @@ describe("declarative MCP catalog", () => {
         async (path: string, query?: Record<string, string>) => {
           calls.push({ method: "GET", path, query });
           return {
-            items: [path === "/exports/" ? exportItem : sampleEntity],
+            items: [
+              path === "/exports/"
+                ? exportItem
+                : path.endsWith("/sequence-outcomes/")
+                  ? sequenceOutcome
+                  : sampleEntity,
+            ],
             nextCursor: null,
             previousCursor: null,
             hasMore: false,
@@ -1894,6 +1938,7 @@ describe("declarative MCP catalog", () => {
           )
             return workforceBatchAllocationImpact;
           if (path.startsWith("/exports/")) return exportItem;
+          if (path.endsWith("/outcome/")) return sequenceOutcome;
           return sampleEntity;
         },
       ),

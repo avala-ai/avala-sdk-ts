@@ -229,6 +229,73 @@ export interface QualityTarget {
   updatedAt: string | null;
 }
 
+/** Behavioral outcome of a sequence (what the actor did; technical validity lives in quality control). */
+export type SequenceOutcomeType =
+  | "expert_success"
+  | "slow_success"
+  | "partial_success"
+  | "mistake_and_recovery"
+  | "intervention"
+  | "unsafe"
+  | "aborted"
+  | "failure"
+  | "novel_strategy"
+  | "inefficient_strategy";
+
+export type SequenceAutonomyLevel =
+  | "human_demonstration"
+  | "teleoperation"
+  | "autonomous"
+  | "shared_autonomy"
+  | "intervention";
+
+export type SequenceEvaluationMembership = "train" | "held_out_eval" | "none";
+
+export type SequenceOutcomeSource = "human" | "model" | "imported";
+
+/** One subtask; timestamps are seconds from the start of the sequence. */
+export interface SequenceOutcomeSubtask {
+  label: string;
+  startTs: number;
+  endTs: number;
+  outcome: SequenceOutcomeType | null;
+}
+
+/** Group ids that must not be split across train and held-out evaluation. */
+export interface SequenceOutcomeLeakageGroups {
+  location?: string;
+  object?: string;
+  mechanism?: string;
+  operator?: string;
+  environmentFamily?: string;
+}
+
+/** One version of a sequence's outcome label (`isCurrent` marks the live one). */
+export interface SequenceOutcome {
+  uid: string;
+  sequenceUid: string;
+  version: number;
+  isCurrent: boolean;
+  outcome: SequenceOutcomeType;
+  progress: number | null;
+  quality: number | null;
+  speed: number | null;
+  subtasks: SequenceOutcomeSubtask[];
+  mistakeType: string;
+  recoveryType: string;
+  failureStage: string;
+  autonomyLevel: SequenceAutonomyLevel | "";
+  modelVersion: string;
+  evaluationMembership: SequenceEvaluationMembership | "";
+  leakageGroups: SequenceOutcomeLeakageGroups;
+  source: SequenceOutcomeSource;
+  /** Writer's user uid; null unless the caller can edit the dataset. */
+  labeledBy: string | null;
+  confidence: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
 export interface QualityTargetEvaluation {
   uid: string;
   name: string;

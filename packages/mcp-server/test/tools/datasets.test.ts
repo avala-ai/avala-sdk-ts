@@ -505,6 +505,109 @@ describe("dataset tools", () => {
     expect(full.content[0].text).not.toContain("https://cdn.example/feat.png");
   });
 
+  // Contract: GET datasets/<owner>/<slug>/sequences/<uid>/outcome/ and
+  // GET datasets/<owner>/<slug>/sequence-outcomes/ (server api_sequence_outcomes.py).
+  const sequenceOutcome = {
+    uid: "outcome-2",
+    sequenceUid: "seq-1",
+    version: 2,
+    isCurrent: true,
+    outcome: "mistake_and_recovery",
+    progress: 0.75,
+    quality: 4,
+    speed: 2,
+    subtasks: [{ label: "regrasp", startTs: 1.5, endTs: 4, outcome: null }],
+    mistakeType: "grasp_slip",
+    recoveryType: "regrasp",
+    failureStage: "",
+    autonomyLevel: "teleoperation",
+    modelVersion: "",
+    evaluationMembership: "held_out_eval",
+    leakageGroups: { location: "kitchen-3" },
+    source: "human",
+    labeledBy: "user-7",
+    confidence: null,
+    createdAt: "2026-09-30T00:00:00Z",
+    updatedAt: "2026-09-30T00:00:00Z",
+  };
+
+  it("get_sequence_outcome reads the current label and keeps detail fields behind detail=full", async () => {
+    avala.transport.requestSingle.mockResolvedValue(sequenceOutcome);
+
+    const result = await server.getHandler("get_sequence_outcome")!({
+      owner: "robotics-team",
+      slug: "pick-place",
+      sequenceUid: "seq-1",
+    });
+    expect(avala.transport.requestSingle.mock.calls[0]![0]).toBe(
+      "/datasets/robotics-team/pick-place/sequences/seq-1/outcome/",
+    );
+    const concise = JSON.parse(result.content[0].text);
+    expect(concise).toMatchObject({
+      outcome: "mistake_and_recovery",
+      evaluationMembership: "held_out_eval",
+      version: 2,
+    });
+    expect(concise).not.toHaveProperty("subtasks");
+    expect(concise).not.toHaveProperty("labeledBy");
+
+    const full = await server.getHandler("get_sequence_outcome")!({
+      owner: "robotics-team",
+      slug: "pick-place",
+      sequenceUid: "seq-1",
+      detail: "full",
+    });
+    const fullPayload = JSON.parse(full.content[0].text);
+    expect(fullPayload.subtasks[0].label).toBe("regrasp");
+    expect(fullPayload.leakageGroups).toEqual({ location: "kitchen-3" });
+  });
+
+  it("list_sequence_outcomes forwards server-side filters as REST query parameters", async () => {
+    avala.transport.requestPage.mockResolvedValue({
+      items: [sequenceOutcome],
+      nextCursor: null,
+      previousCursor: null,
+      hasMore: false,
+    });
+
+    const result = await server.getHandler("list_sequence_outcomes")!({
+      owner: "robotics-team",
+      slug: "pick-place",
+      outcome: "failure",
+      evaluationMembership: "held_out_eval",
+      modelVersion: "policy-v3",
+      limit: 10,
+    });
+    expect(avala.transport.requestPage).toHaveBeenCalledWith(
+      "/datasets/robotics-team/pick-place/sequence-outcomes/",
+      {
+        outcome: "failure",
+        evaluation_membership: "held_out_eval",
+        model_version: "policy-v3",
+        limit: "10",
+      },
+    );
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.items[0]).toMatchObject({ sequenceUid: "seq-1", outcome: "mistake_and_recovery" });
+    expect(parsed.items[0]).not.toHaveProperty("subtasks");
+  });
+
+  it("sequence outcome tools are read-only", () => {
+    const readOnlyServer = createMockServer();
+    registerDatasetTools(readOnlyServer as never, avala as never, false);
+    expect(readOnlyServer.getHandler("get_sequence_outcome")).toBeDefined();
+    expect(readOnlyServer.getHandler("list_sequence_outcomes")).toBeDefined();
+    for (const name of ["get_sequence_outcome", "list_sequence_outcomes"]) {
+      const config = readOnlyServer.registerTool.mock.calls.find(([toolName]) => toolName === name)![1] as {
+        annotations: Record<string, unknown>;
+      };
+      expect(config.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
+    }
+    expect(
+      readOnlyServer.registerTool.mock.calls.some(([toolName]) => /set_sequence_outcome|update_sequence_outcome/.test(String(toolName))),
+    ).toBe(false);
+  });
+
   it("get_sequence omits frames and labels unless detail=full", async () => {
     avala.transport.requestSingle.mockResolvedValue({
       uid: "seq-1",
@@ -1432,7 +1535,7 @@ describe("dataset tools", () => {
   });
 
   it("registers read-only + mutation tools when allowMutations is true", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(13);
+    expect(server.registerTool).toHaveBeenCalledTimes(15);
     expect(server.getHandler("list_datasets")).toBeDefined();
     expect(server.getHandler("create_dataset")).toBeDefined();
   });

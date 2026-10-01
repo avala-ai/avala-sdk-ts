@@ -138,6 +138,7 @@ describe.skipIf(!monorepoAvailable)("SDK methods use correct transport for respo
     slices: "slices.ts",
     datasets: "datasets.ts",
     annotation_issues: "annotationIssues.ts",
+    sequence_outcomes: "sequenceOutcomes.ts",
   };
 
   // Convert Python snake_case method names to TypeScript camelCase
@@ -169,6 +170,9 @@ describe.skipIf(!monorepoAvailable)("SDK methods use correct transport for respo
     "annotation_issues.list_by_dataset": "listByDataset",
     "annotation_issues.list_tools": "listTools",
     "annotation_issues.delete": "delete",
+    "sequence_outcomes.get": "get",
+    "sequence_outcomes.history": "history",
+    "sequence_outcomes.list": "list",
   };
 
   const endpointsToCheck = Object.keys(methodNameMap);

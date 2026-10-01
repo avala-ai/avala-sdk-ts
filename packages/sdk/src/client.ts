@@ -12,6 +12,7 @@ import { OrganizationsResource } from "./resources/organizations.js";
 import { PermissionsResource } from "./resources/permissions.js";
 import { ProjectsResource } from "./resources/projects.js";
 import { QualityTargetsResource } from "./resources/qualityTargets.js";
+import { SequenceOutcomesResource } from "./resources/sequenceOutcomes.js";
 import { SlicesResource } from "./resources/slices.js";
 import { StorageConfigsResource } from "./resources/storageConfigs.js";
 import { TasksResource } from "./resources/tasks.js";
@@ -64,6 +65,7 @@ export class Avala {
   public readonly inferenceProviders: InferenceProvidersResource;
   public readonly autoLabelJobs: AutoLabelJobsResource;
   public readonly qualityTargets: QualityTargetsResource;
+  public readonly sequenceOutcomes: SequenceOutcomesResource;
   public readonly consensus: ConsensusResource;
   public readonly customerQc: CustomerQcResource;
   public readonly webhooks: WebhooksResource;
@@ -132,6 +134,7 @@ export class Avala {
     this.inferenceProviders = new InferenceProvidersResource(this.transport);
     this.autoLabelJobs = new AutoLabelJobsResource(this.transport);
     this.qualityTargets = new QualityTargetsResource(this.transport);
+    this.sequenceOutcomes = new SequenceOutcomesResource(this.transport);
     this.consensus = new ConsensusResource(this.transport);
     this.customerQc = new CustomerQcResource(this.transport);
     this.webhooks = new WebhooksResource(this.transport);
