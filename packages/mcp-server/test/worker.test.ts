@@ -28,6 +28,30 @@ const KEY_B = "cd".repeat(20);
 const INTERNAL_SECRET = "local-test-only-".repeat(3);
 const CLIENT_IP = "203.0.113.17";
 
+// Observed ECS :5 and public resource metadata, 2026-10-02 17:12 UTC.
+// Deployment input only: see reports/infrastructure/mcp/cloudflare-runtime-candidate.md.
+// Keep this independent of the generic disabled configuration and tool registry.
+const OCTOBER_2_DEPLOYMENT_SCOPES =
+  "agents.read datasets.read exports.read fleet.read mcp.staff_access operations.approval.request operations.execution.request operations.proposal.create operations.proposal.read operations.verification.read organizations.read projects.read qc.read slices.read storage.read tasks.read webhooks.read workforce.read";
+const PROPOSAL_TOOL_NAMES = [
+  "create_operation_proposal",
+  "evaluate_operation_proposal",
+  "execute_approved_operation",
+  "get_operation_proposal",
+  "list_operation_events",
+  "request_operation_approval",
+  "reverse_operation",
+  "verify_operation",
+];
+
+interface PermissionFixture {
+  type: string;
+  is_staff_privileged: boolean;
+  scopes: string[];
+  capabilities: string[];
+  toolsets: string[];
+}
+
 interface ObservedRequest {
   path: string;
   apiKey: string | null;
@@ -52,6 +76,8 @@ describe.skipIf(Number(process.versions.node.split(".")[0]) < 22)(
     let exchanges: URLSearchParams[] = [];
     let permissionStatus = 200;
     let staffPermissions = false;
+    let permissionFixture: PermissionFixture | undefined;
+    let exchangedScopeFixture: string | undefined;
     let mutationRequests: { body: unknown; idempotency: string | null }[] = [];
     let requestedUrls: string[] = [];
     let originRequests: {
@@ -112,7 +138,7 @@ describe.skipIf(Number(process.versions.node.split(".")[0]) < 22)(
                 issued_token_type:
                   "urn:ietf:params:oauth:token-type:access_token",
                 expires_in: 300,
-                scope: "datasets.read",
+                scope: exchangedScopeFixture ?? "datasets.read",
               });
             }
             if (url.origin === new URL(RESOURCE).origin) {
@@ -145,7 +171,7 @@ describe.skipIf(Number(process.versions.node.split(".")[0]) < 22)(
             if (url.pathname === "/users/me/permissions/") {
               return miniflareModule.Response.json(
                 permissionStatus === 200
-                  ? {
+                  ? (permissionFixture ?? {
                       type: "customer",
                       is_staff_privileged: staffPermissions,
                       scopes: staffPermissions
@@ -155,9 +181,20 @@ describe.skipIf(Number(process.versions.node.split(".")[0]) < 22)(
                       toolsets: staffPermissions
                         ? ["staff", "public", "docs"]
                         : ["datasets", "exports", "public", "docs"],
-                    }
+                    })
                   : { detail: "Unavailable" },
                 { status: permissionStatus },
+              );
+            }
+            if (
+              url.pathname ===
+              `/admin/workforce/operation-proposals/${"12".repeat(16)}/execute/`
+            ) {
+              // Check REST dispatch and refusal propagation with a fixture.
+              // No Django authorization logic or executor runs here.
+              return miniflareModule.Response.json(
+                { detail: "Proposal is not independently approved." },
+                { status: 409 },
               );
             }
             if (url.pathname === "/datasets/") {
@@ -352,6 +389,8 @@ describe.skipIf(Number(process.versions.node.split(".")[0]) < 22)(
       exchanges = [];
       permissionStatus = 200;
       staffPermissions = false;
+      permissionFixture = undefined;
+      exchangedScopeFixture = undefined;
       mutationRequests = [];
     });
 
@@ -604,6 +643,263 @@ describe.skipIf(Number(process.versions.node.split(".")[0]) < 22)(
         ),
       ).toBe(true);
     });
+
+    // Accepted contracts: the October 2 deployment snapshot in the candidate
+    // report; oauth.test.ts's JWT/OBO intersection; tools/operationProposals.test.ts
+    // and src/visibility.ts; server/server/apps/work_batch/operation_proposal_api.py's
+    // staff + exact-scope boundary. Django/Auth0 responses are local fixtures.
+    it.each<{
+      label: string;
+      omission?:
+        | "scope"
+        | "permissions"
+        | "exchange"
+        | "django"
+        | "staff_scope"
+        | "staff_flag"
+        | "staff_toolset"
+        | "django_denied";
+      apiKey?: boolean;
+      directWrite?: boolean;
+      expected: "all" | "no_execution" | "none";
+    }>([
+      { label: "granted staff OAuth", expected: "all" },
+      {
+        label: "missing JWT execution scope",
+        omission: "scope",
+        expected: "no_execution",
+      },
+      {
+        label: "missing JWT execution permission",
+        omission: "permissions",
+        expected: "no_execution",
+      },
+      {
+        label: "narrower OBO response",
+        omission: "exchange",
+        expected: "no_execution",
+      },
+      {
+        label: "Django withholds execution",
+        omission: "django",
+        expected: "no_execution",
+      },
+      {
+        label: "missing staff opt-in",
+        omission: "staff_scope",
+        expected: "none",
+      },
+      {
+        label: "nonstaff despite scopes and toolset",
+        omission: "staff_flag",
+        expected: "none",
+      },
+      {
+        label: "missing staff toolset",
+        omission: "staff_toolset",
+        expected: "none",
+      },
+      {
+        label: "Django denies discovery",
+        omission: "django_denied",
+        expected: "none",
+      },
+      {
+        label: "proposal API key with unrelated write scope",
+        apiKey: true,
+        expected: "all",
+      },
+      {
+        label: "ordinary staff API key",
+        apiKey: true,
+        directWrite: true,
+        expected: "none",
+      },
+    ])(
+      "preserves the explicit 18-scope deployment contract: $label",
+      async (scenario) => {
+        const deployed = await makeWorker("true", {
+          AVALA_MCP_OAUTH_SCOPES: OCTOBER_2_DEPLOYMENT_SCOPES,
+        });
+        try {
+          const deploymentScopes = OCTOBER_2_DEPLOYMENT_SCOPES.split(" ");
+          const executionScope = "operations.execution.request";
+          const withoutExecution = deploymentScopes.filter(
+            (scope) => scope !== executionScope,
+          );
+          const withoutStaff = deploymentScopes.filter(
+            (scope) => scope !== "mcp.staff_access",
+          );
+          const requestedScopes = ["scope", "permissions"].includes(
+            scenario.omission ?? "",
+          )
+            ? withoutExecution
+            : scenario.omission === "staff_scope"
+              ? withoutStaff
+              : deploymentScopes;
+          const returnedScopes =
+            scenario.omission === "exchange"
+              ? withoutExecution
+              : requestedScopes;
+          exchangedScopeFixture = returnedScopes.join(" ");
+          permissionFixture = {
+            type: "customer",
+            is_staff_privileged: !["staff_scope", "staff_flag"].includes(
+              scenario.omission ?? "",
+            ),
+            scopes: scenario.apiKey
+              ? scenario.directWrite
+                ? ["workforce.read", "workforce.write"]
+                : [...deploymentScopes, "workforce.write"]
+              : scenario.omission === "django"
+                ? withoutExecution
+                : returnedScopes,
+            capabilities: [],
+            toolsets:
+              scenario.omission === "staff_toolset"
+                ? ["public", "docs"]
+                : ["staff", "public", "docs"],
+          };
+          permissionStatus = scenario.omission === "django_denied" ? 403 : 200;
+          const headers: Record<string, string> = { "X-Avala-Api-Key": KEY_A };
+          if (!scenario.apiKey) {
+            // workforce.write is deliberately not in the deployment allowlist.
+            const subject = await new SignJWT({
+              scope: [
+                ...(scenario.omission === "scope"
+                  ? withoutExecution
+                  : scenario.omission === "staff_scope"
+                    ? withoutStaff
+                    : deploymentScopes),
+                "workforce.write",
+              ].join(" "),
+              permissions: [
+                ...(scenario.omission === "permissions"
+                  ? withoutExecution
+                  : deploymentScopes),
+                "workforce.write",
+              ],
+            })
+              .setProtectedHeader({ alg: "RS256", kid: "worker-test" })
+              .setIssuer(ISSUER)
+              .setAudience(RESOURCE)
+              .setSubject(`deployment-${scenario.label.replaceAll(" ", "-")}`)
+              .setIssuedAt()
+              .setExpirationTime("5m")
+              .sign(signingKey);
+            headers["X-Avala-Api-Key"] = "";
+            headers.Authorization = `Bearer ${subject}`;
+          }
+          const metadata = await deployed.dispatchFetch(
+            "https://mcp.example.com/.well-known/oauth-protected-resource/mcp",
+          );
+          expect(await metadata.json()).toMatchObject({
+            scopes_supported: deploymentScopes,
+          });
+          const listed = await post(rpc("tools/list"), headers, deployed);
+          expect(listed.status).toBe(permissionStatus);
+          if (scenario.apiKey) expect(exchanges).toEqual([]);
+          else {
+            expect(exchanges).toHaveLength(1);
+            expect(exchanges[0]!.get("scope")).toBe(requestedScopes.join(" "));
+          }
+          expect(observations.map((request) => request.path)).toEqual([
+            "/users/me/permissions/",
+          ]);
+          if (permissionStatus !== 200) {
+            await listed.text();
+            return;
+          }
+          const catalog = await responseJson(listed);
+          const names = catalog.result.tools.map(
+            (tool: { name: string }) => tool.name,
+          ) as string[];
+          const expectedProposals =
+            scenario.expected === "all"
+              ? PROPOSAL_TOOL_NAMES
+              : scenario.expected === "no_execution"
+                ? PROPOSAL_TOOL_NAMES.filter(
+                    (name) => name !== "execute_approved_operation",
+                  )
+                : [];
+          expect(
+            names.filter((name) => PROPOSAL_TOOL_NAMES.includes(name)).sort(),
+          ).toEqual(expectedProposals);
+          expect(names.includes("list_workforce_assignment_candidates")).toBe(
+            scenario.expected !== "none" || scenario.directWrite === true,
+          );
+          expect(names.includes("set_workforce_batch_priority")).toBe(
+            scenario.directWrite === true,
+          );
+          expect(names).not.toContain("approve_operation");
+          if (!scenario.directWrite) {
+            const writes = catalog.result.tools
+              .filter(
+                (tool: { annotations?: { readOnlyHint?: boolean } }) =>
+                  tool.annotations?.readOnlyHint === false,
+              )
+              .map((tool: { name: string }) => tool.name) as string[];
+            expect(
+              writes.every((name) => expectedProposals.includes(name)),
+            ).toBe(true);
+          }
+          const invoked = await responseJson(
+            await post(
+              rpc("tools/call", {
+                name: "execute_approved_operation",
+                arguments: { proposalUid: "12".repeat(16), expectedVersion: 1 },
+              }),
+              headers,
+              deployed,
+            ),
+          );
+          if (scenario.expected === "all") {
+            expect(invoked.result.isError).toBe(true);
+            expect(observations.at(-1)!.path).toBe(
+              `/admin/workforce/operation-proposals/${"12".repeat(16)}/execute/`,
+            );
+            expect(observations.at(-1)!.clientName).toBe(
+              "execute_approved_operation",
+            );
+          } else {
+            expect(invoked).toHaveProperty("error");
+            expect(
+              observations.every(
+                (request) => request.path === "/users/me/permissions/",
+              ),
+            ).toBe(true);
+          }
+          if (!scenario.directWrite) {
+            const beforeDeniedCall = observations.length;
+            const directWrite = await responseJson(
+              await post(
+                rpc("tools/call", {
+                  name: "set_workforce_batch_priority",
+                  arguments: {
+                    batchUid: "12".repeat(16),
+                    expectedPriority: "medium",
+                    priority: "high",
+                    reason: "Local scope contract",
+                  },
+                }),
+                headers,
+                deployed,
+              ),
+            );
+            expect(directWrite).toHaveProperty("error");
+            expect(
+              observations
+                .slice(beforeDeniedCall)
+                .map((request) => request.path),
+            ).toEqual(["/users/me/permissions/"]);
+          }
+          expect(mutationRequests).toEqual([]);
+        } finally {
+          await deployed.dispose();
+        }
+      },
+      15_000,
+    );
 
     it("preserves IPv6 and only uses CF-Connecting-IPv6 for Pseudo IPv4", async () => {
       for (const headers of [
