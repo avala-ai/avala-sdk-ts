@@ -5,6 +5,7 @@ import type {
   SequenceOutcome,
   SequenceOutcomeLeakageGroups,
   SequenceOutcomeSource,
+  SequenceOutcomeSourceMetadata,
   SequenceOutcomeType,
 } from "../types.js";
 import { BaseResource } from "./base.js";
@@ -14,6 +15,25 @@ export interface SetSequenceOutcomeSubtask {
   startTs: number;
   endTs: number;
   outcome?: SequenceOutcomeType | null;
+}
+
+export interface SetSequenceHandAction {
+  startTs: number;
+  endTs: number;
+  action: string;
+  object?: string | null;
+  verb?: string | null;
+  contact?: boolean | null;
+}
+
+/**
+ * Per-hand action streams; either hand may be omitted (stored empty). Within a
+ * hand, items must be ordered and must not overlap; the server caps each hand at
+ * 3,600 items and rejects `endTs` past the sequence when it knows the duration.
+ */
+export interface SetSequenceHandActions {
+  left?: SetSequenceHandAction[];
+  right?: SetSequenceHandAction[];
 }
 
 /**
@@ -27,6 +47,7 @@ export interface SetSequenceOutcomeOptions {
   quality?: number | null;
   speed?: number | null;
   subtasks?: SetSequenceOutcomeSubtask[];
+  handActions?: SetSequenceHandActions;
   mistakeType?: string;
   recoveryType?: string;
   failureStage?: string;
@@ -36,6 +57,12 @@ export interface SetSequenceOutcomeOptions {
   leakageGroups?: SequenceOutcomeLeakageGroups;
   source?: SequenceOutcomeSource;
   confidence?: number | null;
+  /**
+   * Import provenance, e.g. `{ importer, run_id, task, log_path }`. Sent and returned
+   * with keys exactly as written. Flat: at most 20 keys (<= 64 characters); values
+   * are strings (<= 512 characters), finite numbers or booleans.
+   */
+  sourceMetadata?: SequenceOutcomeSourceMetadata;
 }
 
 type OneOrMany<T> = T | readonly T[];
@@ -96,6 +123,25 @@ function toPayload(options: SetSequenceOutcomeOptions): Record<string, unknown> 
       end_ts: subtask.endTs,
       outcome: subtask.outcome ?? null,
     }));
+  }
+  if (options.handActions !== undefined) {
+    const hands: Record<string, unknown> = {};
+    for (const hand of ["left", "right"] as const) {
+      const items = options.handActions[hand];
+      if (items === undefined) continue;
+      hands[hand] = items.map((item) => ({
+        start_ts: item.startTs,
+        end_ts: item.endTs,
+        action: item.action,
+        object: item.object ?? null,
+        verb: item.verb ?? null,
+        contact: item.contact ?? null,
+      }));
+    }
+    payload.hand_actions = hands;
+  }
+  if (options.sourceMetadata !== undefined) {
+    payload.source_metadata = { ...options.sourceMetadata };
   }
   if (options.leakageGroups !== undefined) {
     const groups: Record<string, string> = {};

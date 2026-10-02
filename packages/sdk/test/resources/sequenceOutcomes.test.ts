@@ -5,6 +5,8 @@ import { NotFoundError } from "../../src/errors.js";
 // Contract: server/server/apps/dataset/api_sequence_outcomes.py — GET/PUT
 // .../sequences/<uid>/outcome/, GET .../outcome/history/ (plain array) and
 // GET datasets/<owner>/<slug>/sequence-outcomes/ (cursor page, comma-joined filters).
+// hand_actions = {left, right} of {start_ts, end_ts, action, object, verb, contact}
+// (server/server/apps/dataset/sequence_outcome_serializers.py).
 describe("sequenceOutcomes resource", () => {
   const owner = "acme";
   const slug = "pick-place";
@@ -20,6 +22,28 @@ describe("sequenceOutcomes resource", () => {
     quality: 4,
     speed: 2,
     subtasks: [{ label: "regrasp", start_ts: 1.5, end_ts: 4.0, outcome: null }],
+    hand_actions: {
+      left: [
+        {
+          start_ts: 0,
+          end_ts: 12,
+          action: "holding the aluminum piston",
+          object: "piston",
+          verb: "hold",
+          contact: true,
+        },
+      ],
+      right: [
+        {
+          start_ts: 9.5,
+          end_ts: 12,
+          action: "scraping the ring groove with the pick tool",
+          object: null,
+          verb: null,
+          contact: null,
+        },
+      ],
+    },
     mistake_type: "grasp_slip",
     recovery_type: "regrasp",
     failure_stage: "",
@@ -28,6 +52,7 @@ describe("sequenceOutcomes resource", () => {
     evaluation_membership: "held_out_eval",
     leakage_groups: { location: "kitchen-3", environment_family: "kitchens" },
     source: "human",
+    source_metadata: { importer: "eval-log-importer", run_id: "run-42", log_path: "logs/run-42.json", epoch: 3 },
     labeled_by: null,
     confidence: null,
     created_at: "2026-09-30T00:00:00Z",
@@ -60,6 +85,15 @@ describe("sequenceOutcomes resource", () => {
     expect(outcome.evaluationMembership).toBe("held_out_eval");
     expect(outcome.subtasks[0].startTs).toBe(1.5);
     expect(outcome.leakageGroups.environmentFamily).toBe("kitchens");
+    expect(outcome.handActions.left[0]).toEqual({
+      startTs: 0,
+      endTs: 12,
+      action: "holding the aluminum piston",
+      object: "piston",
+      verb: "hold",
+      contact: true,
+    });
+    expect(outcome.handActions.right[0].startTs).toBe(9.5);
     expect(fetchMock.mock.calls[0][0]).toContain(`/datasets/${owner}/${slug}/sequences/${sequenceUid}/outcome/`);
   });
 
@@ -120,5 +154,43 @@ describe("sequenceOutcomes resource", () => {
     expect(url.searchParams.get("evaluation_membership")).toBe("held_out_eval");
     expect(url.searchParams.get("limit")).toBe("10");
     expect(url.searchParams.has("source")).toBe(false);
+  });
+
+  it("sends hand actions as snake_case with null optional slots, and omits them when not given", async () => {
+    const fetchMock = stubFetch(mockOutcome);
+    const avala = new Avala({ apiKey: "test-key" });
+    await avala.sequenceOutcomes.set(owner, slug, sequenceUid, {
+      outcome: "failure",
+      handActions: {
+        left: [{ startTs: 0, endTs: 1, action: "reaching for the piston", contact: false }],
+      },
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      outcome: "failure",
+      hand_actions: {
+        left: [{ start_ts: 0, end_ts: 1, action: "reaching for the piston", object: null, verb: null, contact: false }],
+      },
+    });
+
+    await avala.sequenceOutcomes.set(owner, slug, sequenceUid, { outcome: "failure" });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ outcome: "failure" });
+  });
+
+  it("keeps sourceMetadata keys exactly as written in both directions", async () => {
+    const fetchMock = stubFetch(mockOutcome);
+    const avala = new Avala({ apiKey: "test-key" });
+    const outcome = await avala.sequenceOutcomes.set(owner, slug, sequenceUid, {
+      outcome: "failure",
+      source: "imported",
+      sourceMetadata: { run_id: "run-42", passed: true },
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).source_metadata).toEqual({ run_id: "run-42", passed: true });
+    // Caller-owned keys are not camelCased on the way back.
+    expect(outcome.sourceMetadata).toEqual({
+      importer: "eval-log-importer",
+      run_id: "run-42",
+      log_path: "logs/run-42.json",
+      epoch: 3,
+    });
   });
 });

@@ -517,6 +517,21 @@ describe("dataset tools", () => {
     quality: 4,
     speed: 2,
     subtasks: [{ label: "regrasp", startTs: 1.5, endTs: 4, outcome: null }],
+    handActions: {
+      left: [
+        { startTs: 0, endTs: 12, action: "holding the aluminum piston", object: "piston", verb: "hold", contact: true },
+      ],
+      right: [
+        {
+          startTs: 9.5,
+          endTs: 12,
+          action: "scraping the ring groove with the pick tool",
+          object: null,
+          verb: null,
+          contact: null,
+        },
+      ],
+    },
     mistakeType: "grasp_slip",
     recoveryType: "regrasp",
     failureStage: "",
@@ -524,7 +539,8 @@ describe("dataset tools", () => {
     modelVersion: "",
     evaluationMembership: "held_out_eval",
     leakageGroups: { location: "kitchen-3" },
-    source: "human",
+    source: "imported",
+    sourceMetadata: { importer: "eval-log-importer", run_id: "run-42" },
     labeledBy: "user-7",
     confidence: null,
     createdAt: "2026-09-30T00:00:00Z",
@@ -549,6 +565,8 @@ describe("dataset tools", () => {
       version: 2,
     });
     expect(concise).not.toHaveProperty("subtasks");
+    expect(concise).not.toHaveProperty("handActions");
+    expect(concise).not.toHaveProperty("sourceMetadata");
     expect(concise).not.toHaveProperty("labeledBy");
 
     const full = await server.getHandler("get_sequence_outcome")!({
@@ -559,6 +577,9 @@ describe("dataset tools", () => {
     });
     const fullPayload = JSON.parse(full.content[0].text);
     expect(fullPayload.subtasks[0].label).toBe("regrasp");
+    expect(fullPayload.handActions.left[0].action).toBe("holding the aluminum piston");
+    expect(fullPayload.handActions.right[0]).toMatchObject({ startTs: 9.5, contact: null });
+    expect(fullPayload.sourceMetadata).toEqual({ importer: "eval-log-importer", run_id: "run-42" });
     expect(fullPayload.leakageGroups).toEqual({ location: "kitchen-3" });
   });
 
@@ -590,6 +611,8 @@ describe("dataset tools", () => {
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.items[0]).toMatchObject({ sequenceUid: "seq-1", outcome: "mistake_and_recovery" });
     expect(parsed.items[0]).not.toHaveProperty("subtasks");
+    // Hand streams can run to thousands of items per sequence; list pages keep them behind detail=full.
+    expect(parsed.items[0]).not.toHaveProperty("handActions");
   });
 
   it("sequence outcome tools are read-only", () => {

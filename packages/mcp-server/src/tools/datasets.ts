@@ -132,6 +132,25 @@ const sequenceOutcomeSubtaskOutputSchema = z
   })
   .passthrough();
 
+const sequenceHandActionOutputSchema = z
+  .object({
+    startTs: z.number().describe("Seconds from the start of the sequence"),
+    endTs: z.number().describe("Seconds from the start of the sequence"),
+    action: z.string().describe("Natural-language action of this hand"),
+    object: z.string().nullable().optional(),
+    verb: z.string().nullable().optional(),
+    contact: z.boolean().nullable().optional().describe("Whether the hand touches the object; null when unknown"),
+  })
+  .passthrough();
+
+const sequenceHandActionsOutputSchema = z
+  .object({
+    left: z.array(sequenceHandActionOutputSchema),
+    right: z.array(sequenceHandActionOutputSchema),
+  })
+  .passthrough()
+  .describe("Per-hand action timelines; within a hand, items are ordered and do not overlap");
+
 const sequenceOutcomeOutputSchema = z
   .object({
     uid: z.string(),
@@ -143,6 +162,7 @@ const sequenceOutcomeOutputSchema = z
     quality: z.number().nullable().optional(),
     speed: z.number().nullable().optional(),
     subtasks: z.array(sequenceOutcomeSubtaskOutputSchema).optional(),
+    handActions: sequenceHandActionsOutputSchema.optional(),
     mistakeType: z.string().optional(),
     recoveryType: z.string().optional(),
     failureStage: z.string().optional(),
@@ -154,6 +174,10 @@ const sequenceOutcomeOutputSchema = z
       .describe("'train', 'held_out_eval', 'none', or empty when unset"),
     leakageGroups: z.record(z.string(), z.string()).optional(),
     source: z.string().optional(),
+    sourceMetadata: z
+      .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+      .optional()
+      .describe("Import provenance (e.g. importer, run_id, task, log_path); keys exactly as written"),
     labeledBy: z.string().nullable().optional(),
     confidence: z.number().nullable().optional(),
     createdAt: z.string().nullable().optional(),
@@ -1164,7 +1188,7 @@ const getSequenceOutcomeTool = defineReadCatalogTool({
   name: "get_sequence_outcome",
   title: "Get sequence outcome",
   description:
-    "Get the current behavioral outcome label of a dataset sequence (what the actor did: expert_success, mistake_and_recovery, failure, ...). Read-only. Technical data validity is a separate axis reported by quality tools. Default detail is the outcome, scores, autonomy level, model version, evaluation split and source; use detail=full for subtasks, mistake/recovery tags, leakage groups and labeler. Returns not found when the sequence is unlabeled.",
+    "Get the current behavioral outcome label of a dataset sequence (what the actor did: expert_success, mistake_and_recovery, failure, ...). Read-only. Technical data validity is a separate axis reported by quality tools. Default detail is the outcome, scores, autonomy level, model version, evaluation split and source; use detail=full for subtasks, per-hand action streams (left/right {startTs, endTs, action, object, verb, contact}), mistake/recovery tags, leakage groups, import provenance (sourceMetadata) and labeler. Returns not found when the sequence is unlabeled.",
   inputSchema: getSequenceOutcomeInputSchema,
   outputSchema: sequenceOutcomeOutputSchema,
   conciseKeys: SEQUENCE_OUTCOME_CONCISE_KEYS,
@@ -1182,7 +1206,7 @@ const listSequenceOutcomesTool = defineReadCatalogTool({
   name: "list_sequence_outcomes",
   title: "List sequence outcomes",
   description:
-    "List the current behavioral outcome labels in a dataset (paginated, read-only). Filter server-side by outcome, evaluation membership (train / held_out_eval / none), source, autonomy level, or model version to build held-out evaluation sets, failure-and-recovery lanes, or per-policy comparisons. Default detail omits subtasks, leakage groups and labeler; use detail=full for them.",
+    "List the current behavioral outcome labels in a dataset (paginated, read-only). Filter server-side by outcome, evaluation membership (train / held_out_eval / none), source, autonomy level, or model version to build held-out evaluation sets, failure-and-recovery lanes, or per-policy comparisons. Default detail omits subtasks, per-hand action streams, leakage groups, import provenance and labeler; use detail=full for them.",
   inputSchema: listSequenceOutcomesInputSchema,
   outputSchema: sequenceOutcomePageOutputSchema,
   conciseKeys: SEQUENCE_OUTCOME_CONCISE_KEYS,

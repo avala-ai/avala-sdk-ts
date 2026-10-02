@@ -133,12 +133,23 @@ export function validateInternalClientContext(
   }
 }
 
-/** Convert snake_case keys to camelCase (deep — recurses into nested objects and arrays) */
+/**
+ * Response fields whose value is a caller-owned map: the field name is camelCased,
+ * but the keys inside are returned exactly as written (a stored `run_id` must read
+ * back as `run_id`, not `runId`). Add a field here only when the server documents
+ * its keys as free-form.
+ */
+export const OPAQUE_VALUE_KEYS: ReadonlySet<string> = new Set(["source_metadata"]);
+
+/**
+ * Convert snake_case keys to camelCase (deep — recurses into nested objects and arrays),
+ * except inside the values of `OPAQUE_VALUE_KEYS`, which are copied verbatim.
+ */
 export function snakeToCamel(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     const camelKey = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-    result[camelKey] = convertValue(value);
+    result[camelKey] = OPAQUE_VALUE_KEYS.has(key) ? value : convertValue(value);
   }
   return result;
 }

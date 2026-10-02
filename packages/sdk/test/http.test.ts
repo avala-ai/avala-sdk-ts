@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { HttpTransport, type HttpConfig } from "../src/http.js";
+import { HttpTransport, snakeToCamel, type HttpConfig } from "../src/http.js";
 import {
   AuthenticationError,
   NotFoundError,
@@ -662,6 +662,20 @@ describe("HttpTransport", () => {
       const http = makeTransport(credential);
       await expect(http.request("GET", "/test/")).rejects.toThrow(/redirect/i);
       expect((vi.mocked(fetch).mock.calls[0]![1] as RequestInit).redirect).toBe("manual");
+    });
+  });
+});
+
+describe("snakeToCamel", () => {
+  it("camelCases nested keys but copies OPAQUE_VALUE_KEYS values verbatim", () => {
+    expect(
+      snakeToCamel({
+        leakage_groups: { environment_family: "kitchens" },
+        source_metadata: { run_id: "r1", nested_key: 1 },
+      }),
+    ).toEqual({
+      leakageGroups: { environmentFamily: "kitchens" },
+      sourceMetadata: { run_id: "r1", nested_key: 1 },
     });
   });
 });

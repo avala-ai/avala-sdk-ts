@@ -261,6 +261,29 @@ export interface SequenceOutcomeSubtask {
   outcome: SequenceOutcomeType | null;
 }
 
+/**
+ * One action of one hand over [startTs, endTs] seconds from the start of the sequence.
+ * `action` is natural language; `object` / `verb` are optional structured slots;
+ * `contact` is whether the hand touches the object (null when unknown).
+ */
+export interface SequenceHandAction {
+  startTs: number;
+  endTs: number;
+  action: string;
+  object: string | null;
+  verb: string | null;
+  contact: boolean | null;
+}
+
+/** Two independent per-hand timelines; within a hand, items are ordered and do not overlap. */
+export interface SequenceHandActions {
+  left: SequenceHandAction[];
+  right: SequenceHandAction[];
+}
+
+/** Flat import-provenance object: string keys to string / number / boolean values. */
+export type SequenceOutcomeSourceMetadata = Record<string, string | number | boolean>;
+
 /** Group ids that must not be split across train and held-out evaluation. */
 export interface SequenceOutcomeLeakageGroups {
   location?: string;
@@ -281,6 +304,8 @@ export interface SequenceOutcome {
   quality: number | null;
   speed: number | null;
   subtasks: SequenceOutcomeSubtask[];
+  /** Per-hand action streams (both hands always present; empty when unlabeled). */
+  handActions: SequenceHandActions;
   mistakeType: string;
   recoveryType: string;
   failureStage: string;
@@ -289,6 +314,8 @@ export interface SequenceOutcome {
   evaluationMembership: SequenceEvaluationMembership | "";
   leakageGroups: SequenceOutcomeLeakageGroups;
   source: SequenceOutcomeSource;
+  /** Import provenance (e.g. importer, run_id, task, log_path). Keys are returned exactly as written. */
+  sourceMetadata: SequenceOutcomeSourceMetadata;
   /** Writer's user uid; null unless the caller can edit the dataset. */
   labeledBy: string | null;
   confidence: number | null;
