@@ -759,7 +759,8 @@ describe("Streamable HTTP transport", () => {
     }>(listRes);
     // This ordinary customer grant sees the hosted read catalog only. The
     // reviewed staff action requires both staff privilege and workforce.write.
-    expect(list.result.tools).toHaveLength(50);
+    // Existing 50 customer reads plus the two MCAP metadata tools.
+    expect(list.result.tools).toHaveLength(52);
     expect(list.result.tools.map((t) => t.name)).toContain("list_datasets");
     expect(createdClients).toHaveLength(2);
     expect(
@@ -919,7 +920,8 @@ describe("Streamable HTTP transport", () => {
       result: { resultType: string; tools: { name: string }[] };
     }>(listRes);
     expect(list.result.resultType).toBe("complete");
-    expect(list.result.tools).toHaveLength(50);
+    // Existing 50 customer reads plus the two MCAP metadata tools.
+    expect(list.result.tools).toHaveLength(52);
     expect(list.result.tools.map((tool) => tool.name)).toContain(
       "list_datasets",
     );
@@ -1873,7 +1875,8 @@ describe("Streamable HTTP transport", () => {
       const names = (
         await mcpResult<{ result: { tools: { name: string }[] } }>(res)
       ).result.tools.map((t) => t.name);
-      expect(names).toHaveLength(50);
+      // Existing 50 customer reads plus the two MCAP metadata tools.
+      expect(names).toHaveLength(52);
       expect(names).not.toContain("assign_workforce_work_unit");
       expect(names).not.toContain("change_workforce_batch_allocation");
       expect(names).not.toContain("change_workforce_group_membership");

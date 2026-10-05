@@ -1558,7 +1558,10 @@ describe("dataset tools", () => {
   });
 
   it("registers read-only + mutation tools when allowMutations is true", () => {
-    expect(server.registerTool).toHaveBeenCalledTimes(15);
+    // The existing 15 tools plus two separate read-only MCAP metadata tools.
+    expect(server.registerTool).toHaveBeenCalledTimes(17);
+    expect(server.getHandler("list_mcap_episodes")).toBeDefined();
+    expect(server.getHandler("get_mcap_episode")).toBeDefined();
     expect(server.getHandler("list_datasets")).toBeDefined();
     expect(server.getHandler("create_dataset")).toBeDefined();
   });

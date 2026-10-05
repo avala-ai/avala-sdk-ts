@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { snakeToCamel } from "../../sdk/src/http.js";
+import { mcapEpisodeWire } from "./fixtures/mcap-episode.js";
 import {
   customerQcTarget,
   customerQcWireContext,
@@ -107,6 +108,8 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
   list_datasets: { limit: 5, cursor: "next-page" },
   get_dataset: { uid: "00000000-0000-0000-0000-000000000001" },
   list_sequences: { owner: "robotics-team", slug: "warehouse-bags", limit: 10 },
+  list_mcap_episodes: { owner: "robotics-team", slug: "warehouse-bags", limit: 10 },
+  get_mcap_episode: { owner: "robotics-team", slug: "warehouse-bags", episodeUid: mcapEpisodeWire.uid },
   get_sequence: {
     owner: "robotics-team",
     slug: "warehouse-bags",
@@ -1832,7 +1835,9 @@ describe("declarative MCP catalog", () => {
           calls.push({ method: "GET", path, query });
           return {
             items: [
-              path === "/exports/"
+              path.endsWith("/mcap-episodes/")
+                ? snakeToCamel(mcapEpisodeWire)
+                : path === "/exports/"
                 ? exportItem
                 : path.endsWith("/sequence-outcomes/")
                   ? sequenceOutcome
@@ -1847,6 +1852,7 @@ describe("declarative MCP catalog", () => {
       requestSingle: vi.fn(
         async (path: string, query?: Record<string, string>) => {
           calls.push({ method: "GET", path, query });
+          if (path.includes("/mcap-episodes/")) return snakeToCamel(mcapEpisodeWire);
           if (path.endsWith("/annotation-issues/metrics/"))
             return annotationIssueMetrics;
           if (path.startsWith("/customer-qc/"))

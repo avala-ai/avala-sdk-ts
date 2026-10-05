@@ -15,8 +15,9 @@ import {
  * registers tools through the same `registerTools`, so this count is the
  * stdio/HTTP parity baseline: if it moves, both transports moved together.
  */
-const FULL_TOOL_COUNT = 110;
-const HOSTED_READ_TOOL_COUNT = 50;
+// Two additive MCAP metadata reads join the existing catalogs.
+const FULL_TOOL_COUNT = 112;
+const HOSTED_READ_TOOL_COUNT = 52;
 const STAFF_TOOL_COUNT = 27;
 const SIGNED_EXPORT_URL =
   "https://bucket.s3.amazonaws.com/export.zip" +
@@ -590,6 +591,22 @@ describe("MCP server", () => {
     expect(server.names).not.toContain("list_quality_targets");
     expect(server.names).not.toContain("get_project_quality_summary");
     expect(server.names).not.toContain("get_workspace_overview");
+  });
+
+  // Existing hosted discovery requires both the exact scope and toolset.
+  it.each([
+    { scopes: ["datasets.read"], toolsets: ["datasets"], visible: true },
+    { scopes: ["datasets.read"], toolsets: ["sequences"], visible: false },
+    { scopes: ["exports.read"], toolsets: ["datasets"], visible: false },
+  ])("keeps MCAP metadata reads within the existing dataset grant: %j", ({ scopes, toolsets, visible }) => {
+    const server = createMockServer();
+    registerTools(server as never, (() => ({})) as never, {
+      allowMutations: false,
+      credentialGrant: { scopes: new Set(scopes), toolsets: new Set(toolsets), isStaffPrivileged: false },
+    });
+    for (const name of ["list_mcap_episodes", "get_mcap_episode"]) {
+      expect(server.names.includes(name)).toBe(visible);
+    }
   });
 
   it("shows the resolver when any one declared asset scope is granted", () => {

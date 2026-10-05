@@ -36,6 +36,7 @@ import {
 } from "../readDetail.js";
 import { z } from "zod";
 import { MUTATION_ANNOTATIONS } from "../annotations.js";
+import { MCAP_READ_CATALOG_TOOLS } from "./mcapEpisodes.js";
 
 const datasetOutputSchema = z
   .object({
@@ -1392,6 +1393,7 @@ const listCaptureCampaignsTool = defineReadCatalogTool({
 });
 
 export const DATASET_READ_CATALOG_TOOLS = [
+  ...MCAP_READ_CATALOG_TOOLS,
   listDatasetsTool,
   getDatasetTool,
   listSequencesTool,
@@ -1426,6 +1428,8 @@ export function registerDatasetTools(
   allowMutations = false,
   assetHandles: AssetHandleService = createAssetHandleService(),
 ): void {
+  registerReadCatalogTool(server, getClient, MCAP_READ_CATALOG_TOOLS[0]);
+  registerReadCatalogTool(server, getClient, MCAP_READ_CATALOG_TOOLS[1]);
   registerReadCatalogTool(server, getClient, listDatasetsTool, assetHandles);
   registerReadCatalogTool(server, getClient, getDatasetTool, assetHandles);
   registerReadCatalogTool(server, getClient, listSequencesTool, assetHandles);
