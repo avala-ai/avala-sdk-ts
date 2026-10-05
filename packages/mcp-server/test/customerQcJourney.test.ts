@@ -93,7 +93,16 @@ async function setup(
         expect(url.searchParams.get("limit")).toBe("1");
         const cursor = url.searchParams.get("cursor");
         expect([null, "second-page"]).toContain(cursor);
-        return json(fixture.datasetPages[cursor === null ? 0 : 1]);
+        const page = fixture.datasetPages[cursor === null ? 0 : 1]!;
+        // Match Django CoreUUIDField's compact discovery IDs. Feed these raw
+        // values into context inspection; callers must not rewrite selectors.
+        return json({
+          ...page,
+          results: page.results.map((dataset) => ({
+            ...dataset,
+            uid: dataset.uid.replaceAll("-", ""),
+          })),
+        });
       }
       if (
         url.pathname ===
@@ -241,7 +250,8 @@ describe("synthetic customer QC query/inspect journey", () => {
             item.slug === fixture.datasetSlug &&
             item.ownerName === fixture.owner,
         )!;
-        expect(dataset.uid).toBe("00000000-0000-0000-0000-000000000002");
+        expect(dataset.uid).toBe("00000000000000000000000000000002");
+        const canonicalDatasetUid = fixture.datasetPages[1]!.results[0]!.uid;
         const listed = await read(
           run.client,
           "list_annotation_issues_by_dataset",
@@ -337,7 +347,7 @@ describe("synthetic customer QC query/inspect journey", () => {
           )!;
           expect(context.structuredContent).toMatchObject({
             organizationUid: fixture.organizationUid,
-            datasetUid: dataset.uid,
+            datasetUid: canonicalDatasetUid,
             sequenceUid: issue.sequenceUid,
             deliverableId: fixture.deliverableId,
             evidenceKind: "workflow_metadata_only",
@@ -385,12 +395,18 @@ describe("synthetic customer QC query/inspect journey", () => {
           },
           {
             method: "GET",
-            path: contextPath(fixture.expected[0]!.sequenceUid, dataset.uid),
+            path: contextPath(
+              fixture.expected[0]!.sequenceUid,
+              canonicalDatasetUid,
+            ),
             query: "",
           },
           {
             method: "GET",
-            path: contextPath(fixture.expected[1]!.sequenceUid, dataset.uid),
+            path: contextPath(
+              fixture.expected[1]!.sequenceUid,
+              canonicalDatasetUid,
+            ),
             query: "",
           },
         ]);

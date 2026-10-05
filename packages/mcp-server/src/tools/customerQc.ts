@@ -25,6 +25,30 @@ const targetSchema = z
   })
   .strict();
 
+// CoreUUIDField discovery responses use compact UUIDs. Normalize selectors
+// only: response identifiers must still be canonical and match the exact target.
+const inputUuid = z
+  .string()
+  .regex(
+    /^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?![\s\S])/,
+  )
+  .overwrite((value) =>
+    value.length === 32
+      ? `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`
+      : value,
+  );
+const inputTargetSchema = targetSchema.extend({
+  organizationUid: inputUuid.describe(
+    "Compact or canonical lowercase organization UUID; normalized to canonical form; enrollment remains server-controlled",
+  ),
+  datasetUid: inputUuid.describe(
+    "Compact or canonical lowercase UUID of the dataset in that organization; normalized to canonical form",
+  ),
+  sequenceUid: inputUuid.describe(
+    "Compact or canonical lowercase UUID of the sequence in that dataset; normalized to canonical form",
+  ),
+});
+
 const contextSchema = z
   .object({
     ...targetSchema.shape,
@@ -61,7 +85,7 @@ export const inspectCustomerQcContextTool = defineReadCatalogTool({
     "Always returns decisionReady=false and all blockers. Available decisions are workflow transitions, not approval authority. " +
     "Hashes describe workflow metadata only: no annotation revision fence, annotation bytes, media, proposal, approval receipt, or QC mutation. " +
     "Unavailable targets fail without a legacy-route fallback.",
-  inputSchema: targetSchema,
+  inputSchema: inputTargetSchema,
   outputSchema: contextSchema,
   failureMessage:
     "Customer QC context unavailable. Verify enrollment, access, and the exact target; no decision is authorized.",

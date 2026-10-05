@@ -27,6 +27,7 @@ afterEach(async () => {
 
 async function setup({
   payload = context as unknown,
+  expectedTarget = target,
   status = 200,
   scopes = ["datasets.read", "qc.read"],
   toolsets = ["quality"],
@@ -37,7 +38,7 @@ async function setup({
       const url = new URL(input instanceof Request ? input.url : String(input));
       expect(url.origin).toBe("https://fixture.invalid");
       expect(url.pathname).toBe(
-        `/api/v1/customer-qc/organizations/${target.organizationUid}/datasets/${target.datasetUid}/sequences/${target.sequenceUid}/deliverables/cuboids/context/`,
+        `/api/v1/customer-qc/organizations/${expectedTarget.organizationUid}/datasets/${expectedTarget.datasetUid}/sequences/${expectedTarget.sequenceUid}/deliverables/cuboids/context/`,
       );
       expect(url.search).toBe("");
       expect(init?.method).toBe("GET");
@@ -83,6 +84,104 @@ async function setup({
 }
 
 describe("customer QC metadata inspection over MCP", () => {
+  // CoreUUIDField emits compact IDs from discovery; the QC REST route and
+  // response use canonical UUIDs. Copying a discovered ID must preserve the
+  // same identity without caller-side rewriting or relaxing response binding.
+  it.each([
+    { fields: ["organizationUid"] },
+    { fields: ["datasetUid"] },
+    { fields: ["sequenceUid"] },
+    { fields: ["organizationUid", "datasetUid", "sequenceUid"] },
+  ] as const)(
+    "canonicalizes compact discovery identifiers: $fields",
+    async ({ fields }) => {
+      const canonicalTarget = {
+        ...target,
+        organizationUid: "a1b2c3d4-e5f6-4789-abcd-ef0123456789",
+        datasetUid: "fedcba98-7654-4321-9012-345678abcdef",
+        sequenceUid: "1234abcd-5678-49ef-ab01-23456789cdef",
+      };
+      const payload = {
+        ...context,
+        organization_uid: canonicalTarget.organizationUid,
+        dataset_uid: canonicalTarget.datasetUid,
+        sequence_uid: canonicalTarget.sequenceUid,
+      };
+      const { client, fetch } = await setup({
+        payload,
+        expectedTarget: canonicalTarget,
+      });
+      const compactTarget = { ...canonicalTarget };
+      for (const field of fields)
+        compactTarget[field] = canonicalTarget[field].replaceAll("-", "");
+      const result = await client.callTool({
+        name: tool,
+        arguments: compactTarget,
+      });
+      expect(result.isError).not.toBe(true);
+      expect(result.structuredContent).toEqual(snakeToCamel(payload));
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("discovers both input spellings but only canonical output identifiers", async () => {
+    const { client, fetch } = await setup();
+    const metadata = (await client.listTools()).tools.find(
+      ({ name }) => name === tool,
+    )!;
+    for (const field of [
+      "organizationUid",
+      "datasetUid",
+      "sequenceUid",
+    ] as const) {
+      const input = metadata.inputSchema.properties![field] as {
+        type: string;
+        pattern: string;
+      };
+      const output = metadata.outputSchema!.properties![field] as {
+        type: string;
+        pattern: string;
+      };
+      expect(input).toMatchObject({
+        type: "string",
+        pattern: expect.any(String),
+      });
+      expect(output).toMatchObject({
+        type: "string",
+        pattern: expect.any(String),
+      });
+      expect(new RegExp(input.pattern).test(target[field])).toBe(true);
+      expect(
+        new RegExp(input.pattern).test(target[field].replaceAll("-", "")),
+      ).toBe(true);
+      expect(new RegExp(output.pattern).test(target[field])).toBe(true);
+      expect(
+        new RegExp(output.pattern).test(target[field].replaceAll("-", "")),
+      ).toBe(false);
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([target.sequenceUid, target.datasetUid.replaceAll("-", "")])(
+    "still rejects mismatched or noncanonical response %s for compact input",
+    async (datasetUid) => {
+      const { client, fetch } = await setup({
+        payload: { ...context, dataset_uid: datasetUid },
+      });
+      const result = await client.callTool({
+        name: tool,
+        arguments: {
+          ...target,
+          datasetUid: target.datasetUid.replaceAll("-", ""),
+        },
+      });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toBeUndefined();
+      expect(result.content).toEqual(failureContent);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("advertises both scopes and a fixed read-only schema, forwarding only the requested GET", async () => {
     const { client, fetch, getClient } = await setup();
     const { tools } = await client.listTools();
@@ -136,7 +235,10 @@ describe("customer QC metadata inspection over MCP", () => {
 
   it.each([
     { organizationUid: "../elsewhere" },
-    { datasetUid: "00000000000000000000000000000002" },
+    { datasetUid: "0".repeat(31) },
+    { datasetUid: "0".repeat(33) },
+    { datasetUid: target.datasetUid.replaceAll("-", "") + "\n" },
+    { datasetUid: "A".repeat(32) },
     { sequenceUid: target.sequenceUid + "\n" },
     { sequenceUid: target.sequenceUid.toUpperCase().replace("003", "00A") },
     { deliverableId: "polygons" },
@@ -186,6 +288,7 @@ describe("customer QC metadata inspection over MCP", () => {
     { deliverable_id: "polygons" },
     { organization_uid: target.datasetUid },
     { dataset_uid: target.sequenceUid },
+    { dataset_uid: target.datasetUid.replaceAll("-", "") },
     { sequence_uid: target.organizationUid },
     { workflow_revision_uid: "bad-uuid" },
     { context_sha256: "a".repeat(64) + "\n" },
