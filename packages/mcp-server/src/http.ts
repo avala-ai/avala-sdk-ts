@@ -28,6 +28,7 @@ import {
   MCP_PATH,
 } from "./httpServer.js";
 import packageJson from "../package.json" with { type: "json" };
+import { nodeClientIpResolver } from "./cloudflareAlbClientIp.js";
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name];
@@ -58,6 +59,9 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "")
   .filter((origin) => origin.length > 0);
 
 const server = createAvalaMcpHttpServer({
+  // Default stays ALB-only. Enabling requires the reviewed Cloudflare ingress
+  // receipt in reports/infrastructure/mcp/cloudflare-runtime-candidate.md.
+  resolveClientIp: nodeClientIpResolver(process.env.AVALA_MCP_INGRESS_MODE),
   baseUrl: process.env.AVALA_BASE_URL,
   allowedOrigins,
   internalClientSecret: process.env.AVALA_MCP_INTERNAL_CLIENT_SECRET,

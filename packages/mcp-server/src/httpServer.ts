@@ -176,7 +176,7 @@ function mutationCredentialBinding(
 type CredentialHeaders = Pick<IncomingMessage, "headers"> &
   Partial<Pick<IncomingMessage, "headersDistinct" | "rawHeaders">>;
 
-function headerValues(req: CredentialHeaders, name: string): string[] {
+export function headerValues(req: CredentialHeaders, name: string): string[] {
   if (req.rawHeaders !== undefined) {
     const rawValues: string[] = [];
     for (let index = 0; index < req.rawHeaders.length; index += 2) {
