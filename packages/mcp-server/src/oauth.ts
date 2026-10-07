@@ -56,6 +56,7 @@ export interface OAuthExchangeResult {
   subject: string;
   /** Original MCP subject-token iat, preserved across the downstream exchange. */
   subjectIssuedAt: number;
+  subjectAuthenticationTime?: number;
   scopes: readonly string[];
   expiresAt: number;
 }
@@ -92,6 +93,7 @@ interface BrokerDependencies {
 interface VerifiedSubject {
   subject: string;
   issuedAt: number;
+  authenticatedAt?: number;
   expiresAt: number;
   scopes: string[];
 }
@@ -496,6 +498,16 @@ export class Auth0OnBehalfOfBroker implements OAuthTokenBroker {
     // hosted MCP transport does not yet verify either proof, so accepting it
     // as a bearer token would silently strip the issuer's security property.
     if (payload.cnf !== undefined) throw new HostedOAuthError("invalid_token");
+    // Preserve existing token admission. Unusable optional provenance is omitted;
+    // a downstream account cutoff can refuse it without changing all callers.
+    const authenticatedAt =
+      typeof payload.auth_time === "number" &&
+      Number.isSafeInteger(payload.auth_time) &&
+      payload.auth_time > 0 &&
+      payload.auth_time <= payload.iat &&
+      payload.auth_time <= Math.floor(this.now() / 1_000)
+        ? payload.auth_time
+        : undefined;
 
     const grantedScopes = parseGrantedScopes(payload.scope, "scope");
     const permissions = parsePermissions(payload.permissions);
@@ -509,6 +521,7 @@ export class Auth0OnBehalfOfBroker implements OAuthTokenBroker {
     return {
       subject: payload.sub,
       issuedAt: payload.iat,
+      authenticatedAt,
       expiresAt: payload.exp * 1_000,
       scopes: effectiveScopes,
     };
@@ -617,6 +630,7 @@ export class Auth0OnBehalfOfBroker implements OAuthTokenBroker {
       accessToken: tokenResponse.access_token,
       subject: verified.subject,
       subjectIssuedAt: verified.issuedAt,
+      subjectAuthenticationTime: verified.authenticatedAt,
       scopes: returnedScopes,
       expiresAt,
     };

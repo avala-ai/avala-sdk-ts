@@ -97,6 +97,7 @@ export interface AvalaMcpHttpOptions {
     clientName: string,
     forwardedClientIp: string,
     subjectIssuedAt: number,
+    subjectAuthenticationTime?: number,
   ) => Avala;
   /** Override the Avala REST base URL (e.g. a staging API). */
   baseUrl?: string;
@@ -516,6 +517,7 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
       clientName: string,
       forwardedClientIp: string,
       subjectIssuedAt: number,
+      subjectAuthenticationTime?: number,
     ) =>
       new Avala({
         accessToken,
@@ -524,6 +526,7 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
         internalClientSecret: options.internalClientSecret,
         forwardedClientIp,
         mcpSubjectTokenIssuedAt: subjectIssuedAt,
+        mcpSubjectAuthenticationTime: subjectAuthenticationTime,
       }));
   const allowedOrigins = new Set(
     (options.allowedOrigins ?? []).map(normalizeOrigin),
@@ -613,6 +616,7 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
           value: string;
           subjectToken: string;
           subjectIssuedAt: number;
+          subjectAuthenticationTime?: number;
         };
     if (credential.kind === "api_key") {
       downstreamCredential = { kind: "api_key", value: credential.apiKey };
@@ -624,6 +628,7 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
           value: exchange.accessToken,
           subjectToken: credential.subjectToken,
           subjectIssuedAt: exchange.subjectIssuedAt,
+          subjectAuthenticationTime: exchange.subjectAuthenticationTime,
         };
       } catch (error) {
         sendOAuthError(
@@ -657,6 +662,7 @@ export function createAvalaMcpHttpServer(options: AvalaMcpHttpOptions): Server {
               clientName,
               clientIp.forwardedClientIp,
               downstreamCredential.subjectIssuedAt,
+              downstreamCredential.subjectAuthenticationTime,
             );
       clients.set(clientName, client);
       return client;

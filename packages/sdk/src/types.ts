@@ -9,6 +9,8 @@ interface AvalaConnectionConfig {
   forwardedClientIp?: string;
   /** Original MCP subject-token iat, forwarded only by trusted hosted OAuth. */
   mcpSubjectTokenIssuedAt?: number;
+  /** Original signed auth_time; issuance/refresh time must never substitute. */
+  mcpSubjectAuthenticationTime?: number;
 }
 
 /**

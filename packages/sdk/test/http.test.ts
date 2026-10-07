@@ -26,6 +26,7 @@ function makeTransport(overrides?: HttpOverrides): HttpTransport {
     internalClientSecret: overrides?.internalClientSecret,
     forwardedClientIp: overrides?.forwardedClientIp,
     mcpSubjectTokenIssuedAt: overrides?.mcpSubjectTokenIssuedAt,
+    mcpSubjectAuthenticationTime: overrides?.mcpSubjectAuthenticationTime,
   });
 }
 
@@ -91,11 +92,13 @@ describe("HttpTransport", () => {
         internalClientSecret: "s".repeat(32),
         forwardedClientIp: "203.0.113.42",
         mcpSubjectTokenIssuedAt: 1_788_000_000,
+        mcpSubjectAuthenticationTime: 1_787_999_000,
       });
       await http.request("GET", "/test/");
 
       const headers = (vi.mocked(fetch).mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
       expect(headers["X-Avala-OAuth-Subject-Iat"]).toBe("1788000000");
+      expect(headers["X-Avala-OAuth-Subject-Auth-Time"]).toBe("1787999000");
     });
 
     it("omits provenance headers when they are not configured", async () => {
@@ -277,6 +280,13 @@ describe("HttpTransport", () => {
       expect(() =>
         makeTransport({ accessToken: "downstream.api.token", mcpSubjectTokenIssuedAt: 1_788_000_000 }),
       ).toThrowError("mcpSubjectTokenIssuedAt requires accessToken");
+      // Authentication provenance must have the same trusted service boundary.
+      expect(() =>
+        makeTransport({ accessToken: "downstream.api.token", mcpSubjectAuthenticationTime: 1_788_000_000 }),
+      ).toThrowError("requires accessToken");
+      expect(() =>
+        makeTransport({ apiKey: "api-key", internalClientSecret: "s".repeat(32), forwardedClientIp: "203.0.113.42", mcpSubjectAuthenticationTime: 1_788_000_000 }),
+      ).toThrowError("requires accessToken");
     });
 
     it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, "1788000000", null])(

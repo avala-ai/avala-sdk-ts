@@ -16,6 +16,7 @@ interface HttpConnectionConfig {
   internalClientSecret?: string;
   forwardedClientIp?: string;
   mcpSubjectTokenIssuedAt?: number;
+  mcpSubjectAuthenticationTime?: number;
 }
 
 export type HttpConfig = HttpConnectionConfig &
@@ -200,8 +201,9 @@ export class HttpTransport {
     }
     validateInternalClientContext(config.internalClientSecret, config.forwardedClientIp);
     validateMcpSubjectTokenIssuedAt(config.mcpSubjectTokenIssuedAt);
+    validateMcpSubjectTokenIssuedAt(config.mcpSubjectAuthenticationTime);
     if (
-      config.mcpSubjectTokenIssuedAt !== undefined &&
+      (config.mcpSubjectTokenIssuedAt !== undefined || config.mcpSubjectAuthenticationTime !== undefined) &&
       (!hasAccessTokenField || !config.internalClientSecret || !config.forwardedClientIp)
     ) {
       throw new Error("mcpSubjectTokenIssuedAt requires accessToken, internalClientSecret, and forwardedClientIp.");
@@ -213,6 +215,7 @@ export class HttpTransport {
       internalClientSecret: config.internalClientSecret,
       forwardedClientIp: config.forwardedClientIp,
       mcpSubjectTokenIssuedAt: config.mcpSubjectTokenIssuedAt,
+      mcpSubjectAuthenticationTime: config.mcpSubjectAuthenticationTime,
     };
     this.credentialHeaders = hasAccessTokenField
       ? { Authorization: `Bearer ${config.accessToken as string}` }
@@ -263,6 +266,9 @@ export class HttpTransport {
             : {}),
           ...(this.config.mcpSubjectTokenIssuedAt !== undefined
             ? { "X-Avala-OAuth-Subject-Iat": String(this.config.mcpSubjectTokenIssuedAt) }
+            : {}),
+          ...(this.config.mcpSubjectAuthenticationTime !== undefined
+            ? { "X-Avala-OAuth-Subject-Auth-Time": String(this.config.mcpSubjectAuthenticationTime) }
             : {}),
           ...(options?.idempotencyKey
             ? { "Idempotency-Key": options.idempotencyKey }

@@ -122,6 +122,7 @@ export class Avala {
       internalClientSecret: config?.internalClientSecret,
       forwardedClientIp: config?.forwardedClientIp,
       mcpSubjectTokenIssuedAt: config?.mcpSubjectTokenIssuedAt,
+      mcpSubjectAuthenticationTime: config?.mcpSubjectAuthenticationTime,
     });
 
     this.datasets = new DatasetsResource(this.transport);

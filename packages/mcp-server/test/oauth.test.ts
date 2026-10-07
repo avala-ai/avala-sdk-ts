@@ -56,6 +56,7 @@ interface TokenOverrides {
   scope: unknown;
   permissions: unknown;
   confirmation?: unknown;
+  authTime?: unknown;
   algorithm: "RS256" | "PS256";
 }
 
@@ -95,6 +96,7 @@ async function subjectToken(
     scope: claims.scope,
     permissions: claims.permissions,
     ...(claims.confirmation === undefined ? {} : { cnf: claims.confirmation }),
+    ...(claims.authTime === undefined ? {} : { auth_time: claims.authTime }),
   })
     .setProtectedHeader({ alg: claims.algorithm, kid: "primary", typ: "JWT" })
     .setIssuer(claims.issuer)
@@ -204,6 +206,33 @@ describe("Auth0 on-behalf-of token exchange", () => {
 
   beforeEach(() => {
     fetchMock = vi.fn(async () => successfulResponse());
+  });
+
+  // Accepted opt-out policy (2026-10-07): refresh/exchange is not a new login.
+  it("preserves original signed auth_time across exchange and cache hits", async () => {
+    const token = await subjectToken({ authTime: NOW_SECONDS - 600 });
+    const broker = brokerWith(fetchMock);
+    const result = await broker.exchange(token);
+    expect(result.subjectIssuedAt).toBe(NOW_SECONDS);
+    expect(result.subjectAuthenticationTime).toBe(NOW_SECONDS - 600);
+    expect((await broker.exchange(token)).subjectAuthenticationTime).toBe(NOW_SECONDS - 600);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each([true, "1788000000", 0, -1, NOW_SECONDS + 1])("preserves admission but omits unusable auth_time %s", async (authTime) => {
+    // Before this change auth_time did not select the accepted token population.
+    // Optional provenance must not introduce a rollout-wide admission policy.
+    const result = await brokerWith(fetchMock).exchange(await subjectToken({ authTime }));
+    expect(result.subjectAuthenticationTime).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("preserves existing issuance clock tolerance without inventing authentication time", async () => {
+    const token = await subjectToken({ issuedAt: NOW_SECONDS + 1, authTime: NOW_SECONDS + 1 });
+    const result = await brokerWith(fetchMock).exchange(token);
+    expect(result.subjectIssuedAt).toBe(NOW_SECONDS + 1);
+    expect(result.subjectAuthenticationTime).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("verifies the MCP token and sends a least-privilege RFC 8693 exchange", async () => {

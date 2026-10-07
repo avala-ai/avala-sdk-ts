@@ -391,6 +391,7 @@ describe("Streamable HTTP transport", () => {
   let createdClientIps: string[];
   let createdCredentialKinds: ("api_key" | "oauth")[];
   let createdSubjectIssuedAts: number[];
+  let createdSubjectAuthenticationTimes: (number | undefined)[];
   let invocationEvents: HostedInvocationEvent[] = [];
   let oauthExchangeFailure: unknown;
   let listDelayMs = 0;
@@ -400,6 +401,7 @@ describe("Streamable HTTP transport", () => {
       accessToken: DOWNSTREAM_ACCESS_TOKEN,
       subject: `subject-for-${subjectToken}`,
       subjectIssuedAt: SUBJECT_ISSUED_AT,
+      subjectAuthenticationTime: SUBJECT_ISSUED_AT - 60,
       scopes: ["datasets.read"],
       expiresAt: Date.now() + 60_000,
     };
@@ -410,6 +412,7 @@ describe("Streamable HTTP transport", () => {
     createdClientIps = [];
     createdCredentialKinds = [];
     createdSubjectIssuedAts = [];
+    createdSubjectAuthenticationTimes = [];
     server = createAvalaMcpHttpServer({
       oauth: TEST_OAUTH,
       oauthBroker: { exchange: oauthExchange },
@@ -435,12 +438,14 @@ describe("Streamable HTTP transport", () => {
         clientName: string,
         forwardedClientIp: string,
         subjectIssuedAt: number,
+        subjectAuthenticationTime?: number,
       ) => {
         const client = makeMockAvala(accessToken, clientName, listDelayMs);
         createdClients.push(client);
         createdClientIps.push(forwardedClientIp);
         createdCredentialKinds.push("oauth");
         createdSubjectIssuedAts.push(subjectIssuedAt);
+        createdSubjectAuthenticationTimes.push(subjectAuthenticationTime);
         return client as unknown as Avala;
       },
     });
@@ -464,6 +469,7 @@ describe("Streamable HTTP transport", () => {
     createdClientIps.length = 0;
     createdCredentialKinds.length = 0;
     createdSubjectIssuedAts.length = 0;
+    createdSubjectAuthenticationTimes.length = 0;
     oauthExchangeFailure = undefined;
     oauthExchange.mockClear();
     listDelayMs = 0;
@@ -692,6 +698,8 @@ describe("Streamable HTTP transport", () => {
     expect(createdClients[0]!.apiKey).toBe(DOWNSTREAM_ACCESS_TOKEN);
     expect(createdClients[0]!.apiKey).not.toBe(JWT_LOOKALIKE);
     expect(createdSubjectIssuedAts).toEqual([SUBJECT_ISSUED_AT]);
+    // Opt-out revocation uses original authentication time, not OBO issuance.
+    expect(createdSubjectAuthenticationTimes).toEqual([SUBJECT_ISSUED_AT - 60]);
   });
 
   it.each([
