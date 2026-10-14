@@ -506,6 +506,8 @@ export interface SliceItem {
   // they are absent (undefined) on listItems() results and present only on get().
   datasetOwnerName?: string | null;
   datasetSlug?: string | null;
+  // Read-only detail field; list and older responses may omit it.
+  masksFingerprint?: string | null;
   url: string | null;
   gpuTextureUrl: string | null;
   thumbnails: string[] | null;
@@ -530,6 +532,8 @@ export interface DatasetItem {
   // they are absent (undefined) on listItems() results and present only on get().
   datasetOwnerName?: string | null;
   datasetSlug?: string | null;
+  // Read-only detail field; list and older responses may omit it.
+  masksFingerprint?: string | null;
   url: string | null;
   gpuTextureUrl: string | null;
   thumbnails: string[] | null;
