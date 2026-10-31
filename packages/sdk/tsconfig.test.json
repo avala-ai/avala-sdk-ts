@@ -4,5 +4,5 @@
     "noEmit": true,
     "rootDir": "."
   },
-  "include": ["src", "test/itemFingerprints.test.ts"]
+  "include": ["src", "test/itemFingerprints.test.ts", "test/sequenceAnnotationStorage.test.ts"]
 }

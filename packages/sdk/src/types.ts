@@ -561,6 +561,8 @@ export interface DatasetSequence {
   cropData: Record<string, unknown> | null;
   predefinedLabels: Record<string, unknown>[] | null;
   frames: Record<string, unknown>[] | null;
+  // Detail-only discovery descriptor; list and older responses may omit it.
+  annotationStorage?: Record<string, unknown> | null;
   metrics: Record<string, unknown> | null;
   datasetUid: string | null;
   // Detail-serializer only; lets frame-derived clients classify whether their

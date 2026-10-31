@@ -174,7 +174,7 @@
     <question>Group the help requests we got in April 2026 by what was actually wrong, not by what the person wrote in the message. Give me the top three underlying causes and the share of requests each one accounts for.</question>
     <rubric>
       A correct answer MUST: (1) give three named root causes with a share or count each; (2) make clear the grouping is on diagnosed cause, joined to product/identity/work/learning/payment state, rather than on message text or ticket subject; (3) state the total request volume in the window.
-      If support records are unreachable, the correct answer says it cannot read support requests, names Intercom and email support records as the required sources, and gives no clusters.
+      If support records are unreachable, the correct answer says it cannot read support requests, names the in-house support chat (support.avala.ai) and email support records as the required sources, and gives no clusters.
       An answer is WRONG if it clusters on surface wording and presents that as root cause, or produces categories with no counts.
     </rubric>
     <why>Capability 10 and the Priority 2 support prevention agent. The doc is explicit that the goal is fewer requests, not more handled -- so cause-level grouping, not text-level, is the whole measurement.</why>
