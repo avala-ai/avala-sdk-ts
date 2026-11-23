@@ -31,6 +31,12 @@ const earningsInput = z
       .optional()
       .describe("Exact opaque coworker user UID; omitted means all coworkers."),
     currencyCursor: currency.optional(),
+    includeActivityCompleteness: z
+      .boolean()
+      .optional()
+      .describe(
+        "Ask a supporting server for per-currency activity completeness.",
+      ),
   })
   .strict()
   .refine((value) => {
@@ -79,6 +85,7 @@ const earningsOutput = z
             recordedAmount: z.string().regex(/^(?:0|[1-9][0-9]*)\.[0-9]{2}$/),
             workedTimeMs: count,
             approvedWorkedTimeMs: count,
+            activityIncomplete: z.boolean().optional(),
           })
           .strict()
           .refine((row) => row.approvedWorkedTimeMs <= row.workedTimeMs),
@@ -183,7 +190,7 @@ const earningsTool = defineReadCatalogTool({
   name: "get_billing_coworker_earnings",
   title: "Read recorded coworker earnings",
   description:
-    "Read bounded recorded coworker earnings grouped by currency. Staff billing.read required. Select complete payout periods by their date_to in a past half-open window of at most 31 days; amounts are decimal strings, time is milliseconds. Follow currency cursors with unchanged filters. Never combine currencies, sum repeated coverage across pages, infer settled payments, calculate pending earnings or attribute costs to batches. Historical completeness and settlement are unavailable; overlapping records are not deduplicated.",
+    "Read bounded recorded coworker earnings grouped by currency. Staff billing.read required. Select complete payout periods by their date_to in a past half-open window of at most 31 days; amounts are decimal strings, time is milliseconds. Request includeActivityCompleteness to identify lower-bound durations. An absent flag means completeness is unknown. Recorded cash is unaffected. Follow currency cursors with unchanged filters. Never combine currencies, sum repeated coverage across pages, infer settled payments, calculate pending earnings or attribute costs to batches. Historical completeness and settlement are unavailable; overlapping records are not deduplicated.",
   inputSchema: earningsInput,
   outputSchema: earningsOutput,
   supportsDetail: false,
@@ -226,6 +233,7 @@ const earningsTool = defineReadCatalogTool({
       periodEndedBefore: "period_ended_before",
       coworkerUid: "coworker_uid",
       currencyCursor: "currency_cursor",
+      includeActivityCompleteness: "include_activity_completeness",
       limit: "limit",
     },
     response: "single",

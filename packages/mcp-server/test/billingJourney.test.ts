@@ -64,6 +64,20 @@ afterEach(async () => {
 });
 
 describe("billing MCP evidence", () => {
+  it("keeps partial activity explicit without changing recorded cash", async () => {
+    const payload = structuredClone(earningsFixture);
+    Object.assign(payload.currencies[0]!, { activity_incomplete: true });
+    const { call } = await setup(payload);
+    const result = await call({ ...window, includeActivityCompleteness: true });
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      currencies: [{ recordedAmount: "42.35", activityIncomplete: true }],
+    });
+    expect(String(vi.mocked(globalThis.fetch).mock.calls[0]![0])).toContain(
+      "include_activity_completeness=true",
+    );
+  });
+
   it("preserves decimal money, millisecond units and unknown coverage through real MCP and SDK transports", async () => {
     const { call, fetch } = await setup();
     const result = await call();
