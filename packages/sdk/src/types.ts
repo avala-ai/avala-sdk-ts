@@ -496,6 +496,14 @@ export interface Slice {
   featuredSliceItemUrls: string[] | null;
 }
 
+/** Verified saved playback interval from the item detail response, in nanoseconds. */
+export interface PlaybackBounds {
+  originNs: string;
+  durationNs: number;
+  startOffsetNs: number;
+  endOffsetNs: number;
+}
+
 export interface SliceItem {
   isHidden: boolean;
   id: number | null;
@@ -508,6 +516,7 @@ export interface SliceItem {
   datasetSlug?: string | null;
   // Read-only detail field; list and older responses may omit it.
   masksFingerprint?: string | null;
+  playbackBounds?: PlaybackBounds | null;
   url: string | null;
   gpuTextureUrl: string | null;
   thumbnails: string[] | null;
@@ -534,6 +543,7 @@ export interface DatasetItem {
   datasetSlug?: string | null;
   // Read-only detail field; list and older responses may omit it.
   masksFingerprint?: string | null;
+  playbackBounds?: PlaybackBounds | null;
   url: string | null;
   gpuTextureUrl: string | null;
   thumbnails: string[] | null;

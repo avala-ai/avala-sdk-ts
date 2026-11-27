@@ -32,6 +32,7 @@ export type {
   CustomerQcDecision,
   Dataset,
   DatasetItem,
+  PlaybackBounds,
   DatasetSequence,
   Export,
   FleetAlert,
